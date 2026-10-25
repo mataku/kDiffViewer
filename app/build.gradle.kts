@@ -1,3 +1,5 @@
+import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.composeMultiplatform)
@@ -35,5 +37,16 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "io.github.mataku.kdiffviewer.app.MainKt"
+
+        nativeDistributions {
+            targetFormats(TargetFormat.Dmg)
+            packageName = "kDiffViewer"
+            packageVersion = "1.0.0"
+            modules("java.instrument", "jdk.unsupported")
+
+            macOS {
+                bundleID = "io.github.mataku.kdiffviewer"
+            }
+        }
     }
 }

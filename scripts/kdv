@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+app="${KDV_APP:-/Applications/kDiffViewer.app}"
+target="$(cd "${1:-.}" && pwd)"
+nohup "$app/Contents/MacOS/kDiffViewer" "$target" >/dev/null 2>&1 &
