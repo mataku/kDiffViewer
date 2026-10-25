@@ -39,4 +39,10 @@ class MessageScreensTest {
         setContent { ErrorScreen(ViewerError.GitFailed("fatal: bad"), onOpenAnother = {}) }
         onNodeWithText("fatal: bad").assertIsDisplayed()
     }
+
+    @Test
+    fun gitFailedWithBlankStderrShowsExitCode() = runComposeUiTest {
+        setContent { ErrorScreen(ViewerError.GitFailed("  \n", 128), onOpenAnother = {}) }
+        onNodeWithText("git exited with code 128").assertIsDisplayed()
+    }
 }

@@ -28,7 +28,7 @@ sealed interface LoadStatus {
 sealed interface ViewerError {
     data object GitNotFound : ViewerError
     data class NotARepository(val path: String) : ViewerError
-    data class GitFailed(val stderr: String) : ViewerError
+    data class GitFailed(val stderr: String, val exitCode: Int? = null) : ViewerError
 }
 
 data class ViewerUiState(
@@ -155,7 +155,7 @@ class DiffViewerState(
 
     private fun Throwable.toViewerError(): ViewerError = when (this) {
         is DiffLoadException.NotARepository -> ViewerError.NotARepository(path)
-        is DiffLoadException.GitFailed -> ViewerError.GitFailed(stderr)
+        is DiffLoadException.GitFailed -> ViewerError.GitFailed(stderr, exitCode)
         else -> ViewerError.GitFailed(message ?: toString())
     }
 }

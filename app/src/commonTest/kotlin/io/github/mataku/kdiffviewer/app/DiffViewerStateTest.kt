@@ -206,7 +206,7 @@ class DiffViewerStateTest {
         )
         state.open(repo)
         advanceUntilIdle()
-        assertEquals(LoadStatus.Failed(ViewerError.GitFailed("bad")), state.uiState.value.status)
+        assertEquals(LoadStatus.Failed(ViewerError.GitFailed("bad", 1)), state.uiState.value.status)
         assertEquals(2, state.uiState.value.files.size)
     }
 
@@ -237,7 +237,7 @@ class DiffViewerStateTest {
         val state = stateFor(FakeSource { flow { throw DiffLoadException.GitFailed(listOf("diff"), 128, "fatal") } })
         state.open(repo)
         advanceUntilIdle()
-        assertEquals(LoadStatus.Failed(ViewerError.GitFailed("fatal")), state.uiState.value.status)
+        assertEquals(LoadStatus.Failed(ViewerError.GitFailed("fatal", 128)), state.uiState.value.status)
     }
 
     @Test
@@ -261,7 +261,7 @@ class DiffViewerStateTest {
         )
         state.open(repo)
         advanceUntilIdle()
-        assertEquals(LoadStatus.Failed(ViewerError.GitFailed("bad")), state.uiState.value.status)
+        assertEquals(LoadStatus.Failed(ViewerError.GitFailed("bad", 1)), state.uiState.value.status)
         assertEquals(1, state.uiState.value.files.size)
     }
 

@@ -53,7 +53,7 @@ fun ErrorScreen(error: ViewerError, onOpenAnother: () -> Unit) {
                     .padding(12.dp),
             ) {
                 BasicText(
-                    text = error.stderr,
+                    text = error.details(),
                     style = TextStyle(color = colors.text, fontFamily = FontFamily.Monospace, fontSize = 12.sp),
                 )
             }
@@ -89,4 +89,10 @@ private fun ActionButton(label: String, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     )
+}
+
+private fun ViewerError.GitFailed.details(): String = when {
+    stderr.isNotBlank() -> stderr
+    exitCode != null -> "git exited with code $exitCode"
+    else -> stderr
 }
