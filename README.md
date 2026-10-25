@@ -4,7 +4,7 @@ kDiffViewer is a macOS desktop viewer for the git diff of a working tree, built 
 
 ## Requirements
 
-- JDK 21 to build
+- JDK 21 to build (the Compose JDK vendor check is disabled in `gradle.properties`, so any JDK 21 including Homebrew OpenJDK works)
 - git at runtime
 
 ## Run from source
