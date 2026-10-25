@@ -37,7 +37,7 @@ scripts/generate-large-diff.sh <dir> [ext]   # create a large repository for man
 
 ## Workflow
 
-- Branch from `develop` and open pull requests against `develop`. CI runs on pushes to `develop` and on pull requests.
+- Branch from `develop` and open pull requests against `develop`. CI runs on pushes to `develop` and on pull requests, on the `xcode-27` runner (macOS 27, arm64): ComposeSyntaxHighlighter bundles its grammar libraries only for macOS 26+, so the tests that load real languages cannot run on Linux.
 - Follow `.github/PULL_REQUEST_TEMPLATE.md`; PRs that change the UI need screenshots.
 - Design specs and plans live under `docs/superpowers/`, which is gitignored and exists only on the owner's machine. The roadmap is the "Out of scope (future list)" section of `docs/superpowers/specs/2026-10-25-kdiffviewer-first-goal-design.md`.
 
