@@ -10,6 +10,9 @@ pluginManagement {
 
 dependencyResolutionManagement {
   repositories {
+    mavenLocal {
+      content { includeGroup("io.github.mataku") }
+    }
     mavenCentral()
     google()
   }
