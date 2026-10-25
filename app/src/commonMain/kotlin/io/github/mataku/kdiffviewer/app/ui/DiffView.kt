@@ -100,7 +100,7 @@ private fun FileHeaderRow(row: DiffRow.FileHeader) {
 private fun HunkHeaderRow(row: DiffRow.HunkHeader) {
     val colors = LocalDiffColors.current
     BasicText(
-        text = row.hunk.header,
+        text = expandTabs(row.hunk.header),
         modifier = Modifier
             .fillMaxWidth()
             .background(colors.hunkBackground)
@@ -147,7 +147,7 @@ private fun LineRow(line: DiffLine) {
             )
         }
         BasicText(
-            text = line.text,
+            text = expandTabs(line.text),
             modifier = Modifier.weight(1f).fillMaxHeight().background(contentBackground),
             style = mono.copy(color = colors.text),
         )

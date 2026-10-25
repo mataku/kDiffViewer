@@ -50,6 +50,14 @@ class ViewerScreenTest {
     }
 
     @Test
+    fun expandsTabsInLineText() = runComposeUiTest {
+        val line = DiffLine(LineKind.Added, "\tval x = 1", null, 1)
+        val file = FileDiff(null, "t.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", listOf(line)))))
+        setContent { ViewerScreen(stateOf(listOf(file)), {}) }
+        onNodeWithText("        val x = 1").assertIsDisplayed()
+    }
+
+    @Test
     fun showsRenameAndBadges() = runComposeUiTest {
         val renamed = FileDiff("a.txt", "b.txt", ChangeType.Renamed, false, DiffContent.Text(emptyList()))
         val untracked = FileDiff(null, "n.txt", ChangeType.Added, true, DiffContent.Text(emptyList()))
