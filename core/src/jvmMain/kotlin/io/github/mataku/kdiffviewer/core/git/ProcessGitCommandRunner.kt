@@ -1,13 +1,14 @@
 package io.github.mataku.kdiffviewer.core.git
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -22,11 +23,9 @@ class ProcessGitCommandRunner(private val gitExecutable: String) : GitCommandRun
             return@withContext GitResult(-1, "", e.message ?: "Failed to start git")
         }
         guarded(process) {
-            coroutineScope {
-                val stderr = async { process.errorStream.readBytes().decodeToString() }
-                val stdout = process.inputStream.readBytes().decodeToString()
-                GitResult(process.waitFor(), stdout, stderr.await())
-            }
+            val stderr = async { process.errorStream.readBytes().decodeToString() }
+            val stdout = process.inputStream.readBytes().decodeToString()
+            GitResult(process.waitFor(), stdout, stderr.await())
         }
     }
 
@@ -37,15 +36,13 @@ class ProcessGitCommandRunner(private val gitExecutable: String) : GitCommandRun
             throw GitCommandFailedException(args, -1, e.message ?: "Failed to start git")
         }
         guarded(process) {
-            coroutineScope {
-                val stderr = async { process.errorStream.readBytes().decodeToString() }
-                InputStreamReader(process.inputStream, Charsets.UTF_8).use { reader ->
-                    reader.forEachLine { emit(it) }
-                }
-                val errorText = stderr.await()
-                val exitCode = process.waitFor()
-                if (exitCode != 0) throw GitCommandFailedException(args, exitCode, errorText)
+            val stderr = async { process.errorStream.readBytes().decodeToString() }
+            InputStreamReader(process.inputStream, Charsets.UTF_8).use { reader ->
+                reader.forEachLine { emit(it) }
             }
+            val errorText = stderr.await()
+            val exitCode = process.waitFor()
+            if (exitCode != 0) throw GitCommandFailedException(args, exitCode, errorText)
         }
     }.flowOn(Dispatchers.IO)
 
@@ -58,14 +55,23 @@ class ProcessGitCommandRunner(private val gitExecutable: String) : GitCommandRun
             .also { it.outputStream.close() }
     }
 
-    private suspend fun <T> guarded(process: Process, block: suspend () -> T): T {
-        val handle = currentCoroutineContext().job.invokeOnCompletion { process.destroyForcibly() }
-        try {
-            return block()
-        } finally {
-            handle.dispose()
-            if (process.isAlive) process.destroyForcibly()
+    private suspend fun <T> guarded(process: Process, block: suspend CoroutineScope.() -> T): T = try {
+        coroutineScope {
+            val watcher = launch {
+                try {
+                    awaitCancellation()
+                } finally {
+                    process.destroyForcibly()
+                }
+            }
+            try {
+                block()
+            } finally {
+                watcher.cancel()
+            }
         }
+    } finally {
+        if (process.isAlive) process.destroyForcibly()
     }
 }
 

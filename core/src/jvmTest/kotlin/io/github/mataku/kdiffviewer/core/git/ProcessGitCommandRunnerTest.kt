@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.core.git
 
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -101,5 +102,25 @@ class ProcessGitCommandRunnerTest {
             ProcessGitCommandRunner(requireGit()).streamLines("/no/such/dir", listOf("status")).toList()
         }
         assertEquals(-1, e.exitCode)
+    }
+
+    @Test
+    fun cancellingSilentStreamDestroysProcessPromptly() = runBlocking<Unit> {
+        val script = writeScript(dir, "silent.sh", "exec sleep 30")
+        val started = System.nanoTime()
+        assertFailsWith<TimeoutCancellationException> {
+            withTimeout(1000) { ProcessGitCommandRunner(script.path).streamLines(dir.path, emptyList()).toList() }
+        }
+        assertTrue((System.nanoTime() - started) / 1_000_000 < 5000)
+    }
+
+    @Test
+    fun cancellingSilentRunDestroysProcessPromptly() = runBlocking<Unit> {
+        val script = writeScript(dir, "silent.sh", "exec sleep 30")
+        val started = System.nanoTime()
+        assertFailsWith<TimeoutCancellationException> {
+            withTimeout(1000) { ProcessGitCommandRunner(script.path).run(dir.path, emptyList()) }
+        }
+        assertTrue((System.nanoTime() - started) / 1_000_000 < 5000)
     }
 }
