@@ -2,7 +2,7 @@
 
 kDiffViewer is a macOS desktop viewer for the git diff of a working tree, built with Kotlin Multiplatform and Compose Desktop. It shows a GitHub-like unified diff with a file tree and streams large diffs in as they load.
 
-Syntax highlighting covers Kotlin, Ruby, Go, and Rust.
+Syntax highlighting covers Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScript, TypeScript, and Markdown.
 
 ## Requirements
 

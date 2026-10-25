@@ -21,6 +21,12 @@ composeSyntaxHighlight-kotlin = { module = "io.github.mataku:compose-syntax-high
 composeSyntaxHighlight-ruby = { module = "io.github.mataku:compose-syntax-highlight-ruby", version.ref = "composeSyntaxHighlight" }
 composeSyntaxHighlight-go = { module = "io.github.mataku:compose-syntax-highlight-go", version.ref = "composeSyntaxHighlight" }
 composeSyntaxHighlight-rust = { module = "io.github.mataku:compose-syntax-highlight-rust", version.ref = "composeSyntaxHighlight" }
+composeSyntaxHighlight-swift = { module = "io.github.mataku:compose-syntax-highlight-swift", version.ref = "composeSyntaxHighlight" }
+composeSyntaxHighlight-python = { module = "io.github.mataku:compose-syntax-highlight-python", version.ref = "composeSyntaxHighlight" }
+composeSyntaxHighlight-java = { module = "io.github.mataku:compose-syntax-highlight-java", version.ref = "composeSyntaxHighlight" }
+composeSyntaxHighlight-javascript = { module = "io.github.mataku:compose-syntax-highlight-javascript", version.ref = "composeSyntaxHighlight" }
+composeSyntaxHighlight-typescript = { module = "io.github.mataku:compose-syntax-highlight-typescript", version.ref = "composeSyntaxHighlight" }
+composeSyntaxHighlight-markdown = { module = "io.github.mataku:compose-syntax-highlight-markdown", version.ref = "composeSyntaxHighlight" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
