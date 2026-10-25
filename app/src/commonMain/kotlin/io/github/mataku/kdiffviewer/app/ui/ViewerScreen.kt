@@ -88,7 +88,7 @@ fun ViewerScreen(
             style = TextStyle(color = colors.mutedText, fontSize = 14.sp),
           )
         } else {
-          DiffView(rows = state.rows, listState = listState)
+          DiffView(rows = state.rows, highlights = state.highlights, listState = listState)
         }
       }
     }

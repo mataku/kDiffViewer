@@ -4,8 +4,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
+import io.github.mataku.compose.highlight.core.LocalSyntaxTheme
+import io.github.mataku.compose.highlight.core.SyntaxTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 
 @OptIn(ExperimentalTestApi::class)
 class KdvThemeTest {
@@ -38,5 +41,18 @@ class KdvThemeTest {
     waitForIdle()
     assertEquals(DarkDiffColors.background, background)
     assertEquals(DarkDiffColors.text, onBackground)
+  }
+
+  @Test
+  fun darkThemeProvidesDarkSyntaxTheme() = runComposeUiTest {
+    var dark: SyntaxTheme? = null
+    var light: SyntaxTheme? = null
+    setContent {
+      KdvTheme(darkTheme = true) { dark = LocalSyntaxTheme.current }
+      KdvTheme(darkTheme = false) { light = LocalSyntaxTheme.current }
+    }
+    waitForIdle()
+    assertSame(DarkSyntaxTheme, dark)
+    assertSame(LightSyntaxTheme, light)
   }
 }

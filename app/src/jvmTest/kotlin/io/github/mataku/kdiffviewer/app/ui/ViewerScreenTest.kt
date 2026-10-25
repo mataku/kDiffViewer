@@ -6,7 +6,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -15,12 +17,16 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import io.github.mataku.compose.highlight.core.HighlightSpan
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.buildFileTree
 import io.github.mataku.kdiffviewer.app.flattenRows
+import io.github.mataku.kdiffviewer.app.highlight.FileHighlight
+import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -138,4 +144,44 @@ class ViewerScreenTest {
     onNodeWithTag("reload-button").performClick()
     assertEquals(1, count)
   }
+
+  private fun keywordFile(): FileDiff {
+    val line = DiffLine(LineKind.Added, "fun x", null, 1)
+    return FileDiff(null, "k.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", listOf(line)))))
+  }
+
+  private fun keywordHighlight() = FileHighlight(arrayOf(arrayOf(listOf(HighlightSpan(0, 3, "keyword")))))
+
+  @Test
+  fun highlightedLineUsesSyntaxColors() = runComposeUiTest {
+    val file = keywordFile()
+    val slot = HighlightSlot().apply { value = keywordHighlight() }
+    setContent { KdvTheme(darkTheme = false) { ViewerScreen(stateOf(listOf(file)).copy(highlights = listOf(slot)), {}) } }
+    val ranges = lineText("fun x").spanStyles
+    assertEquals(1, ranges.size)
+    assertEquals(0, ranges[0].start)
+    assertEquals(3, ranges[0].end)
+    assertEquals(LightSyntaxTheme.resolve("keyword")!!.color, ranges[0].item.color)
+  }
+
+  @Test
+  fun slotWriteRecolorsVisibleLine() = runComposeUiTest {
+    val file = keywordFile()
+    val slot = HighlightSlot()
+    setContent { KdvTheme(darkTheme = false) { ViewerScreen(stateOf(listOf(file)).copy(highlights = listOf(slot)), {}) } }
+    assertEquals(emptyList(), lineText("fun x").spanStyles)
+    slot.value = keywordHighlight()
+    waitForIdle()
+    val ranges = lineText("fun x").spanStyles
+    assertEquals(1, ranges.size)
+    assertEquals(LightSyntaxTheme.resolve("keyword")!!.color, ranges[0].item.color)
+  }
+
+  @Test
+  fun lineWithoutSpansStaysPlain() = runComposeUiTest {
+    setContent { KdvTheme(darkTheme = false) { ViewerScreen(stateOf(listOf(keywordFile())), {}) } }
+    assertEquals(emptyList(), lineText("fun x").spanStyles)
+  }
 }
+
+fun SemanticsNodeInteractionsProvider.lineText(text: String): AnnotatedString = onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode().config[SemanticsProperties.Text].single()
