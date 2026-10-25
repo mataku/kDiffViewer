@@ -161,6 +161,7 @@ class HighlightPipelineTest {
     val (_, slots) = runEntries(pipeline(source, FakeHighlighter()), addition("notes.txt"))
 
     assertEquals(emptyList(), source.reads)
+    assertEquals(0, source.opens)
     assertNull(slots[0].value)
   }
 

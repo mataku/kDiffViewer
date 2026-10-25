@@ -410,7 +410,7 @@ class DiffViewerStateTest {
     state.open(repo)
     advanceTimeBy(100)
     runCurrent()
-    assertEquals(listOf("a.kt", "b.kt", "c.kt"), highlighter.calls.distinct())
+    assertEquals(listOf("a.kt", "b.kt", "c.kt"), highlighter.calls)
     state.uiState.value.highlights.forEach { assertNotNull(it.value) }
   }
 

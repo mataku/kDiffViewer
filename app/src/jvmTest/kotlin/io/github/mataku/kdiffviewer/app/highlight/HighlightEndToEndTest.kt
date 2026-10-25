@@ -50,6 +50,7 @@ class HighlightEndToEndTest {
   private class InMemoryContentSource(
     private val texts: (session: Int, path: String, side: Side) -> String?,
     private val beforeRead: suspend (session: Int) -> Unit = {},
+    private val onClose: (session: Int) -> Unit = {},
   ) : ContentSource {
     private val opens = AtomicInteger()
     val reads = ConcurrentLinkedQueue<String>()
@@ -64,7 +65,7 @@ class HighlightEndToEndTest {
           return texts(session, path, side)
         }
 
-        override fun close() {}
+        override fun close() = onClose(session)
       }
     }
   }
@@ -160,6 +161,7 @@ class HighlightEndToEndTest {
     val firstReadStarted = CompletableDeferred<Unit>()
     val releaseFirstRead = CompletableDeferred<Unit>()
     val firstReadReturned = CompletableDeferred<Unit>()
+    val firstSessionClosed = CompletableDeferred<Unit>()
     val content = InMemoryContentSource(
       texts = { session, _, _ -> if (session == 1) "val a = 1\n" else "val b = 2\n" },
       beforeRead = { session ->
@@ -169,6 +171,7 @@ class HighlightEndToEndTest {
           firstReadReturned.complete(Unit)
         }
       },
+      onClose = { session -> if (session == 1) firstSessionClosed.complete(Unit) },
     )
     val source = InMemoryDiffSource(listOf(added("A.kt", "val a = 1")))
     runViewer(source, content) { state ->
@@ -182,8 +185,7 @@ class HighlightEndToEndTest {
       assertTrue(lineText("val b = 2").hasSpan(0, 3, "keyword"))
 
       releaseFirstRead.complete(Unit)
-      waitUntil(timeoutMillis = 10_000) { firstReadReturned.isCompleted }
-      Thread.sleep(300)
+      waitUntil(timeoutMillis = 10_000) { firstReadReturned.isCompleted && firstSessionClosed.isCompleted }
       Snapshot.sendApplyNotifications()
       assertEquals(1, firstSlots.size)
       firstSlots.zip(firstValues).forEach { (slot, value) -> assertTrue(slot.value === value) }
