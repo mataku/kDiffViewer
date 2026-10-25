@@ -25,6 +25,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.DiffRow
@@ -76,21 +77,27 @@ private fun FileHeaderRow(row: DiffRow.FileHeader) {
     ) {
         BasicText(
             text = row.file.headerTitle(),
+            modifier = Modifier.weight(1f, fill = false),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             style = TextStyle(color = colors.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
         )
         BasicText(
             text = row.file.badge(),
             modifier = Modifier
+                .testTag("file-badge-${row.fileIndex}")
                 .border(1.dp, colors.border, RoundedCornerShape(10.dp))
                 .padding(horizontal = 6.dp, vertical = 1.dp),
             style = TextStyle(color = colors.mutedText, fontSize = 11.sp),
         )
         BasicText(
             text = "+${row.stats.additions}",
+            modifier = Modifier.testTag("file-additions-${row.fileIndex}"),
             style = TextStyle(color = colors.addedText, fontSize = 12.sp),
         )
         BasicText(
             text = "$MINUS${row.stats.deletions}",
+            modifier = Modifier.testTag("file-deletions-${row.fileIndex}"),
             style = TextStyle(color = colors.removedText, fontSize = 12.sp),
         )
     }

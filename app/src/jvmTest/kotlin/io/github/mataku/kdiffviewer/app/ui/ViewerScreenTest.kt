@@ -1,6 +1,10 @@
 package io.github.mataku.kdiffviewer.app.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -22,6 +26,7 @@ import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class ViewerScreenTest {
@@ -55,6 +60,20 @@ class ViewerScreenTest {
         val file = FileDiff(null, "t.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", listOf(line)))))
         setContent { ViewerScreen(stateOf(listOf(file)), {}) }
         onNodeWithText("        val x = 1").assertIsDisplayed()
+    }
+
+    @Test
+    fun longPathKeepsBadgeAndStatsVisible() = runComposeUiTest {
+        val path = "very/long/" + "nested-directory/".repeat(5) + "a-file-with-a-rather-long-name.kt"
+        setContent {
+            Box(modifier = Modifier.width(800.dp)) {
+                ViewerScreen(stateOf(listOf(modified(path))), {})
+            }
+        }
+        listOf("file-badge-0", "file-additions-0", "file-deletions-0").forEach { tag ->
+            val width = onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().size.width
+            assertTrue(width > 0, "$tag width=$width")
+        }
     }
 
     @Test
