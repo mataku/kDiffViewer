@@ -97,4 +97,18 @@ class DisplayTextTest {
     val result = displayText("fun", listOf(HighlightSpan(0, 3, "keyword")), themed)
     assertEquals(listOf(AnnotatedString.Range(red, 0, 3)), result.spanStyles)
   }
+
+  @Test
+  fun tabAtNonZeroColumnInsideSpanWidensIt() {
+    val result = displayText("ab\tc", listOf(HighlightSpan(0, 4, "string")), theme)
+    assertEquals("ab      c", result.text)
+    assertEquals(listOf(AnnotatedString.Range(blue, 0, 9)), result.spanStyles)
+  }
+
+  @Test
+  fun displayTextMatchesExpandTabs() {
+    listOf("", "abc", "ab\tc", "\ta\tb", "\t\t", "abcdefgh\ti").forEach {
+      assertEquals(expandTabs(it), displayText(it, emptyList(), theme).text)
+    }
+  }
 }
