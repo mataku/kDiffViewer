@@ -31,3 +31,9 @@ kotlin {
         }
     }
 }
+
+compose.desktop {
+    application {
+        mainClass = "io.github.mataku.kdiffviewer.app.MainKt"
+    }
+}
