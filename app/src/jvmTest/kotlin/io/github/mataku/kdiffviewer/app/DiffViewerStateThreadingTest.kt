@@ -20,35 +20,35 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class DiffViewerStateThreadingTest {
-    private val fileCount = 3000
+  private val fileCount = 3000
 
-    private val source = object : DiffSource {
-        override fun load(repo: RepoPath): Flow<FileDiff> = flow {
-            repeat(fileCount) { index ->
-                emit(FileDiff("f$index", "f$index", ChangeType.Modified, false, DiffContent.Text(emptyList())))
-                if (index % 7 == 0) yield()
-            }
-        }
+  private val source = object : DiffSource {
+    override fun load(repo: RepoPath): Flow<FileDiff> = flow {
+      repeat(fileCount) { index ->
+        emit(FileDiff("f$index", "f$index", ChangeType.Modified, false, DiffContent.Text(emptyList())))
+        if (index % 7 == 0) yield()
+      }
     }
+  }
 
-    @Test
-    fun everyFileIsPublishedOnARealSingleThreadedDispatcher() {
-        val executor = Executors.newSingleThreadExecutor()
-        val dispatcher = executor.asCoroutineDispatcher()
-        val scope = CoroutineScope(SupervisorJob() + dispatcher)
-        try {
-            repeat(20) { attempt ->
-                val state = DiffViewerState(source, scope, 1)
-                runBlocking(dispatcher) { state.open(RepoPath("/repo")) }
-                val ui = runBlocking {
-                    withTimeout(30_000) { state.uiState.first { it.status != LoadStatus.Loading } }
-                }
-                assertEquals(LoadStatus.Done, ui.status, "attempt $attempt")
-                assertEquals(fileCount, ui.files.size, "attempt $attempt")
-            }
-        } finally {
-            scope.cancel()
-            dispatcher.close()
+  @Test
+  fun everyFileIsPublishedOnARealSingleThreadedDispatcher() {
+    val executor = Executors.newSingleThreadExecutor()
+    val dispatcher = executor.asCoroutineDispatcher()
+    val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    try {
+      repeat(20) { attempt ->
+        val state = DiffViewerState(source, scope, 1)
+        runBlocking(dispatcher) { state.open(RepoPath("/repo")) }
+        val ui = runBlocking {
+          withTimeout(30_000) { state.uiState.first { it.status != LoadStatus.Loading } }
         }
+        assertEquals(LoadStatus.Done, ui.status, "attempt $attempt")
+        assertEquals(fileCount, ui.files.size, "attempt $attempt")
+      }
+    } finally {
+      scope.cancel()
+      dispatcher.close()
     }
+  }
 }

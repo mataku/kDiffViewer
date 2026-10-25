@@ -8,41 +8,44 @@ import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.stats
 
 sealed interface DiffRow {
-    val key: String
+  val key: String
 
-    data class FileHeader(val fileIndex: Int, val file: FileDiff, val stats: DiffStats) : DiffRow {
-        override val key: String get() = "f$fileIndex"
-    }
+  data class FileHeader(val fileIndex: Int, val file: FileDiff, val stats: DiffStats) : DiffRow {
+    override val key: String get() = "f$fileIndex"
+  }
 
-    data class HunkHeader(val fileIndex: Int, val hunkIndex: Int, val hunk: Hunk) : DiffRow {
-        override val key: String get() = "h$fileIndex-$hunkIndex"
-    }
+  data class HunkHeader(val fileIndex: Int, val hunkIndex: Int, val hunk: Hunk) : DiffRow {
+    override val key: String get() = "h$fileIndex-$hunkIndex"
+  }
 
-    data class Line(val fileIndex: Int, val hunkIndex: Int, val lineIndex: Int, val line: DiffLine) : DiffRow {
-        override val key: String get() = "l$fileIndex-$hunkIndex-$lineIndex"
-    }
+  data class Line(val fileIndex: Int, val hunkIndex: Int, val lineIndex: Int, val line: DiffLine) : DiffRow {
+    override val key: String get() = "l$fileIndex-$hunkIndex-$lineIndex"
+  }
 
-    data class Placeholder(val fileIndex: Int, val message: String) : DiffRow {
-        override val key: String get() = "p$fileIndex"
-    }
+  data class Placeholder(val fileIndex: Int, val message: String) : DiffRow {
+    override val key: String get() = "p$fileIndex"
+  }
 }
 
 fun flattenRows(files: List<FileDiff>, startIndex: Int = 0): List<DiffRow> {
-    val rows = ArrayList<DiffRow>()
-    files.forEachIndexed { position, file ->
-        val fileIndex = startIndex + position
-        rows += DiffRow.FileHeader(fileIndex, file, file.stats)
-        when (val content = file.content) {
-            is DiffContent.Text -> content.hunks.forEachIndexed { hunkIndex, hunk ->
-                rows += DiffRow.HunkHeader(fileIndex, hunkIndex, hunk)
-                hunk.lines.forEachIndexed { lineIndex, line ->
-                    rows += DiffRow.Line(fileIndex, hunkIndex, lineIndex, line)
-                }
-            }
-            DiffContent.Binary -> rows += DiffRow.Placeholder(fileIndex, "Binary file not shown")
-            DiffContent.TooLarge -> rows += DiffRow.Placeholder(fileIndex, "File too large to display")
-            DiffContent.Unparseable -> rows += DiffRow.Placeholder(fileIndex, "Could not parse this diff")
+  val rows = ArrayList<DiffRow>()
+  files.forEachIndexed { position, file ->
+    val fileIndex = startIndex + position
+    rows += DiffRow.FileHeader(fileIndex, file, file.stats)
+    when (val content = file.content) {
+      is DiffContent.Text -> content.hunks.forEachIndexed { hunkIndex, hunk ->
+        rows += DiffRow.HunkHeader(fileIndex, hunkIndex, hunk)
+        hunk.lines.forEachIndexed { lineIndex, line ->
+          rows += DiffRow.Line(fileIndex, hunkIndex, lineIndex, line)
         }
+      }
+
+      DiffContent.Binary -> rows += DiffRow.Placeholder(fileIndex, "Binary file not shown")
+
+      DiffContent.TooLarge -> rows += DiffRow.Placeholder(fileIndex, "File too large to display")
+
+      DiffContent.Unparseable -> rows += DiffRow.Placeholder(fileIndex, "Could not parse this diff")
     }
-    return rows
+  }
+  return rows
 }

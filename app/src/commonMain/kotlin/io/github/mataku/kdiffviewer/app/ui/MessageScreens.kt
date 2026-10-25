@@ -26,72 +26,72 @@ import io.github.mataku.kdiffviewer.app.ViewerError
 
 @Composable
 fun OpenRepositoryScreen(onOpen: () -> Unit) {
-    MessageLayout {
-        ActionButton("Open Repository…", onOpen)
-    }
+  MessageLayout {
+    ActionButton("Open Repository…", onOpen)
+  }
 }
 
 @Composable
 fun ErrorScreen(error: ViewerError, onOpenAnother: () -> Unit) {
-    MessageLayout {
-        val colors = LocalDiffColors.current
-        val message = when (error) {
-            ViewerError.GitNotFound -> "git was not found. Install git and restart kDiffViewer."
-            is ViewerError.NotARepository -> "${error.path} is not a git repository."
-            is ViewerError.GitFailed -> "git failed."
-        }
-        BasicText(text = message, style = TextStyle(color = colors.removedText, fontSize = 15.sp))
-        if (error is ViewerError.GitFailed) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 320.dp)
-                    .border(1.dp, colors.border)
-                    .background(colors.fileHeaderBackground)
-                    .verticalScroll(rememberScrollState())
-                    .padding(12.dp),
-            ) {
-                BasicText(
-                    text = error.details(),
-                    style = TextStyle(color = colors.text, fontFamily = FontFamily.Monospace, fontSize = 12.sp),
-                )
-            }
-        }
-        ActionButton("Open Another Folder…", onOpenAnother)
+  MessageLayout {
+    val colors = LocalDiffColors.current
+    val message = when (error) {
+      ViewerError.GitNotFound -> "git was not found. Install git and restart kDiffViewer."
+      is ViewerError.NotARepository -> "${error.path} is not a git repository."
+      is ViewerError.GitFailed -> "git failed."
     }
+    BasicText(text = message, style = TextStyle(color = colors.removedText, fontSize = 15.sp))
+    if (error is ViewerError.GitFailed) {
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .heightIn(max = 320.dp)
+          .border(1.dp, colors.border)
+          .background(colors.fileHeaderBackground)
+          .verticalScroll(rememberScrollState())
+          .padding(12.dp),
+      ) {
+        BasicText(
+          text = error.details(),
+          style = TextStyle(color = colors.text, fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+        )
+      }
+    }
+    ActionButton("Open Another Folder…", onOpenAnother)
+  }
 }
 
 @Composable
 private fun MessageLayout(content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalDiffColors provides LightDiffColors) {
-        Box(modifier = Modifier.fillMaxSize().background(LocalDiffColors.current.background), contentAlignment = Alignment.Center) {
-            Column(
-                modifier = Modifier.padding(32.dp).widthIn(max = 640.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                content()
-            }
-        }
+  CompositionLocalProvider(LocalDiffColors provides LightDiffColors) {
+    Box(modifier = Modifier.fillMaxSize().background(LocalDiffColors.current.background), contentAlignment = Alignment.Center) {
+      Column(
+        modifier = Modifier.padding(32.dp).widthIn(max = 640.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+      ) {
+        content()
+      }
     }
+  }
 }
 
 @Composable
 private fun ActionButton(label: String, onClick: () -> Unit) {
-    val colors = LocalDiffColors.current
-    BasicText(
-        text = label,
-        style = TextStyle(color = colors.text, fontSize = 14.sp),
-        modifier = Modifier
-            .border(1.dp, colors.border)
-            .background(colors.fileHeaderBackground)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    )
+  val colors = LocalDiffColors.current
+  BasicText(
+    text = label,
+    style = TextStyle(color = colors.text, fontSize = 14.sp),
+    modifier = Modifier
+      .border(1.dp, colors.border)
+      .background(colors.fileHeaderBackground)
+      .clickable(onClick = onClick)
+      .padding(horizontal = 16.dp, vertical = 8.dp),
+  )
 }
 
 private fun ViewerError.GitFailed.details(): String = when {
-    stderr.isNotBlank() -> stderr
-    exitCode != null -> "git exited with code $exitCode"
-    else -> stderr
+  stderr.isNotBlank() -> stderr
+  exitCode != null -> "git exited with code $exitCode"
+  else -> stderr
 }

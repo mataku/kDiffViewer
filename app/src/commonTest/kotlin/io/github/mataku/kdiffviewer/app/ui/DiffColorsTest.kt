@@ -5,8 +5,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class DiffColorsTest {
-    @Test
-    fun lightBackgroundIsWhite() {
-        assertEquals(Color(0xFFFFFFFF), LightDiffColors.background)
-    }
+  @Test
+  fun lightBackgroundIsWhite() {
+    assertEquals(Color(0xFFFFFFFF), LightDiffColors.background)
+  }
 }

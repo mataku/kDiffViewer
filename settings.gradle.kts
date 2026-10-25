@@ -1,18 +1,18 @@
 rootProject.name = "kDiffViewer"
 
 pluginManagement {
-    repositories {
-        mavenCentral()
-        google()
-        gradlePluginPortal()
-    }
+  repositories {
+    mavenCentral()
+    google()
+    gradlePluginPortal()
+  }
 }
 
 dependencyResolutionManagement {
-    repositories {
-        mavenCentral()
-        google()
-    }
+  repositories {
+    mavenCentral()
+    google()
+  }
 }
 
 include(":core")
