@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Color
 
 @Immutable
 data class DiffColors(
+    val background: Color,
     val text: Color,
     val mutedText: Color,
     val border: Color,
@@ -21,6 +22,7 @@ data class DiffColors(
 )
 
 val LightDiffColors = DiffColors(
+    background = Color(0xFFFFFFFF),
     text = Color(0xFF1F2328),
     mutedText = Color(0xFF656D76),
     border = Color(0xFFD0D7DE),

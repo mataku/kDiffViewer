@@ -18,7 +18,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -65,7 +64,7 @@ fun ErrorScreen(error: ViewerError, onOpenAnother: () -> Unit) {
 @Composable
 private fun MessageLayout(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalDiffColors provides LightDiffColors) {
-        Box(modifier = Modifier.fillMaxSize().background(Color.White), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxSize().background(LocalDiffColors.current.background), contentAlignment = Alignment.Center) {
             Column(
                 modifier = Modifier.padding(32.dp).widthIn(max = 640.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,

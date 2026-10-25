@@ -141,7 +141,7 @@ private fun LineRow(line: DiffLine) {
     val (contentBackground, numberBackground, marker) = when (line.kind) {
         LineKind.Added -> Triple(colors.addedBackground, colors.addedLineNumberBackground, "+")
         LineKind.Removed -> Triple(colors.removedBackground, colors.removedLineNumberBackground, "-")
-        else -> Triple(Color.Transparent, Color.Transparent, " ")
+        else -> Triple(colors.background, colors.background, " ")
     }
     Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         LineNumberCell(line.oldLineNo, numberBackground, mono.copy(color = colors.mutedText))
