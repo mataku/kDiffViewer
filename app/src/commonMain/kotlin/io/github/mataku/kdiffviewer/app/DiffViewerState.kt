@@ -1,5 +1,9 @@
 package io.github.mataku.kdiffviewer.app
 
+import io.github.mataku.kdiffviewer.app.highlight.HighlightEntry
+import io.github.mataku.kdiffviewer.app.highlight.HighlightPipeline
+import io.github.mataku.kdiffviewer.app.highlight.HighlightRun
+import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.core.git.DiffLoadException
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.model.FileDiff
@@ -39,17 +43,20 @@ data class ViewerUiState(
   val fileHeaderRowIndex: List<Int> = emptyList(),
   val tree: List<TreeRow> = emptyList(),
   val loadId: Long = 0,
+  val highlights: List<HighlightSlot> = emptyList(),
 )
 
 class DiffViewerState(
   private val source: DiffSource?,
   private val scope: CoroutineScope,
   private val batchWindowMillis: Long = 16,
+  private val highlightPipeline: HighlightPipeline<*>? = null,
 ) {
   private val mutableUiState = MutableStateFlow(ViewerUiState())
   val uiState: StateFlow<ViewerUiState> = mutableUiState.asStateFlow()
 
   private var loadJob: Job? = null
+  private var highlightRun: HighlightRun? = null
   private var nextLoadId = 0L
 
   @Volatile
@@ -58,6 +65,8 @@ class DiffViewerState(
   fun open(repo: RepoPath) {
     loadJob?.cancel()
     loadJob = null
+    highlightRun?.cancel()
+    highlightRun = null
     val token = Any()
     currentLoad = token
     val loadId = ++nextLoadId
@@ -68,9 +77,11 @@ class DiffViewerState(
     }
     mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Loading, loadId = loadId)
     val accumulator = LoadAccumulator()
+    val run = highlightPipeline?.start(scope, repo)
+    highlightRun = run
     loadJob = scope.launch {
       try {
-        load(diffSource, repo, token, accumulator)
+        load(diffSource, repo, token, accumulator, run)
         updateIfCurrent(token) { it.copy(status = LoadStatus.Done, tree = accumulator.tree.rows()) }
       } catch (e: Throwable) {
         ensureActive()
@@ -84,7 +95,7 @@ class DiffViewerState(
     open(repo)
   }
 
-  private suspend fun load(diffSource: DiffSource, repo: RepoPath, token: Any, accumulator: LoadAccumulator) = coroutineScope {
+  private suspend fun load(diffSource: DiffSource, repo: RepoPath, token: Any, accumulator: LoadAccumulator, run: HighlightRun?) = coroutineScope {
     val channel = Channel<FileDiff>(Channel.UNLIMITED)
     launch {
       var failure: Throwable? = null
@@ -107,7 +118,7 @@ class DiffViewerState(
         buffer += first.getOrThrow()
         delay(batchWindowMillis)
         val closure = drainInto(channel, buffer)
-        publish(buffer, token, accumulator)
+        publish(buffer, token, accumulator, run)
         buffer.clear()
         if (closure != null) {
           closure.exceptionOrNull()?.let { throw it }
@@ -134,14 +145,16 @@ class DiffViewerState(
     mutableUiState.update { current -> if (currentLoad === token) transform(current) else current }
   }
 
-  private fun publish(batch: List<FileDiff>, token: Any, accumulator: LoadAccumulator) {
-    accumulator.append(batch)
+  private fun publish(batch: List<FileDiff>, token: Any, accumulator: LoadAccumulator, run: HighlightRun?) {
+    val entries = accumulator.append(batch)
+    run?.submit(entries)
+    val highlights = accumulator.highlights.snapshot()
     val files = accumulator.files.snapshot()
     val rows = accumulator.rows.snapshot()
     val headerIndex = accumulator.fileHeaderRowIndex.snapshot()
     val tree = accumulator.tree.rowsIfDue()
     updateIfCurrent(token) { current ->
-      current.copy(files = files, rows = rows, fileHeaderRowIndex = headerIndex, tree = tree)
+      current.copy(files = files, rows = rows, fileHeaderRowIndex = headerIndex, tree = tree, highlights = highlights)
     }
   }
 
@@ -149,20 +162,24 @@ class DiffViewerState(
     val files = AppendBuffer<FileDiff>()
     val rows = AppendBuffer<DiffRow>()
     val fileHeaderRowIndex = AppendBuffer<Int>()
+    val highlights = AppendBuffer<HighlightSlot>()
     val tree = FileTreeBuilder()
     private var fileCount = 0
     private var rowCount = 0
 
-    fun append(batch: List<FileDiff>) {
+    fun append(batch: List<FileDiff>): List<HighlightEntry> {
       val newRows = flattenRows(batch, fileCount)
       newRows.forEachIndexed { offset, row ->
         if (row is DiffRow.FileHeader) fileHeaderRowIndex.add(rowCount + offset)
       }
+      val entries = batch.mapIndexed { offset, file -> HighlightEntry(fileCount + offset, file, HighlightSlot()) }
       files.addAll(batch)
+      highlights.addAll(entries.map { it.slot })
       rows.addAll(newRows)
       tree.add(batch)
       fileCount += batch.size
       rowCount += newRows.size
+      return entries
     }
   }
 
