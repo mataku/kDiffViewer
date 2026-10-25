@@ -3,6 +3,7 @@ kotlin = "2.4.21"
 composeMultiplatform = "1.12.2"
 material3 = "1.9.0"
 kotlinx-coroutines = "1.11.0"
+spotless = "8.10.4"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
@@ -19,3 +20,4 @@ compose-uiTest = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "c
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
