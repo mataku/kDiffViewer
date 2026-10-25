@@ -24,7 +24,7 @@ scripts/ kdv launcher and the large-diff generator for manual performance checks
 ./gradlew spotlessApply                # format; run before committing
 ./gradlew :app:run --args=/abs/path    # run against a repository
 ./gradlew :app:createDistributable     # build app/build/compose/binaries/main/app/kDiffViewer.app
-scripts/generate-large-diff.sh <dir>   # create a large repository for manual scrolling checks
+scripts/generate-large-diff.sh <dir> [ext]   # create a large repository for manual scrolling checks; ext defaults to txt, kt writes Kotlin sources
 ```
 
 ## Constraints
