@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.core.git
 
 import io.github.mataku.kdiffviewer.core.model.ChangeType
+import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.displayPath
@@ -140,5 +141,30 @@ class GitDiffSourceIntegrationTest {
         val added = files.single { it.change == ChangeType.Added }
         assertFalse(deleted.isUntracked)
         assertTrue(added.isUntracked)
+    }
+
+    @Test
+    fun submoduleLogConfigDoesNotCorruptPrecedingFile() {
+        val upstream = newTempDir()
+        runGit(upstream, "init", "-b", "main")
+        File(upstream, "s.txt").writeText("1\n")
+        runGit(upstream, "add", "-A")
+        runGit(upstream, "commit", "-m", "s1")
+
+        initRepo()
+        write("a.txt", "a\n")
+        runGit(repo, "-c", "protocol.file.allow=always", "submodule", "add", upstream.path, "sub")
+        commitAll()
+
+        val sub = File(repo, "sub")
+        File(sub, "s.txt").writeText("2\n")
+        runGit(sub, "add", "-A")
+        runGit(sub, "commit", "-m", "s2")
+        write("a.txt", "b\n")
+        runGit(repo, "config", "diff.submodule", "log")
+
+        val files = load()
+
+        assertTrue(files.byPath("a.txt").content is DiffContent.Text, "content=${files.byPath("a.txt").content}")
     }
 }
