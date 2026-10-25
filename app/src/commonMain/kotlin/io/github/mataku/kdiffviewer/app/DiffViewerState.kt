@@ -67,13 +67,14 @@ class DiffViewerState(
       return
     }
     mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Loading, loadId = loadId)
+    val accumulator = LoadAccumulator()
     loadJob = scope.launch {
       try {
-        load(diffSource, repo, token)
-        updateIfCurrent(token) { it.copy(status = LoadStatus.Done) }
+        load(diffSource, repo, token, accumulator)
+        updateIfCurrent(token) { it.copy(status = LoadStatus.Done, tree = accumulator.tree.rows()) }
       } catch (e: Throwable) {
         ensureActive()
-        updateIfCurrent(token) { it.copy(status = LoadStatus.Failed(e.toViewerError())) }
+        updateIfCurrent(token) { it.copy(status = LoadStatus.Failed(e.toViewerError()), tree = accumulator.tree.rows()) }
       }
     }
   }
@@ -83,7 +84,7 @@ class DiffViewerState(
     open(repo)
   }
 
-  private suspend fun load(diffSource: DiffSource, repo: RepoPath, token: Any) = coroutineScope {
+  private suspend fun load(diffSource: DiffSource, repo: RepoPath, token: Any, accumulator: LoadAccumulator) = coroutineScope {
     val channel = Channel<FileDiff>(Channel.UNLIMITED)
     launch {
       var failure: Throwable? = null
@@ -106,7 +107,7 @@ class DiffViewerState(
         buffer += first.getOrThrow()
         delay(batchWindowMillis)
         val closure = drainInto(channel, buffer)
-        publish(buffer, token)
+        publish(buffer, token, accumulator)
         buffer.clear()
         if (closure != null) {
           closure.exceptionOrNull()?.let { throw it }
@@ -133,23 +134,35 @@ class DiffViewerState(
     mutableUiState.update { current -> if (currentLoad === token) transform(current) else current }
   }
 
-  private fun publish(batch: List<FileDiff>, token: Any) {
-    val newFiles = batch.toList()
+  private fun publish(batch: List<FileDiff>, token: Any, accumulator: LoadAccumulator) {
+    accumulator.append(batch)
+    val files = accumulator.files.snapshot()
+    val rows = accumulator.rows.snapshot()
+    val headerIndex = accumulator.fileHeaderRowIndex.snapshot()
+    val tree = accumulator.tree.rowsIfDue()
     updateIfCurrent(token) { current ->
-      val startIndex = current.files.size
-      val newRows = flattenRows(newFiles, startIndex)
-      val rows = current.rows + newRows
-      val headerIndex = current.fileHeaderRowIndex.toMutableList()
+      current.copy(files = files, rows = rows, fileHeaderRowIndex = headerIndex, tree = tree)
+    }
+  }
+
+  private class LoadAccumulator {
+    val files = AppendBuffer<FileDiff>()
+    val rows = AppendBuffer<DiffRow>()
+    val fileHeaderRowIndex = AppendBuffer<Int>()
+    val tree = FileTreeBuilder()
+    private var fileCount = 0
+    private var rowCount = 0
+
+    fun append(batch: List<FileDiff>) {
+      val newRows = flattenRows(batch, fileCount)
       newRows.forEachIndexed { offset, row ->
-        if (row is DiffRow.FileHeader) headerIndex += current.rows.size + offset
+        if (row is DiffRow.FileHeader) fileHeaderRowIndex.add(rowCount + offset)
       }
-      val files = current.files + newFiles
-      current.copy(
-        files = files,
-        rows = rows,
-        fileHeaderRowIndex = headerIndex,
-        tree = buildFileTree(files),
-      )
+      files.addAll(batch)
+      rows.addAll(newRows)
+      tree.add(batch)
+      fileCount += batch.size
+      rowCount += newRows.size
     }
   }
 
