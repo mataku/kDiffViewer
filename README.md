@@ -2,6 +2,8 @@
 
 kDiffViewer is a macOS desktop viewer for the git diff of a working tree, built with Kotlin Multiplatform and Compose Desktop. It shows a GitHub-like unified diff with a file tree and streams large diffs in as they load.
 
+Syntax highlighting covers Kotlin, Ruby, Go, and Rust.
+
 ## Requirements
 
 - JDK 25 to build; packaging uses the Eclipse Temurin 25 toolchain (another non-Homebrew distribution also works if you adjust the toolchain vendor)
