@@ -26,6 +26,12 @@ kotlin {
       implementation(libs.composeSyntaxHighlight.ruby)
       implementation(libs.composeSyntaxHighlight.go)
       implementation(libs.composeSyntaxHighlight.rust)
+      implementation(libs.composeSyntaxHighlight.swift)
+      implementation(libs.composeSyntaxHighlight.python)
+      implementation(libs.composeSyntaxHighlight.java)
+      implementation(libs.composeSyntaxHighlight.javascript)
+      implementation(libs.composeSyntaxHighlight.typescript)
+      implementation(libs.composeSyntaxHighlight.markdown)
     }
     jvmMain.dependencies {
       implementation(compose.desktop.currentOs)

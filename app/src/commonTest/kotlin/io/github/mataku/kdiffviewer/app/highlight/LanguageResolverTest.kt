@@ -28,12 +28,19 @@ class LanguageResolverTest {
     assertEquals("Ruby", r.languageFor("a/Rakefile"))
     assertEquals("Go", r.languageFor("m.go"))
     assertEquals("Rust", r.languageFor("lib.rs"))
+    assertEquals("Swift", r.languageFor("App.swift"))
+    assertEquals("Python", r.languageFor("main.py"))
+    assertEquals("Java", r.languageFor("src/Main.java"))
+    assertEquals("JavaScript", r.languageFor("index.js"))
+    assertEquals("TypeScript", r.languageFor("index.ts"))
+    assertEquals("Markdown", r.languageFor("README.md"))
   }
 
   @Test
   fun unknownFilesHaveNoLanguage() = runTest {
     val r = resolver()
-    assertNull(r.languageFor("README.md"))
+    assertNull(r.languageFor("notes.txt"))
+    assertNull(r.languageFor("App.tsx"))
     assertNull(r.languageFor("Makefile"))
     assertNull(r.languageFor("kt"))
     assertNull(r.languageFor("a.kt/notes.txt"))
