@@ -7,7 +7,10 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(25))
+        vendor.set(JvmVendorSpec.ADOPTIUM)
+    }
     jvm()
 
     sourceSets {
@@ -37,6 +40,10 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "io.github.mataku.kdiffviewer.app.MainKt"
+        javaHome = javaToolchains.launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(25))
+            vendor.set(JvmVendorSpec.ADOPTIUM)
+        }.get().metadata.installationPath.asFile.absolutePath
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
