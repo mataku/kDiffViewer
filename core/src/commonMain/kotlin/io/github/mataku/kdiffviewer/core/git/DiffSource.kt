@@ -30,8 +30,8 @@ class GitDiffSource(
 ) : DiffSource {
     override fun load(repo: RepoPath): Flow<FileDiff> = flow {
         val rootResult = runner.run(repo.value, listOf("rev-parse", "--show-toplevel"))
-        if (rootResult.exitCode != 0) throw DiffLoadException.NotARepository(repo.value)
-        val root = rootResult.stdout.trim()
+        val root = rootResult.stdout.trimEnd('\n')
+        if (rootResult.exitCode != 0 || root.isEmpty()) throw DiffLoadException.NotARepository(repo.value)
 
         val head = runner.run(root, listOf("rev-parse", "--verify", "HEAD"))
         val base = if (head.exitCode == 0) "HEAD" else EMPTY_TREE

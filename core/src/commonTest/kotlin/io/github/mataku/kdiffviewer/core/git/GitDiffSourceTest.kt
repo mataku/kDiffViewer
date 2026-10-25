@@ -85,6 +85,23 @@ class GitDiffSourceTest {
     }
 
     @Test
+    fun toplevelKeepsSurroundingSpacesAndOnlyDropsTrailingNewline() = runTest {
+        runner.runResults[toplevel] = GitResult(0, " /repo \n", "")
+        runner.runResults[listOf("rev-parse", "--verify", "HEAD")] = GitResult(0, "abc\n", "")
+        runner.runResults[lsFiles] = GitResult(0, "", "")
+        runner.streams[diffArgs("HEAD")] = FakeGitCommandRunner.Stream(emptyList())
+        load()
+        assertEquals(" /repo ", runner.streamCalls.single().workingDir)
+    }
+
+    @Test
+    fun emptyToplevelOutputIsNotARepository() = runTest {
+        runner.runResults[toplevel] = GitResult(0, "\n", "")
+        val e = assertFailsWith<DiffLoadException.NotARepository> { load("/bare") }
+        assertEquals("/bare", e.path)
+    }
+
+    @Test
     fun gitDiffFailure() = runTest {
         repoSetup()
         runner.streams[diffArgs("HEAD")] = FakeGitCommandRunner.Stream(emptyList(), 129, "boom")
