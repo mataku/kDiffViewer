@@ -1,5 +1,7 @@
 package io.github.mataku.kdiffviewer.app.ui
 
+import io.github.mataku.kdiffviewer.core.model.Hunk
+
 private const val TAB_WIDTH = 8
 
 fun expandTabs(text: String): String {
@@ -13,4 +15,10 @@ fun expandTabs(text: String): String {
         }
     }
     return builder.toString()
+}
+
+fun hunkHeaderLabel(hunk: Hunk): String {
+    val range = "@@ -${hunk.oldStart},${hunk.oldCount} +${hunk.newStart},${hunk.newCount} @@"
+    val functionName = hunk.header.trim()
+    return if (functionName.isEmpty()) range else "$range $functionName"
 }

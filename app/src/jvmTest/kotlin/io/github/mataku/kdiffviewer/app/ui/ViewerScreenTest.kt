@@ -46,7 +46,7 @@ class ViewerScreenTest {
             add(DiffLine(LineKind.Added, "TWO", null, 1))
             repeat(lines - 2) { add(DiffLine(LineKind.Context, "ctx$it", it + 2, it + 2)) }
         }
-        return FileDiff(path, path, ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "@@ -1 +1 @@", body))))
+        return FileDiff(path, path, ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, " fun main()", body))))
     }
 
     @Test
@@ -56,6 +56,7 @@ class ViewerScreenTest {
         onNodeWithText("+1").assertIsDisplayed()
         onNodeWithText("−1").assertIsDisplayed()
         onNodeWithText("TWO").assertIsDisplayed()
+        onNodeWithText("@@ -1,1 +1,1 @@ fun main()").assertIsDisplayed()
     }
 
     @Test

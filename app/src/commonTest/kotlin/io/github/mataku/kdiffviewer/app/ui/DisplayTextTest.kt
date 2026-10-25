@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app.ui
 
+import io.github.mataku.kdiffviewer.core.model.Hunk
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -26,5 +27,15 @@ class DisplayTextTest {
     fun textWithoutTabsIsReturnedAsIs() {
         val text = "no tabs here"
         assertSame(text, expandTabs(text))
+    }
+
+    @Test
+    fun hunkLabelShowsFullRangeFollowedByFunctionName() {
+        assertEquals("@@ -1,2 +3,4 @@ fun main()", hunkHeaderLabel(Hunk(1, 2, 3, 4, " fun main()", emptyList())))
+    }
+
+    @Test
+    fun hunkLabelWithoutFunctionNameIsJustTheRange() {
+        assertEquals("@@ -0,0 +1,5 @@", hunkHeaderLabel(Hunk(0, 0, 1, 5, "", emptyList())))
     }
 }
