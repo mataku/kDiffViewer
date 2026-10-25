@@ -25,6 +25,10 @@ The app is created at `app/build/compose/binaries/main/app/kDiffViewer.app`. Cop
 
 Copy `scripts/kdv` onto your `PATH`, then run `kdv [path]` to open a repository (defaults to the current directory). Set `KDV_APP` to override the app location (default `/Applications/kDiffViewer.app`).
 
+## Development
+
+`./gradlew check` runs all tests, and CI runs the same on pushes to develop and on pull requests.
+
 ## License
 
 MIT
