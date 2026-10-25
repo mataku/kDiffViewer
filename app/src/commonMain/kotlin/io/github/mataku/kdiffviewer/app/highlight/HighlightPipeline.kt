@@ -61,7 +61,7 @@ class HighlightPipeline<L>(
       try {
         coroutineScope {
           repeat(workers) {
-            launch { work(entries, sessions, runJob) }
+            launch { work(entries, sessions) }
           }
         }
       } finally {
@@ -72,17 +72,11 @@ class HighlightPipeline<L>(
     return HighlightRun(entries, runJob)
   }
 
-  private suspend fun work(entries: Channel<HighlightEntry>, sessions: SessionHolder, runJob: Job) {
+  private suspend fun work(entries: Channel<HighlightEntry>, sessions: SessionHolder) {
     while (true) {
       currentCoroutineContext().ensureActive()
       val entry = entries.receive()
-      val highlight = try {
-        highlight(entry.file, sessions)
-      } catch (t: Throwable) {
-        if (!t.isNativeLoadFailure()) throw t
-        runJob.cancel()
-        return
-      }
+      val highlight = highlight(entry.file, sessions)
       currentCoroutineContext().ensureActive()
       if (highlight != null) entry.slot.value = highlight
     }

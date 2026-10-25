@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 
 class HighlightPipelineJvmTest {
   @Test
-  fun nativeLoadFailureStopsRunSilently() = runTest {
+  fun nativeLoadFailureIsReportedOnceAndStopsRun() = runTest {
     val paths = (1..3).map { "$it.kt" }
     val source = FakeContentSource(paths.associate { (it to Side.New) to "x" })
     val highlighter = FakeHighlighter().apply { onCall = { throw UnsatisfiedLinkError("no lib") } }
@@ -19,7 +19,8 @@ class HighlightPipelineJvmTest {
     val failures = mutableListOf<Throwable>()
     val (_, slots) = runEntries(pipeline(source, highlighter) { failures += it }, *files.toTypedArray())
 
-    assertEquals(emptyList(), failures)
+    assertEquals(1, failures.size)
+    assertTrue(failures[0] is UnsatisfiedLinkError)
     assertEquals(1, highlighter.calls.size)
     assertTrue(slots.all { it.value == null })
     assertTrue(source.closed)

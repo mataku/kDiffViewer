@@ -26,7 +26,10 @@ fun languageIdFor(path: String): LanguageId? {
   }
 }
 
-class LanguageResolver<L>(private val accessors: Map<LanguageId, () -> L>) {
+class LanguageResolver<L>(
+  private val accessors: Map<LanguageId, () -> L>,
+  private val onFailure: (Throwable) -> Unit = { it.printStackTrace() },
+) {
   private val mutex = Mutex()
   private val loaded = HashMap<LanguageId, L>()
   private val failed = HashSet<LanguageId>()
@@ -42,6 +45,7 @@ class LanguageResolver<L>(private val accessors: Map<LanguageId, () -> L>) {
       } catch (t: Throwable) {
         if (!t.isNativeLoadFailure()) throw t
         failed += id
+        onFailure(t)
         null
       }
     }
