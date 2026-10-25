@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,9 +29,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.mataku.compose.highlight.core.LocalSyntaxTheme
 import io.github.mataku.kdiffviewer.app.DiffRow
+import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.core.model.ChangeType
-import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.LineKind
 
@@ -39,6 +41,7 @@ private const val MINUS = "−"
 @Composable
 fun DiffView(
   rows: List<DiffRow>,
+  highlights: List<HighlightSlot>,
   listState: LazyListState,
   modifier: Modifier = Modifier,
 ) {
@@ -47,7 +50,7 @@ fun DiffView(
       when (row) {
         is DiffRow.FileHeader -> FileHeaderRow(row)
         is DiffRow.HunkHeader -> HunkHeaderRow(row)
-        is DiffRow.Line -> LineRow(row.line)
+        is DiffRow.Line -> LineRow(row, highlights.getOrNull(row.fileIndex))
         is DiffRow.Placeholder -> PlaceholderRow(row.message)
       }
     }
@@ -127,7 +130,8 @@ private fun PlaceholderRow(message: String) {
 }
 
 @Composable
-private fun LineRow(line: DiffLine) {
+private fun LineRow(row: DiffRow.Line, slot: HighlightSlot?) {
+  val line = row.line
   val colors = LocalDiffColors.current
   val mono = TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace)
   if (line.kind == LineKind.NoNewlineAtEof) {
@@ -153,11 +157,16 @@ private fun LineRow(line: DiffLine) {
         style = mono.copy(color = colors.text),
       )
     }
-    BasicText(
-      text = expandTabs(line.text),
-      modifier = Modifier.weight(1f).fillMaxHeight().background(contentBackground),
-      style = mono.copy(color = colors.text),
-    )
+    val contentModifier = Modifier.weight(1f).fillMaxHeight().background(contentBackground)
+    val contentStyle = mono.copy(color = colors.text)
+    val spans = slot?.value?.spans?.getOrNull(row.hunkIndex)?.getOrNull(row.lineIndex)
+    if (spans != null) {
+      val theme = LocalSyntaxTheme.current
+      val text = remember(line, spans, theme) { displayText(line.text, spans, theme) }
+      BasicText(text = text, modifier = contentModifier, style = contentStyle)
+    } else {
+      BasicText(text = expandTabs(line.text), modifier = contentModifier, style = contentStyle)
+    }
   }
 }
 

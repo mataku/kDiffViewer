@@ -27,7 +27,7 @@ class GitDiffSourceTest {
 
   private fun diffArgs(base: String) = listOf(
     "-c", "core.quotePath=false", "diff", base,
-    "--no-color", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/", "-M", "--submodule=short",
+    "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "-M", "--submodule=short",
   )
 
   private val modifiedDiff = listOf(
@@ -127,6 +127,13 @@ class GitDiffSourceTest {
     val result = load()
     assertEquals(listOf("a.txt"), result.map { it.newPath })
     assertEquals(listOf("/repo|a.txt|1048576"), readPaths)
+  }
+
+  @Test
+  fun diffDisablesTextconv() = runTest {
+    repoSetup()
+    load()
+    assertTrue("--no-textconv" in runner.streamCalls.single().args)
   }
 
   @Test

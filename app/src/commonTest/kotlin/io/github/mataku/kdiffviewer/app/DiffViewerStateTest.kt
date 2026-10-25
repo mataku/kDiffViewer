@@ -1,5 +1,11 @@
 package io.github.mataku.kdiffviewer.app
 
+import io.github.mataku.kdiffviewer.app.highlight.FakeContentSource
+import io.github.mataku.kdiffviewer.app.highlight.FakeHighlighter
+import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
+import io.github.mataku.kdiffviewer.app.highlight.line
+import io.github.mataku.kdiffviewer.app.highlight.pipeline
+import io.github.mataku.kdiffviewer.app.highlight.textFile
 import io.github.mataku.kdiffviewer.core.git.DiffLoadException
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.model.ChangeType
@@ -9,6 +15,7 @@ import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.Side
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
@@ -27,6 +34,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -373,5 +382,70 @@ class DiffViewerStateTest {
     advanceUntilIdle()
     assertEquals(LoadStatus.Done, state.uiState.value.status)
     assertEquals(emptyList(), state.uiState.value.files)
+  }
+
+  private fun ktFile(name: String) = textFile(name, name, listOf(line(LineKind.Context, name, 1, 1)))
+
+  private val ktFiles = listOf("a.kt", "b.kt", "c.kt").map { ktFile(it) }
+
+  private val ktTexts = ktFiles.flatMap { file ->
+    listOf((file.oldPath!! to Side.Old) to file.oldPath!!, (file.newPath!! to Side.New) to file.newPath!!)
+  }.toMap()
+
+  private fun TestScope.highlightingState(source: DiffSource, highlighter: FakeHighlighter, contentSource: FakeContentSource) = DiffViewerState(source, backgroundScope, 16, pipeline(contentSource, highlighter))
+
+  @Test
+  fun everyFileGetsASlot() = runTest(StandardTestDispatcher()) {
+    val state = highlightingState(FakeSource { flow { ktFiles.forEach { emit(it) } } }, FakeHighlighter(), FakeContentSource(ktTexts))
+    state.open(repo)
+    advanceTimeBy(100)
+    runCurrent()
+    assertEquals(3, state.uiState.value.highlights.size)
+  }
+
+  @Test
+  fun publishedFilesAreSubmitted() = runTest(StandardTestDispatcher()) {
+    val highlighter = FakeHighlighter()
+    val state = highlightingState(FakeSource { flow { ktFiles.forEach { emit(it) } } }, highlighter, FakeContentSource(ktTexts))
+    state.open(repo)
+    advanceTimeBy(100)
+    runCurrent()
+    assertEquals(listOf("a.kt", "b.kt", "c.kt"), highlighter.calls)
+    state.uiState.value.highlights.forEach { assertNotNull(it.value) }
+  }
+
+  @Test
+  fun reloadCancelsPreviousRun() = runTest(StandardTestDispatcher()) {
+    val highlighter = FakeHighlighter()
+    val contentSource = FakeContentSource(ktTexts)
+    val state = highlightingState(
+      FakeSource { call -> if (call == 0) flow { emit(ktFiles[0]) } else flow { awaitCancellation() } },
+      highlighter,
+      contentSource,
+    )
+    val firstSlots = mutableListOf<HighlightSlot>()
+    highlighter.onCall = {
+      if (it == 1) {
+        firstSlots += state.uiState.value.highlights
+        state.open(repo)
+      }
+    }
+    state.open(repo)
+    advanceTimeBy(17)
+    runCurrent()
+    assertTrue(contentSource.closed)
+    assertEquals(1, firstSlots.size)
+    assertNull(firstSlots[0].value)
+    assertEquals(0, state.uiState.value.highlights.size)
+  }
+
+  @Test
+  fun noPipelineMeansNoHighlighting() = runTest(StandardTestDispatcher()) {
+    val state = DiffViewerState(FakeSource { flow { ktFiles.forEach { emit(it) } } }, this, 16, null)
+    state.open(repo)
+    advanceUntilIdle()
+    val ui = state.uiState.value
+    assertEquals(ui.files.size, ui.highlights.size)
+    ui.highlights.forEach { assertNull(it.value) }
   }
 }

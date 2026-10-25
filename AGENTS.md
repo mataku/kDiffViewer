@@ -24,20 +24,20 @@ scripts/ kdv launcher and the large-diff generator for manual performance checks
 ./gradlew spotlessApply                # format; run before committing
 ./gradlew :app:run --args=/abs/path    # run against a repository
 ./gradlew :app:createDistributable     # build app/build/compose/binaries/main/app/kDiffViewer.app
-scripts/generate-large-diff.sh <dir>   # create a large repository for manual scrolling checks
+scripts/generate-large-diff.sh <dir> [ext]   # create a large repository for manual scrolling checks; ext defaults to txt, kt writes Kotlin sources
 ```
 
 ## Constraints
 
 - The build requires an Eclipse Temurin JDK 25 toolchain (`JvmVendorSpec.ADOPTIUM` in both modules). Never package with Homebrew's OpenJDK and never set `compose.desktop.packaging.checkJdkVendor=false`: Homebrew's JDK links `libfontmanager.dylib` against Homebrew's harfbuzz and freetype, so the bundled runtime breaks when those formulae change ([Compose issue #3107](https://github.com/JetBrains/compose-multiplatform/issues/3107)). After packaging changes, check with `otool -L` that no dylib under the app's `Contents/runtime` references `/opt/homebrew` or `/usr/local`.
-- git output must not depend on the user's git configuration. `GitDiffSource` passes `-c core.quotePath=false`, `--no-color`, `--no-ext-diff`, `--src-prefix=a/`, `--dst-prefix=b/`, `-M`, and `--submodule=short`; keep those flags when touching the diff command, and add one when a new config can change the output format.
+- git output must not depend on the user's git configuration. `GitDiffSource` passes `-c core.quotePath=false`, `--no-color`, `--no-ext-diff`, `--no-textconv`, `--src-prefix=a/`, `--dst-prefix=b/`, `-M`, and `--submodule=short`; keep those flags when touching the diff command, and add one when a new config can change the output format.
 - Performance is a goal: diffs can have thousands of files and hundreds of thousands of rows. Keep `LazyColumn` rows keyed by index (the same path can appear twice), append rows incrementally, and avoid work proportional to the whole diff per batch.
 - When choosing between designs, prefer the one with lower CPU cost and memory use. State each option's cost when proposing it (work per update, recomposition scope, retained memory), and do not pick a slower or heavier option for simplicity alone; if one is chosen anyway, record why.
 - Formatting is 2-space indent via `.editorconfig` and ktlint (Spotless).
 
 ## Workflow
 
-- Branch from `develop` and open pull requests against `develop`. CI runs on pushes to `develop` and on pull requests.
+- Branch from `develop` and open pull requests against `develop`. CI runs on pushes to `develop` and on pull requests, on the `xcode-27` runner (macOS 27, arm64): ComposeSyntaxHighlighter bundles its grammar libraries only for macOS 26+, so the tests that load real languages cannot run on Linux.
 - Follow `.github/PULL_REQUEST_TEMPLATE.md`; PRs that change the UI need screenshots.
 - Design specs and plans live under `docs/superpowers/`, which is gitignored and exists only on the owner's machine. The roadmap is the "Out of scope (future list)" section of `docs/superpowers/specs/2026-10-25-kdiffviewer-first-goal-design.md`.
 

@@ -4,6 +4,7 @@ composeMultiplatform = "1.12.2"
 material3 = "1.9.0"
 kotlinx-coroutines = "1.11.0"
 spotless = "8.10.4"
+composeSyntaxHighlight = "0.7.0"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
@@ -15,6 +16,11 @@ compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", v
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "material3" }
 compose-uiTest = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "composeMultiplatform" }
+composeSyntaxHighlight-core = { module = "io.github.mataku:compose-syntax-highlight-core", version.ref = "composeSyntaxHighlight" }
+composeSyntaxHighlight-kotlin = { module = "io.github.mataku:compose-syntax-highlight-kotlin", version.ref = "composeSyntaxHighlight" }
+composeSyntaxHighlight-ruby = { module = "io.github.mataku:compose-syntax-highlight-ruby", version.ref = "composeSyntaxHighlight" }
+composeSyntaxHighlight-go = { module = "io.github.mataku:compose-syntax-highlight-go", version.ref = "composeSyntaxHighlight" }
+composeSyntaxHighlight-rust = { module = "io.github.mataku:compose-syntax-highlight-rust", version.ref = "composeSyntaxHighlight" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

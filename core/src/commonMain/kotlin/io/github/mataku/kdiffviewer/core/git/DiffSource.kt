@@ -38,7 +38,7 @@ class GitDiffSource(
 
     val diffArgs = listOf(
       "-c", "core.quotePath=false", "diff", base,
-      "--no-color", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/", "-M", "--submodule=short",
+      "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "-M", "--submodule=short",
     )
     emitAll(
       UnifiedDiffParser.parse(runner.streamLines(root, diffArgs)).catch { e ->

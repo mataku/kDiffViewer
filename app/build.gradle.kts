@@ -21,6 +21,11 @@ kotlin {
       implementation(libs.compose.ui)
       implementation(libs.compose.material3)
       implementation(libs.kotlinx.coroutines.core)
+      implementation(libs.composeSyntaxHighlight.core)
+      implementation(libs.composeSyntaxHighlight.kotlin)
+      implementation(libs.composeSyntaxHighlight.ruby)
+      implementation(libs.composeSyntaxHighlight.go)
+      implementation(libs.composeSyntaxHighlight.rust)
     }
     jvmMain.dependencies {
       implementation(compose.desktop.currentOs)
