@@ -240,6 +240,44 @@ class DiffViewerStateTest {
   }
 
   @Test
+  fun treeIsCompleteWhenLoadFinishesAfterManyBatches() = runTest(StandardTestDispatcher()) {
+    val files = (0 until 50).map { file("dir${it % 3}/f$it") }
+    val state = stateFor(
+      FakeSource {
+        flow {
+          files.forEach {
+            delay(20)
+            emit(it)
+          }
+        }
+      },
+    )
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(LoadStatus.Done, state.uiState.value.status)
+    assertEquals(buildFileTree(files), state.uiState.value.tree)
+  }
+
+  @Test
+  fun treeIsCompleteWhenLoadFails() = runTest(StandardTestDispatcher()) {
+    val files = (0 until 10).map { file("f$it") }
+    val state = stateFor(
+      FakeSource {
+        flow {
+          files.forEach {
+            delay(20)
+            emit(it)
+          }
+          throw DiffLoadException.GitFailed(listOf("ls-files"), 1, "bad")
+        }
+      },
+    )
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(buildFileTree(files), state.uiState.value.tree)
+  }
+
+  @Test
   fun failureFlushesFilesBufferedInWindow() = runTest(StandardTestDispatcher()) {
     val state = stateFor(
       FakeSource {
