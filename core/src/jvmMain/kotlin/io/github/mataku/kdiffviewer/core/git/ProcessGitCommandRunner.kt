@@ -7,7 +7,6 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -31,20 +30,20 @@ class ProcessGitCommandRunner(private val gitExecutable: String) : GitCommandRun
 
   override fun streamLines(workingDir: String, args: List<String>): Flow<String> = flow {
     val process = try {
-      start(workingDir, args)
+      withContext(Dispatchers.IO) { start(workingDir, args) }
     } catch (e: IOException) {
       throw GitCommandFailedException(args, -1, e.message ?: "Failed to start git")
     }
     guarded(process) {
-      val stderr = async { process.errorStream.readBytes().decodeToString() }
+      val stderr = async(Dispatchers.IO) { process.errorStream.readBytes().decodeToString() }
       InputStreamReader(process.inputStream, Charsets.UTF_8).use { reader ->
         reader.forEachLine { emit(it) }
       }
       val errorText = stderr.await()
-      val exitCode = process.waitFor()
+      val exitCode = withContext(Dispatchers.IO) { process.waitFor() }
       if (exitCode != 0) throw GitCommandFailedException(args, exitCode, errorText)
     }
-  }.flowOn(Dispatchers.IO)
+  }
 
   private fun start(workingDir: String, args: List<String>): Process {
     val dir = File(workingDir)
@@ -79,7 +78,7 @@ private suspend inline fun Reader.forEachLine(emit: (String) -> Unit) {
   val buffer = CharArray(8192)
   val line = StringBuilder()
   while (true) {
-    val count = read(buffer)
+    val count = withContext(Dispatchers.IO) { read(buffer) }
     if (count < 0) break
     for (i in 0 until count) {
       val c = buffer[i]

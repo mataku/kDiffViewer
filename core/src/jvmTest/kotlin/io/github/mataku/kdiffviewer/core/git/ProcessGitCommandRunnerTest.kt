@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.core.git
 
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -49,6 +50,20 @@ class ProcessGitCommandRunnerTest {
     assertEquals(listOf("one", "two"), received)
     assertEquals(3, e.exitCode)
     assertEquals("boom", e.stderr.trim())
+  }
+
+  @Test
+  fun slowCollectorStillReceivesAllLinesBeforeFailure() = runBlocking<Unit> {
+    val script = writeScript(dir, "fail-fast.sh", "printf 'one\\ntwo\\nthree\\n'; exit 3")
+    val runner = ProcessGitCommandRunner(script.path)
+    val received = mutableListOf<String>()
+    assertFailsWith<GitCommandFailedException> {
+      runner.streamLines(dir.path, emptyList()).collect {
+        delay(200)
+        received += it
+      }
+    }
+    assertEquals(listOf("one", "two", "three"), received)
   }
 
   @Test
