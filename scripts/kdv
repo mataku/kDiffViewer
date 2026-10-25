@@ -2,4 +2,5 @@
 set -eu
 app="${KDV_APP:-/Applications/kDiffViewer.app}"
 target="$(cd "${1:-.}" && pwd)"
+[ -x "$app/Contents/MacOS/kDiffViewer" ] || { echo "kdv: kDiffViewer not found at $app (set KDV_APP)" >&2; exit 1; }
 nohup "$app/Contents/MacOS/kDiffViewer" "$target" >/dev/null 2>&1 &
