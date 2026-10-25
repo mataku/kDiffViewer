@@ -4,18 +4,19 @@ import io.github.mataku.kdiffviewer.core.git.DiffLoadException
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.RepoPath
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.concurrent.Volatile
 
 sealed interface LoadStatus {
     data object Idle : LoadStatus
@@ -49,9 +50,14 @@ class DiffViewerState(
 
     private var loadJob: Job? = null
 
+    @Volatile
+    private var currentLoad: Any? = null
+
     fun open(repo: RepoPath) {
         loadJob?.cancel()
         loadJob = null
+        val token = Any()
+        currentLoad = token
         val diffSource = source
         if (diffSource == null) {
             mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(ViewerError.GitNotFound))
@@ -60,12 +66,11 @@ class DiffViewerState(
         mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Loading)
         loadJob = scope.launch {
             try {
-                load(diffSource, repo)
-                mutableUiState.update { it.copy(status = LoadStatus.Done) }
-            } catch (e: CancellationException) {
-                throw e
+                load(diffSource, repo, token)
+                updateIfCurrent(token) { it.copy(status = LoadStatus.Done) }
             } catch (e: Throwable) {
-                mutableUiState.update { it.copy(status = LoadStatus.Failed(e.toViewerError())) }
+                ensureActive()
+                updateIfCurrent(token) { it.copy(status = LoadStatus.Failed(e.toViewerError())) }
             }
         }
     }
@@ -75,49 +80,59 @@ class DiffViewerState(
         open(repo)
     }
 
-    private suspend fun load(diffSource: DiffSource, repo: RepoPath) = coroutineScope {
+    private suspend fun load(diffSource: DiffSource, repo: RepoPath, token: Any) = coroutineScope {
         val channel = Channel<FileDiff>(Channel.UNLIMITED)
         launch {
+            var failure: Throwable? = null
             try {
                 diffSource.load(repo).collect { channel.send(it) }
-                channel.close()
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: Throwable) {
-                channel.close(e)
+                failure = e
+            } finally {
+                channel.close(failure)
             }
         }
-        val buffer = ArrayList<FileDiff>()
-        while (true) {
-            val first = channel.receiveCatching()
-            if (first.isClosed) {
-                first.exceptionOrNull()?.let { throw it }
-                return@coroutineScope
-            }
-            buffer += first.getOrThrow()
-            var closure: ChannelResult<FileDiff>? = null
-            withTimeoutOrNull(batchWindowMillis) {
-                while (true) {
-                    val next = channel.receiveCatching()
-                    if (next.isClosed) {
-                        closure = next
-                        break
-                    }
-                    buffer += next.getOrThrow()
+        try {
+            val buffer = ArrayList<FileDiff>()
+            while (true) {
+                val first = channel.receiveCatching()
+                if (first.isClosed) {
+                    first.exceptionOrNull()?.let { throw it }
+                    return@coroutineScope
+                }
+                buffer += first.getOrThrow()
+                delay(batchWindowMillis)
+                val closure = drainInto(channel, buffer)
+                publish(buffer, token)
+                buffer.clear()
+                if (closure != null) {
+                    closure.exceptionOrNull()?.let { throw it }
+                    return@coroutineScope
                 }
             }
-            publish(buffer)
-            buffer.clear()
-            closure?.let { closed ->
-                closed.exceptionOrNull()?.let { throw it }
-                return@coroutineScope
+        } finally {
+            channel.cancel()
+        }
+    }
+
+    private fun drainInto(channel: Channel<FileDiff>, buffer: MutableList<FileDiff>): ChannelResult<FileDiff>? {
+        while (true) {
+            val next = channel.tryReceive()
+            when {
+                next.isSuccess -> buffer += next.getOrThrow()
+                next.isClosed -> return next
+                else -> return null
             }
         }
     }
 
-    private fun publish(batch: List<FileDiff>) {
+    private inline fun updateIfCurrent(token: Any, transform: (ViewerUiState) -> ViewerUiState) {
+        mutableUiState.update { current -> if (currentLoad === token) transform(current) else current }
+    }
+
+    private fun publish(batch: List<FileDiff>, token: Any) {
         val newFiles = batch.toList()
-        mutableUiState.update { current ->
+        updateIfCurrent(token) { current ->
             val startIndex = current.files.size
             val newRows = flattenRows(newFiles, startIndex)
             val rows = current.rows + newRows

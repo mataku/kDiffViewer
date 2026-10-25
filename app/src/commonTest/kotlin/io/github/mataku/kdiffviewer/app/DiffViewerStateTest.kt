@@ -4,13 +4,18 @@ import io.github.mataku.kdiffviewer.core.git.DiffLoadException
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
+import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.FileDiff
+import io.github.mataku.kdiffviewer.core.model.Hunk
+import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -19,6 +24,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -28,6 +34,21 @@ class DiffViewerStateTest {
     private val repo = RepoPath("/repo")
 
     private fun file(path: String) = FileDiff(path, path, ChangeType.Modified, false, DiffContent.Text(emptyList()))
+
+    private fun fileWithLines(path: String, lineCount: Int) = FileDiff(
+        path,
+        path,
+        ChangeType.Modified,
+        false,
+        DiffContent.Text(
+            listOf(
+                Hunk(
+                    1, lineCount, 1, lineCount, "",
+                    (1..lineCount).map { DiffLine(LineKind.Context, "line $it", it, it) },
+                ),
+            ),
+        ),
+    )
 
     private class FakeSource(private val block: (Int) -> Flow<FileDiff>) : DiffSource {
         var calls = 0
@@ -66,7 +87,7 @@ class DiffViewerStateTest {
 
     @Test
     fun rowsAreAppendedIncrementally() = runTest(StandardTestDispatcher()) {
-        val files = listOf(file("a"), file("b"), file("c"))
+        val files = listOf(fileWithLines("a", 2), fileWithLines("b", 3), fileWithLines("c", 1))
         val state = stateFor(
             FakeSource {
                 flow {
@@ -84,6 +105,7 @@ class DiffViewerStateTest {
         val ui = state.uiState.value
         assertEquals(flattenRows(files), ui.rows)
         assertEquals(3, ui.fileHeaderRowIndex.size)
+        assertEquals(listOf(0, 4, 9), ui.fileHeaderRowIndex)
         ui.fileHeaderRowIndex.forEachIndexed { fileIndex, rowIndex ->
             val row = ui.rows[rowIndex]
             assertTrue(row is DiffRow.FileHeader && row.fileIndex == fileIndex)
@@ -134,6 +156,58 @@ class DiffViewerStateTest {
         assertTrue(firstCancelled)
         assertEquals(LoadStatus.Done, state.uiState.value.status)
         assertEquals(second, state.uiState.value.files)
+    }
+
+    @Test
+    fun cancelledLoadThatKeepsEmittingDoesNotLeakIntoReload() = runTest(StandardTestDispatcher()) {
+        val stubborn = object : Flow<FileDiff> {
+            override suspend fun collect(collector: FlowCollector<FileDiff>) {
+                repeat(50) { index ->
+                    runCatching { collector.emit(file("old$index")) }
+                    withContext(NonCancellable) { delay(5) }
+                }
+            }
+        }
+        val second = listOf(file("x"), file("y"))
+        val state = stateFor(
+            FakeSource { call ->
+                if (call == 0) stubborn else flow { delay(1); second.forEach { emit(it) } }
+            },
+        )
+        state.open(repo)
+        advanceTimeBy(20)
+        runCurrent()
+        assertTrue(state.uiState.value.files.isNotEmpty())
+        state.reload()
+        advanceUntilIdle()
+        assertEquals(LoadStatus.Done, state.uiState.value.status)
+        assertEquals(second, state.uiState.value.files)
+    }
+
+    @Test
+    fun unexpectedCancellationFromSourceFailsInsteadOfHanging() = runTest(StandardTestDispatcher()) {
+        val state = stateFor(FakeSource { flow { emit(file("a")); throw CancellationException("stray") } })
+        state.open(repo)
+        advanceUntilIdle()
+        assertEquals(LoadStatus.Failed(ViewerError.GitFailed("stray")), state.uiState.value.status)
+        assertEquals(1, state.uiState.value.files.size)
+    }
+
+    @Test
+    fun failureFlushesFilesBufferedInWindow() = runTest(StandardTestDispatcher()) {
+        val state = stateFor(
+            FakeSource {
+                flow {
+                    emit(file("a"))
+                    emit(file("b"))
+                    throw DiffLoadException.GitFailed(listOf("ls-files"), 1, "bad")
+                }
+            },
+        )
+        state.open(repo)
+        advanceUntilIdle()
+        assertEquals(LoadStatus.Failed(ViewerError.GitFailed("bad")), state.uiState.value.status)
+        assertEquals(2, state.uiState.value.files.size)
     }
 
     @Test
