@@ -2,10 +2,13 @@ package io.github.mataku.kdiffviewer.core.git
 
 import kotlinx.coroutines.runBlocking
 import java.io.File
+import java.io.IOException
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 
 class ProcessGitBlobReaderTest {
@@ -68,6 +71,33 @@ class ProcessGitBlobReaderTest {
     val reader = reader()
     assertEquals(BlobEntry.Missing, reader.read(head, "a\nb", 1024))
     assertContentEquals(small, assertIs<BlobEntry.Regular>(reader.read(head, "small.txt", 1024)).bytes)
+  }
+
+  @Test
+  fun pathWithCarriageReturnIsMissing() = runBlocking {
+    val reader = reader()
+    assertEquals(BlobEntry.Missing, reader.read(head, "small.txt\r", 1024))
+    assertContentEquals(small, assertIs<BlobEntry.Regular>(reader.read(head, "small.txt", 1024)).bytes)
+  }
+
+  @Test
+  fun gitThatCannotServeTheProtocolIsStartedOnce() = runBlocking {
+    val counter = File(repo, "starts")
+    val stub = writeScript(repo, "stub-git", "echo start >> '${counter.path}'\nexit 1")
+    val reader = ProcessGitBlobReader(stub.path, repo.path).also { readers += it }
+    assertEquals(BlobEntry.Missing, reader.read("HEAD", "small.txt", 1024))
+    assertEquals(BlobEntry.Missing, reader.read("HEAD", "small.txt", 1024))
+    assertEquals(1, counter.readLines().size)
+  }
+
+  @Test
+  fun readAfterCloseThrowsWithoutStartingGit() = runBlocking {
+    val counter = File(repo, "starts")
+    val stub = writeScript(repo, "stub-git", "echo start >> '${counter.path}'")
+    val reader = ProcessGitBlobReader(stub.path, repo.path).also { readers += it }
+    reader.close()
+    assertFailsWith<IOException> { reader.read("HEAD", "small.txt", 1024) }
+    assertFalse(counter.exists())
   }
 
   @Test

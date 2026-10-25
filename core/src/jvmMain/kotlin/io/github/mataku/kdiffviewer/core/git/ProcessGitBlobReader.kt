@@ -18,20 +18,23 @@ class ProcessGitBlobReader(
 ) : GitBlobReader {
   private val mutex = Mutex()
   private var session: Session? = null
+  private var broken = false
 
   @Volatile
   private var closed = false
 
   override suspend fun read(revision: String, path: String, maxBytes: Long): BlobEntry {
-    if (path.contains('\n') || revision.contains('\n')) return BlobEntry.Missing
+    if (path.hasLineBreak() || revision.hasLineBreak()) return BlobEntry.Missing
     return mutex.withLock {
       withContext(Dispatchers.IO + NonCancellable) {
-        val active = obtainSession()
+        val active = obtainSession() ?: return@withContext BlobEntry.Missing
         try {
           active.read("$revision:$path", maxBytes)
         } catch (e: Throwable) {
           discard(active)
-          throw e
+          if (active.answered || e !is IOException) throw e
+          broken = true
+          BlobEntry.Missing
         }
       }
     }
@@ -43,10 +46,18 @@ class ProcessGitBlobReader(
     active?.destroy()
   }
 
-  private fun obtainSession(): Session = synchronized(this) {
+  private fun obtainSession(): Session? = synchronized(this) {
     if (closed) throw IOException("Blob reader is closed")
-    session ?: start().also { session = it }
+    if (broken) return null
+    session ?: try {
+      start().also { session = it }
+    } catch (e: IOException) {
+      broken = true
+      null
+    }
   }
+
+  private fun String.hasLineBreak(): Boolean = contains('\n') || contains('\r')
 
   private fun discard(active: Session) {
     synchronized(this) { if (session === active) session = null }
@@ -68,9 +79,14 @@ class ProcessGitBlobReader(
     private val input: InputStream,
     private val output: OutputStream,
   ) {
+    var answered = false
+      private set
+
     fun read(objectName: String, maxBytes: Long): BlobEntry {
       send("info $objectName\n")
-      val header = parseHeader(readLine()) ?: return BlobEntry.Missing
+      val infoLine = readLine()
+      answered = true
+      val header = parseHeader(infoLine) ?: return BlobEntry.Missing
       if (header.size > maxBytes || header.size > Int.MAX_VALUE) return BlobEntry.TooLarge
       send("contents $objectName\n")
       val contentsHeader = parseHeader(readLine())
