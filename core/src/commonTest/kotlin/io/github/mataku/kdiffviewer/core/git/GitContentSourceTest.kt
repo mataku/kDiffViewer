@@ -14,11 +14,15 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class GitContentSourceTest {
-  private class FakeWorkingTreeReader(var entry: UntrackedEntry = UntrackedEntry.Unreadable) : WorkingTreeReader {
+  private class FakeWorkingTreeReader(
+    var entry: UntrackedEntry = UntrackedEntry.Unreadable,
+    var failure: Throwable? = null,
+  ) : WorkingTreeReader {
     val calls = mutableListOf<Triple<String, String, Long>>()
 
     override suspend fun read(root: String, relativePath: String, maxBytes: Long): UntrackedEntry {
       calls += Triple(root, relativePath, maxBytes)
+      failure?.let { throw it }
       return entry
     }
   }
@@ -122,6 +126,18 @@ class GitContentSourceTest {
   fun blobReaderCancellationPropagates() = runTest {
     blobs.failure = CancellationException("cancelled")
     assertFailsWith<CancellationException> { session().read(file("a.kt", "a.kt"), Side.Old, 1024) }
+  }
+
+  @Test
+  fun workingTreeReaderFailureIsNull() = runTest {
+    tree.failure = IllegalArgumentException("bad path")
+    assertNull(session().read(file("a.kt", "a.kt"), Side.New, 1024))
+  }
+
+  @Test
+  fun workingTreeReaderCancellationPropagates() = runTest {
+    tree.failure = CancellationException("cancelled")
+    assertFailsWith<CancellationException> { session().read(file("a.kt", "a.kt"), Side.New, 1024) }
   }
 
   @Test

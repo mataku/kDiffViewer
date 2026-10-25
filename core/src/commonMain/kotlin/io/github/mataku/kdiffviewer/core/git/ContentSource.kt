@@ -42,19 +42,24 @@ private class GitContentSession(
 
   private suspend fun readOld(path: String?, maxBytes: Long): String? {
     if (path == null || headId == null) return null
-    val entry = try {
-      blobReader.read(headId, path, maxBytes)
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: Exception) {
-      return null
+    return readOrNull {
+      (blobReader.read(headId, path, maxBytes) as? BlobEntry.Regular)?.bytes?.decodeToString()
     }
-    return (entry as? BlobEntry.Regular)?.bytes?.decodeToString()
   }
 
   private suspend fun readNew(path: String?, maxBytes: Long): String? {
     if (path == null) return null
-    return (reader.read(root, path, maxBytes) as? UntrackedEntry.Regular)?.bytes?.decodeToString()
+    return readOrNull {
+      (reader.read(root, path, maxBytes) as? UntrackedEntry.Regular)?.bytes?.decodeToString()
+    }
+  }
+
+  private inline fun <T> readOrNull(block: () -> T?): T? = try {
+    block()
+  } catch (e: CancellationException) {
+    throw e
+  } catch (e: Exception) {
+    null
   }
 
   override fun close() = blobReader.close()
