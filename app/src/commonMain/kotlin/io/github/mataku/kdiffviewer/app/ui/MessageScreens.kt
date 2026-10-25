@@ -15,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
@@ -63,15 +62,13 @@ fun ErrorScreen(error: ViewerError, onOpenAnother: () -> Unit) {
 
 @Composable
 private fun MessageLayout(content: @Composable () -> Unit) {
-  CompositionLocalProvider(LocalDiffColors provides LightDiffColors) {
-    Box(modifier = Modifier.fillMaxSize().background(LocalDiffColors.current.background), contentAlignment = Alignment.Center) {
-      Column(
-        modifier = Modifier.padding(32.dp).widthIn(max = 640.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-      ) {
-        content()
-      }
+  Box(modifier = Modifier.fillMaxSize().background(LocalDiffColors.current.background), contentAlignment = Alignment.Center) {
+    Column(
+      modifier = Modifier.padding(32.dp).widthIn(max = 640.dp),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+      content()
     }
   }
 }

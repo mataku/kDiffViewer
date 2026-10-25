@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -38,60 +37,58 @@ fun ViewerScreen(
   onReload: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  CompositionLocalProvider(LocalDiffColors provides LightDiffColors) {
-    val colors = LocalDiffColors.current
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    val currentState by rememberUpdatedState(state)
-    val restorer = remember { ScrollRestorer() }
-    LaunchedEffect(listState) {
-      snapshotFlow { currentState to listState.firstVisibleItemIndex }.collect { (ui, firstVisible) ->
-        restorer.next(ui, firstVisible)?.let { listState.scrollToItem(it) }
-      }
+  val colors = LocalDiffColors.current
+  val listState = rememberLazyListState()
+  val scope = rememberCoroutineScope()
+  val currentState by rememberUpdatedState(state)
+  val restorer = remember { ScrollRestorer() }
+  LaunchedEffect(listState) {
+    snapshotFlow { currentState to listState.firstVisibleItemIndex }.collect { (ui, firstVisible) ->
+      restorer.next(ui, firstVisible)?.let { listState.scrollToItem(it) }
     }
-    Column(modifier = modifier.fillMaxSize().background(colors.background)) {
-      Row(
+  }
+  Column(modifier = modifier.fillMaxSize().background(colors.background)) {
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .background(colors.fileHeaderBackground)
+        .padding(horizontal = 12.dp, vertical = 8.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+      BasicText(
+        text = state.repo?.value.orEmpty(),
+        style = TextStyle(color = colors.text, fontSize = 13.sp),
+      )
+      BasicText(
+        text = "Reload",
         modifier = Modifier
-          .fillMaxWidth()
-          .background(colors.fileHeaderBackground)
-          .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-      ) {
-        BasicText(
-          text = state.repo?.value.orEmpty(),
-          style = TextStyle(color = colors.text, fontSize = 13.sp),
-        )
-        BasicText(
-          text = "Reload",
-          modifier = Modifier
-            .testTag("reload-button")
-            .border(1.dp, colors.border)
-            .clickable(onClick = onReload)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-          style = TextStyle(color = colors.text, fontSize = 13.sp),
-        )
-      }
-      if (state.status == LoadStatus.Loading) {
-        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-      }
-      Row(modifier = Modifier.fillMaxSize()) {
-        FileTreePanel(
-          tree = state.tree,
-          onFileClick = { fileIndex ->
-            scope.launch { listState.scrollToItem(state.fileHeaderRowIndex[fileIndex]) }
-          },
-        )
-        Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-          if (state.status == LoadStatus.Done && state.files.isEmpty()) {
-            BasicText(
-              text = "No changes",
-              modifier = Modifier.align(Alignment.Center),
-              style = TextStyle(color = colors.mutedText, fontSize = 14.sp),
-            )
-          } else {
-            DiffView(rows = state.rows, listState = listState)
-          }
+          .testTag("reload-button")
+          .border(1.dp, colors.border)
+          .clickable(onClick = onReload)
+          .padding(horizontal = 10.dp, vertical = 4.dp),
+        style = TextStyle(color = colors.text, fontSize = 13.sp),
+      )
+    }
+    if (state.status == LoadStatus.Loading) {
+      LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    }
+    Row(modifier = Modifier.fillMaxSize()) {
+      FileTreePanel(
+        tree = state.tree,
+        onFileClick = { fileIndex ->
+          scope.launch { listState.scrollToItem(state.fileHeaderRowIndex[fileIndex]) }
+        },
+      )
+      Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+        if (state.status == LoadStatus.Done && state.files.isEmpty()) {
+          BasicText(
+            text = "No changes",
+            modifier = Modifier.align(Alignment.Center),
+            style = TextStyle(color = colors.mutedText, fontSize = 14.sp),
+          )
+        } else {
+          DiffView(rows = state.rows, listState = listState)
         }
       }
     }
