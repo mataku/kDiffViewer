@@ -211,6 +211,20 @@ class DiffViewerStateTest {
     }
 
     @Test
+    fun everyOpenAndReloadGetsANewLoadId() = runTest(StandardTestDispatcher()) {
+        val state = stateFor(FakeSource { flow { } })
+        state.open(repo)
+        val first = state.uiState.value.loadId
+        advanceUntilIdle()
+        assertEquals(first, state.uiState.value.loadId)
+        state.reload()
+        val second = state.uiState.value.loadId
+        state.open(RepoPath("/other"))
+        val third = state.uiState.value.loadId
+        assertTrue(first < second && second < third, "ids=$first,$second,$third")
+    }
+
+    @Test
     fun notARepositoryMapsToError() = runTest(StandardTestDispatcher()) {
         val state = stateFor(FakeSource { flow { throw DiffLoadException.NotARepository("/x") } })
         state.open(repo)

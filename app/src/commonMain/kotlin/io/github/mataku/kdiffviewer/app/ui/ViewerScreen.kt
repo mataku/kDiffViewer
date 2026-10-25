@@ -15,7 +15,12 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,6 +29,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.LoadStatus
+import io.github.mataku.kdiffviewer.app.ScrollRestorer
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import kotlinx.coroutines.launch
 
@@ -37,6 +43,13 @@ fun ViewerScreen(
         val colors = LocalDiffColors.current
         val listState = rememberLazyListState()
         val scope = rememberCoroutineScope()
+        val currentState by rememberUpdatedState(state)
+        val restorer = remember { ScrollRestorer() }
+        LaunchedEffect(listState) {
+            snapshotFlow { currentState to listState.firstVisibleItemIndex }.collect { (ui, firstVisible) ->
+                restorer.next(ui, firstVisible)?.let { listState.scrollToItem(it) }
+            }
+        }
         Column(modifier = modifier.fillMaxSize().background(Color.White)) {
             Row(
                 modifier = Modifier

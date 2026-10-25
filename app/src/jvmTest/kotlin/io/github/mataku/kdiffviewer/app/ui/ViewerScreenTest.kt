@@ -2,6 +2,9 @@ package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.unit.dp
@@ -10,6 +13,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.mataku.kdiffviewer.app.LoadStatus
@@ -107,6 +111,23 @@ class ViewerScreenTest {
         onNodeWithTag("tree-file-25").performClick()
         waitForIdle()
         onNodeWithTag("file-header-25").assertIsDisplayed()
+    }
+
+    @Test
+    fun reloadRestoresScrollToSameFile() = runComposeUiTest {
+        val files = (0 until 30).map { modified("f${it.toString().padStart(2, '0')}.kt", 20) }
+        val initial = stateOf(files).copy(loadId = 1)
+        var ui by mutableStateOf(initial)
+        setContent { ViewerScreen(ui, {}) }
+        onNodeWithTag("diff-list").performScrollToIndex(initial.fileHeaderRowIndex[20])
+        waitForIdle()
+        onNodeWithTag("file-header-20").assertIsDisplayed()
+        ui = ViewerUiState(RepoPath("/repo"), LoadStatus.Loading, loadId = 2)
+        waitForIdle()
+        ui = stateOf(listOf(modified("new.kt", 20)) + files).copy(loadId = 2)
+        waitForIdle()
+        onNodeWithTag("file-header-21").assertIsDisplayed()
+        onNodeWithTag("file-header-0").assertDoesNotExist()
     }
 
     @Test

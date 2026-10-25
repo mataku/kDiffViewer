@@ -38,6 +38,7 @@ data class ViewerUiState(
     val rows: List<DiffRow> = emptyList(),
     val fileHeaderRowIndex: List<Int> = emptyList(),
     val tree: List<TreeRow> = emptyList(),
+    val loadId: Long = 0,
 )
 
 class DiffViewerState(
@@ -49,6 +50,7 @@ class DiffViewerState(
     val uiState: StateFlow<ViewerUiState> = mutableUiState.asStateFlow()
 
     private var loadJob: Job? = null
+    private var nextLoadId = 0L
 
     @Volatile
     private var currentLoad: Any? = null
@@ -58,12 +60,13 @@ class DiffViewerState(
         loadJob = null
         val token = Any()
         currentLoad = token
+        val loadId = ++nextLoadId
         val diffSource = source
         if (diffSource == null) {
-            mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(ViewerError.GitNotFound))
+            mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(ViewerError.GitNotFound), loadId = loadId)
             return
         }
-        mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Loading)
+        mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Loading, loadId = loadId)
         loadJob = scope.launch {
             try {
                 load(diffSource, repo, token)
