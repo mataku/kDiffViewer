@@ -14,7 +14,7 @@ import java.io.IOException
 import java.io.InputStreamReader
 import java.io.Reader
 
-class ProcessGitCommandRunner(private val gitExecutable: String) : GitCommandRunner {
+class ProcessGitCommandRunner(val gitExecutable: String) : GitCommandRunner {
   override suspend fun run(workingDir: String, args: List<String>): GitResult = withContext(Dispatchers.IO) {
     val process = try {
       start(workingDir, args)

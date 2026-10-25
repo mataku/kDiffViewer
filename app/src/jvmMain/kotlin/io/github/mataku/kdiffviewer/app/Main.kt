@@ -40,12 +40,11 @@ private fun runApplication(args: Array<String>) = application {
   val scope = remember { MainScope() }
   DisposableEffect(Unit) { onDispose { scope.cancel() } }
   val state = remember {
-    val git = GitLocator.locateOnHost()
-    val runner = git?.let(::ProcessGitCommandRunner)
+    val runner = GitLocator.locateOnHost()?.let(::ProcessGitCommandRunner)
     DiffViewerState(
       source = runner?.let { GitDiffSource(it, FileSystemWorkingTreeReader()) },
       scope = scope,
-      highlightPipeline = if (git != null && runner != null && highlightEnabled()) highlightPipeline(git, runner) else null,
+      highlightPipeline = if (runner != null && highlightEnabled()) highlightPipeline(runner) else null,
     ).also { viewerState ->
       parseLaunchArgs(args, System.getProperty("user.dir"))?.let(viewerState::open)
     }
@@ -75,8 +74,8 @@ private fun runApplication(args: Array<String>) = application {
 
 private fun highlightEnabled(): Boolean = System.getProperty("kdv.highlight") != "false"
 
-private fun highlightPipeline(git: String, runner: ProcessGitCommandRunner): HighlightPipeline<Language> = HighlightPipeline(
-  contentSource = GitContentSource(runner, { root -> ProcessGitBlobReader(git, root) }, FileSystemWorkingTreeReader()),
+private fun highlightPipeline(runner: ProcessGitCommandRunner): HighlightPipeline<Language> = HighlightPipeline(
+  contentSource = GitContentSource(runner, { root -> ProcessGitBlobReader(runner.gitExecutable, root) }, FileSystemWorkingTreeReader()),
   languages = LanguageResolver(defaultLanguageAccessors),
   highlighter = LineHighlighter(::highlightLines),
   dispatcher = Dispatchers.Default,
