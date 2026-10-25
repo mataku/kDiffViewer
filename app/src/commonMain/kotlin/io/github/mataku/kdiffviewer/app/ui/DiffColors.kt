@@ -36,4 +36,19 @@ val LightDiffColors = DiffColors(
   removedText = Color(0xFFD1242F),
 )
 
+val DarkDiffColors = DiffColors(
+  background = Color(0xFF0D1117),
+  text = Color(0xFFE6EDF3),
+  mutedText = Color(0xFF848D97),
+  border = Color(0xFF30363D),
+  fileHeaderBackground = Color(0xFF161B22),
+  addedBackground = Color(0xFF12261E),
+  addedLineNumberBackground = Color(0xFF1C4328),
+  removedBackground = Color(0xFF25171C),
+  removedLineNumberBackground = Color(0xFF542426),
+  hunkBackground = Color(0xFF111D2E),
+  addedText = Color(0xFF3FB950),
+  removedText = Color(0xFFF85149),
+)
+
 val LocalDiffColors: ProvidableCompositionLocal<DiffColors> = staticCompositionLocalOf { LightDiffColors }

@@ -10,6 +10,7 @@ import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import io.github.mataku.kdiffviewer.app.ui.ErrorScreen
+import io.github.mataku.kdiffviewer.app.ui.KdvTheme
 import io.github.mataku.kdiffviewer.app.ui.OpenRepositoryScreen
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
 import io.github.mataku.kdiffviewer.core.git.FileSystemWorkingTreeReader
@@ -21,7 +22,12 @@ import io.github.mataku.kdiffviewer.core.model.RepoPath
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 
-fun main(args: Array<String>) = application {
+fun main(args: Array<String>) {
+  System.setProperty("apple.awt.application.appearance", "system")
+  runApplication(args)
+}
+
+private fun runApplication(args: Array<String>) = application {
   val scope = remember { MainScope() }
   DisposableEffect(Unit) { onDispose { scope.cancel() } }
   val state = remember {
@@ -44,11 +50,13 @@ fun main(args: Array<String>) = application {
         Item("Reload", shortcut = KeyShortcut(Key.R, meta = true), onClick = state::reload)
       }
     }
-    val status = uiState.status
-    when {
-      uiState.repo == null -> OpenRepositoryScreen(onOpen = openFolder)
-      status is LoadStatus.Failed -> ErrorScreen(status.error, onOpenAnother = openFolder)
-      else -> ViewerScreen(uiState, onReload = state::reload)
+    KdvTheme {
+      val status = uiState.status
+      when {
+        uiState.repo == null -> OpenRepositoryScreen(onOpen = openFolder)
+        status is LoadStatus.Failed -> ErrorScreen(status.error, onOpenAnother = openFolder)
+        else -> ViewerScreen(uiState, onReload = state::reload)
+      }
     }
   }
 }
