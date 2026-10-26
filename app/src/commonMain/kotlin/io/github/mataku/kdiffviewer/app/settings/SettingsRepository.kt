@@ -14,6 +14,12 @@ interface SettingsStorage {
   fun backup()
 }
 
+sealed interface SettingsLoad {
+  data object Ok : SettingsLoad
+  data object PartiallyReset : SettingsLoad
+  data object Unreadable : SettingsLoad
+}
+
 class SettingsRepository(
   private val storage: SettingsStorage,
   scope: CoroutineScope,
@@ -22,7 +28,7 @@ class SettingsRepository(
 ) {
   private val state: MutableStateFlow<Settings>
   val settings: StateFlow<Settings>
-  val loadError: Boolean
+  val load: SettingsLoad
 
   private val pending = Channel<Settings>(Channel.CONFLATED)
   private var needsBackup: Boolean
@@ -36,10 +42,14 @@ class SettingsRepository(
       readFailed = true
       null
     }
-    val decoded = text?.let(SettingsCodec::decode)
-    loadError = readFailed || (text != null && decoded == null)
-    needsBackup = loadError
-    state = MutableStateFlow(decoded ?: Settings())
+    val result = text?.let(SettingsCodec::decode)
+    load = when {
+      readFailed || result is DecodeResult.Invalid -> SettingsLoad.Unreadable
+      result is DecodeResult.Decoded && result.partial -> SettingsLoad.PartiallyReset
+      else -> SettingsLoad.Ok
+    }
+    needsBackup = load == SettingsLoad.PartiallyReset
+    state = MutableStateFlow((result as? DecodeResult.Decoded)?.settings ?: Settings())
     settings = state
     scope.launch(ioDispatcher) {
       for (value in pending) {
@@ -54,7 +64,7 @@ class SettingsRepository(
       val next = transform(current).normalized()
       if (next == current) return
       if (state.compareAndSet(current, next)) {
-        pending.trySend(next)
+        if (load != SettingsLoad.Unreadable) pending.trySend(next)
         return
       }
     }

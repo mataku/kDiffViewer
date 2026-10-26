@@ -1,5 +1,7 @@
 package io.github.mataku.kdiffviewer.app.settings
 
+fun decodeSettings(text: String): Settings? = (SettingsCodec.decode(text) as? DecodeResult.Decoded)?.settings
+
 class FakeSettingsStorage(
   var content: String? = null,
   var failOnWrite: Boolean = false,

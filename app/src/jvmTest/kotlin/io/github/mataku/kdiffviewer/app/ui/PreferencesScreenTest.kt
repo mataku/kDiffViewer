@@ -30,6 +30,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.mataku.kdiffviewer.app.settings.Appearance
 import io.github.mataku.kdiffviewer.app.settings.GitStatus
 import io.github.mataku.kdiffviewer.app.settings.Settings
+import io.github.mataku.kdiffviewer.app.settings.SettingsLoad
 import io.github.mataku.kdiffviewer.core.git.GitInfo
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -43,13 +44,15 @@ class PreferencesScreenTest {
     val transforms = mutableListOf<(Settings) -> Settings>()
     val commits = mutableListOf<String>()
     var chooseCount = 0
+    var revealCount = 0
     fun last(base: Settings = Settings()) = transforms.last()(base)
   }
 
   private fun ComposeUiTest.show(
     harness: Harness,
     settings: Settings = Settings(),
-    loadError: Boolean = false,
+    load: SettingsLoad = SettingsLoad.Ok,
+    path: String = "~/settings.json",
     status: GitStatus = ready,
     families: List<String>? = listOf("Menlo", "Monaco", "Arial"),
   ) {
@@ -57,7 +60,9 @@ class PreferencesScreenTest {
       KdvTheme(darkTheme = false) {
         PreferencesScreen(
           settings = settings,
-          loadError = loadError,
+          load = load,
+          settingsFilePath = path,
+          onRevealSettingsFile = { harness.revealCount++ },
           gitStatus = status,
           fontFamilies = families,
           onUpdate = { harness.transforms += it },
@@ -241,7 +246,9 @@ class PreferencesScreenTest {
         KdvTheme(darkTheme = false) {
           PreferencesScreen(
             settings = Settings(),
-            loadError = false,
+            load = SettingsLoad.Ok,
+            settingsFilePath = "",
+            onRevealSettingsFile = {},
             gitStatus = ready,
             fontFamilies = null,
             onUpdate = {},
@@ -266,7 +273,9 @@ class PreferencesScreenTest {
         KdvTheme(darkTheme = false) {
           PreferencesScreen(
             settings = Settings(),
-            loadError = false,
+            load = SettingsLoad.Ok,
+            settingsFilePath = "",
+            onRevealSettingsFile = {},
             gitStatus = ready,
             fontFamilies = null,
             onUpdate = {},
@@ -353,15 +362,41 @@ class PreferencesScreenTest {
   }
 
   @Test
-  fun loadErrorShowsBanner() = runComposeUiTest {
-    show(Harness(), loadError = true)
-    onNodeWithTag("settings-load-error").assertTextEquals("Could not read settings file; using defaults")
+  fun partialBannerText() = runComposeUiTest {
+    show(Harness(), load = SettingsLoad.PartiallyReset)
+    onNodeWithTag("settings-load-error", useUnmergedTree = true)
+      .assertExists()
+    onNodeWithText("Some settings in settings.json were invalid and were reset to defaults.").assertExists()
   }
 
   @Test
-  fun noBannerWithoutLoadError() = runComposeUiTest {
+  fun unreadableBannerText() = runComposeUiTest {
+    show(Harness(), load = SettingsLoad.Unreadable)
+    onNodeWithText("Could not read settings.json. Using defaults; changes made here are not saved until the file is fixed.").assertExists()
+  }
+
+  @Test
+  fun noBannerWhenOk() = runComposeUiTest {
     show(Harness())
     onNodeWithTag("settings-load-error").assertDoesNotExist()
+    onNodeWithTag("settings-reveal-banner").assertDoesNotExist()
+  }
+
+  @Test
+  fun bannerRevealCallsHandler() = runComposeUiTest {
+    val h = Harness()
+    show(h, load = SettingsLoad.Unreadable)
+    onNodeWithTag("settings-reveal-banner").performClick()
+    assertEquals(1, h.revealCount)
+  }
+
+  @Test
+  fun footerShowsPathAndReveals() = runComposeUiTest {
+    val h = Harness()
+    show(h, path = "~/Library/Application Support/kDiffViewer/settings.json")
+    onNodeWithTag("settings-file-path").assertTextEquals("Settings are stored in ~/Library/Application Support/kDiffViewer/settings.json")
+    onNodeWithTag("settings-reveal").performClick()
+    assertEquals(1, h.revealCount)
   }
 
   @Test

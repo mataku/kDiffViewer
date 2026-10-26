@@ -4,15 +4,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.rememberWindowState
 import io.github.mataku.kdiffviewer.app.settings.GitStatus
 import io.github.mataku.kdiffviewer.app.settings.Settings
+import io.github.mataku.kdiffviewer.app.settings.SettingsLoad
+import io.github.mataku.kdiffviewer.app.settings.defaultSettingsFile
+import io.github.mataku.kdiffviewer.app.settings.displayPath
+import io.github.mataku.kdiffviewer.app.settings.revealInFinder
 import io.github.mataku.kdiffviewer.app.ui.KdvTheme
 import io.github.mataku.kdiffviewer.app.ui.PreferencesScreen
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.FileDialog
 import java.awt.Frame
@@ -23,7 +31,7 @@ fun PreferencesWindow(
   focusRequests: Int,
   onClose: () -> Unit,
   settings: Settings,
-  loadError: Boolean,
+  load: SettingsLoad,
   gitStatus: GitStatus,
   onUpdate: ((Settings) -> Settings) -> Unit,
   onCommitGitPath: (String) -> Unit,
@@ -41,10 +49,24 @@ fun PreferencesWindow(
         GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames.toList()
       }
     }
+    val scope = rememberCoroutineScope()
+    val settingsFile = remember { defaultSettingsFile() }
     KdvTheme(darkTheme = settings.appearance.isDark()) {
       PreferencesScreen(
         settings = settings,
-        loadError = loadError,
+        load = load,
+        settingsFilePath = settingsFile.displayPath(),
+        onRevealSettingsFile = {
+          scope.launch(Dispatchers.IO) {
+            try {
+              revealInFinder(settingsFile)
+            } catch (e: CancellationException) {
+              throw e
+            } catch (e: Exception) {
+              e.printStackTrace()
+            }
+          }
+        },
         gitStatus = gitStatus,
         fontFamilies = fontFamilies,
         onUpdate = onUpdate,

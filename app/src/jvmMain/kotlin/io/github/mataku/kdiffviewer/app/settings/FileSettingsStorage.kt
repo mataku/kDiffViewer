@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app.settings
 
+import java.awt.Desktop
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
@@ -37,3 +38,19 @@ class FileSettingsStorage(private val file: Path) : SettingsStorage {
 }
 
 fun defaultSettingsFile(): Path = Path(System.getProperty("user.home"), "Library", "Application Support", "kDiffViewer", "settings.json")
+
+fun Path.displayPath(home: String = System.getProperty("user.home")): String {
+  val text = toString()
+  return if (text == home || text.startsWith("$home/")) "~" + text.removePrefix(home) else text
+}
+
+fun revealInFinder(file: Path) {
+  val desktop = Desktop.getDesktop()
+  if (file.exists() && desktop.isSupported(Desktop.Action.BROWSE_FILE_DIR)) {
+    desktop.browseFileDirectory(file.toFile())
+  } else {
+    val dir = file.toAbsolutePath().parent
+    dir.createDirectories()
+    desktop.open(dir.toFile())
+  }
+}

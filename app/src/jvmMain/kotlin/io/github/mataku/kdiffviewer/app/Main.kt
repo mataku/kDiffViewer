@@ -142,7 +142,7 @@ private fun runApplication(
       focusRequests = focusRequests,
       onClose = { settingsOpen = false },
       settings = settings,
-      loadError = repository.loadError,
+      load = repository.load,
       gitStatus = gitStatus,
       onUpdate = repository::update,
       onCommitGitPath = controller::commit,

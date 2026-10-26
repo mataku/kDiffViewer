@@ -37,11 +37,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.settings.Appearance
 import io.github.mataku.kdiffviewer.app.settings.GitStatus
 import io.github.mataku.kdiffviewer.app.settings.Settings
+import io.github.mataku.kdiffviewer.app.settings.SettingsLoad
 
 private const val NOT_USABLE_MESSAGE = "Not a usable git executable"
 private const val NOT_FOUND_MESSAGE = "git was not found"
@@ -49,12 +51,17 @@ private const val MIN_FONT_SIZE = 8
 private const val MAX_FONT_SIZE = 32
 private const val MIN_TREE_FONT_SIZE = 10
 private const val MAX_TREE_FONT_SIZE = 20
+private const val PARTIAL_MESSAGE = "Some settings in settings.json were invalid and were reset to defaults."
+private const val UNREADABLE_MESSAGE =
+  "Could not read settings.json. Using defaults; changes made here are not saved until the file is fixed."
 private val TAB_WIDTHS = listOf(2, 4, 8)
 
 @Composable
 fun PreferencesScreen(
   settings: Settings,
-  loadError: Boolean,
+  load: SettingsLoad,
+  settingsFilePath: String,
+  onRevealSettingsFile: () -> Unit,
   gitStatus: GitStatus,
   fontFamilies: List<String>?,
   onUpdate: ((Settings) -> Settings) -> Unit,
@@ -70,16 +77,8 @@ fun PreferencesScreen(
       .padding(start = 32.dp, end = 32.dp, top = 28.dp, bottom = 28.dp),
     verticalArrangement = Arrangement.spacedBy(28.dp),
   ) {
-    if (loadError) {
-      BasicText(
-        text = "Could not read settings file; using defaults",
-        style = TextStyle(color = colors.removedText, fontSize = 13.sp),
-        modifier = Modifier
-          .testTag("settings-load-error")
-          .fillMaxWidth()
-          .background(colors.removedBackground)
-          .padding(10.dp),
-      )
+    if (load != SettingsLoad.Ok) {
+      LoadBanner(load, onRevealSettingsFile)
     }
     BasicText(
       text = "Settings",
@@ -135,6 +134,52 @@ fun PreferencesScreen(
     Section("Git") {
       GitSection(settings.gitPath, gitStatus, onCommitGitPath, onChooseGit)
     }
+    SettingsFileFooter(settingsFilePath, onRevealSettingsFile)
+  }
+}
+
+@Composable
+private fun LoadBanner(load: SettingsLoad, onReveal: () -> Unit) {
+  val colors = LocalDiffColors.current
+  val message = when (load) {
+    SettingsLoad.PartiallyReset -> PARTIAL_MESSAGE
+    else -> UNREADABLE_MESSAGE
+  }
+  Row(
+    modifier = Modifier
+      .testTag("settings-load-error")
+      .fillMaxWidth()
+      .background(colors.removedBackground)
+      .padding(10.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    StatusImage(KdvIcons.XCircle, "settings-load-error-icon", colors.removedText)
+    BasicText(
+      text = message,
+      style = TextStyle(color = colors.removedText, fontSize = 13.sp),
+      modifier = Modifier.weight(1f),
+    )
+    MacPushButton("Show in Finder", onReveal, Modifier.testTag("settings-reveal-banner"))
+  }
+}
+
+@Composable
+private fun SettingsFileFooter(path: String, onReveal: () -> Unit) {
+  val colors = LocalDiffColors.current
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    BasicText(
+      text = "Settings are stored in $path",
+      style = TextStyle(color = colors.mutedText, fontSize = 12.sp),
+      maxLines = 1,
+      overflow = TextOverflow.MiddleEllipsis,
+      modifier = Modifier.testTag("settings-file-path").weight(1f),
+    )
+    MacPushButton("Show in Finder", onReveal, Modifier.testTag("settings-reveal"))
   }
 }
 

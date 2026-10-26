@@ -9,7 +9,6 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -25,36 +24,73 @@ class SettingsRepositoryTest {
   )
 
   @Test
-  fun missingFileGivesDefaultsWithoutError() = runTest(StandardTestDispatcher()) {
+  fun missingFileIsOk() = runTest(StandardTestDispatcher()) {
     val storage = FakeSettingsStorage(content = null)
     val repository = repository(storage)
     advanceUntilIdle()
 
     assertEquals(Settings(), repository.settings.value)
-    assertFalse(repository.loadError)
+    assertEquals(SettingsLoad.Ok, repository.load)
     assertTrue(storage.writes.isEmpty())
   }
 
   @Test
-  fun malformedFileGivesDefaultsAndError() = runTest(StandardTestDispatcher()) {
-    val repository = repository(FakeSettingsStorage(content = "{"))
+  fun unreadableFileIsNeverWritten() = runTest(StandardTestDispatcher()) {
+    val storage = FakeSettingsStorage(content = "{")
+    val repository = repository(storage)
 
     assertEquals(Settings(), repository.settings.value)
-    assertTrue(repository.loadError)
+    assertEquals(SettingsLoad.Unreadable, repository.load)
+
+    repository.update { it.copy(fontSize = 14) }
+    repository.update { it.copy(fontSize = 16) }
+    advanceUntilIdle()
+
+    assertEquals(16, repository.settings.value.fontSize)
+    assertTrue(storage.writes.isEmpty())
+    assertEquals(0, storage.backupCalls)
+    assertTrue(storage.events.isEmpty())
   }
 
   @Test
-  fun throwingReadGivesDefaultsAndError() = runTest(StandardTestDispatcher()) {
+  fun throwingReadIsUnreadable() = runTest(StandardTestDispatcher()) {
     val storage = FakeSettingsStorage(failOnRead = true)
     val repository = repository(storage)
 
     assertEquals(Settings(), repository.settings.value)
-    assertTrue(repository.loadError)
+    assertEquals(SettingsLoad.Unreadable, repository.load)
 
     repository.update { it.copy(fontSize = 14) }
     advanceUntilIdle()
 
-    assertEquals(listOf("backup", "write"), storage.events)
+    assertEquals(14, repository.settings.value.fontSize)
+    assertTrue(storage.events.isEmpty())
+  }
+
+  @Test
+  fun partiallyResetKeepsValidFieldsAndBacksUpThenWrites() = runTest(StandardTestDispatcher()) {
+    val storage = FakeSettingsStorage(content = """{"fontSize":"big","tabWidth":4}""")
+    val repository = repository(storage)
+
+    assertEquals(Settings(tabWidth = 4), repository.settings.value)
+    assertEquals(SettingsLoad.PartiallyReset, repository.load)
+    assertTrue(storage.events.isEmpty())
+
+    repository.update { it.copy(fontSize = 14) }
+    advanceUntilIdle()
+    repository.update { it.copy(fontSize = 16) }
+    advanceUntilIdle()
+
+    assertEquals(1, storage.backupCalls)
+    assertEquals(listOf("backup", "write", "write"), storage.events)
+  }
+
+  @Test
+  fun validFileIsOk() = runTest(StandardTestDispatcher()) {
+    val repository = repository(FakeSettingsStorage(content = """{"fontSize":14}"""))
+
+    assertEquals(SettingsLoad.Ok, repository.load)
+    assertEquals(14, repository.settings.value.fontSize)
   }
 
   @Test
@@ -68,7 +104,7 @@ class SettingsRepositoryTest {
     assertTrue(storage.writes.isEmpty())
     advanceUntilIdle()
     assertEquals(1, storage.writes.size)
-    assertEquals(14, SettingsCodec.decode(storage.writes.single())?.fontSize)
+    assertEquals(14, decodeSettings(storage.writes.single())?.fontSize)
   }
 
   @Test
@@ -82,7 +118,7 @@ class SettingsRepositoryTest {
     advanceUntilIdle()
 
     assertEquals(1, storage.writes.size)
-    assertEquals(13, SettingsCodec.decode(storage.writes.single())?.fontSize)
+    assertEquals(13, decodeSettings(storage.writes.single())?.fontSize)
   }
 
   @Test
@@ -106,20 +142,6 @@ class SettingsRepositoryTest {
   }
 
   @Test
-  fun firstSaveAfterLoadErrorBacksUpOnce() = runTest(StandardTestDispatcher()) {
-    val storage = FakeSettingsStorage(content = "{")
-    val repository = repository(storage)
-
-    repository.update { it.copy(fontSize = 14) }
-    advanceUntilIdle()
-    repository.update { it.copy(fontSize = 16) }
-    advanceUntilIdle()
-
-    assertEquals(1, storage.backupCalls)
-    assertEquals(listOf("backup", "write", "write"), storage.events)
-  }
-
-  @Test
   fun writeFailureKeepsInMemoryValue() = runTest(StandardTestDispatcher()) {
     val storage = FakeSettingsStorage(failOnWrite = true)
     val failures = mutableListOf<Throwable>()
@@ -136,7 +158,7 @@ class SettingsRepositoryTest {
     advanceUntilIdle()
 
     assertEquals(1, storage.writes.size)
-    assertEquals(16, SettingsCodec.decode(storage.writes.single())?.fontSize)
+    assertEquals(16, decodeSettings(storage.writes.single())?.fontSize)
     assertEquals(1, failures.size)
   }
 }
