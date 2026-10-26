@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -260,15 +259,7 @@ private fun GitSection(
     ) {
       when (line.icon) {
         StatusIcon.Ok -> StatusImage(KdvIcons.CheckCircle, "git-status-icon-ok", line.color)
-
         StatusIcon.Error -> StatusImage(KdvIcons.XCircle, "git-status-icon-error", line.color)
-
-        StatusIcon.Progress -> CircularProgressIndicator(
-          modifier = Modifier.testTag("git-status-icon-progress").size(12.dp),
-          color = line.color,
-          strokeWidth = 1.5.dp,
-        )
-
         null -> Unit
       }
       BasicText(text = line.message, style = TextStyle(color = line.color, fontSize = 12.sp))
@@ -286,12 +277,12 @@ private fun StatusImage(icon: ImageVector, tag: String, color: Color) {
   )
 }
 
-private enum class StatusIcon { Ok, Error, Progress }
+private enum class StatusIcon { Ok, Error }
 
 private data class StatusLine(val icon: StatusIcon?, val message: String, val color: Color)
 
 private fun statusLine(gitPath: String?, status: GitStatus, colors: DiffColors): StatusLine = when (status) {
-  GitStatus.Checking -> StatusLine(StatusIcon.Progress, "Checking…", colors.mutedText)
+  GitStatus.Checking -> StatusLine(null, "", colors.mutedText)
 
   is GitStatus.Ready ->
     if (gitPath == null) {

@@ -242,9 +242,11 @@ class PreferencesScreenTest {
   }
 
   @Test
-  fun checkingStatus() = runComposeUiTest {
+  fun checkingStatusShowsNothing() = runComposeUiTest {
     show(Harness(), status = GitStatus.Checking)
-    onNodeWithTag("git-status").assertTextEquals("Checking…")
+    onNodeWithTag("git-status").assertTextEquals("")
+    onNodeWithTag("git-status-icon-ok", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithTag("git-status-icon-error", useUnmergedTree = true).assertDoesNotExist()
   }
 
   @Test
