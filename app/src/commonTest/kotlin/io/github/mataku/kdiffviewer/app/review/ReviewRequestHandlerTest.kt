@@ -127,7 +127,7 @@ class ReviewRequestHandlerTest {
     val f = fixture()
     f.addThread(0)
     f.addThread(1)
-    f.review.setResolved("t1", true)
+    f.review.resolveThread("t1", true)
     assertEquals(listOf("t2"), resultOf<ThreadListResult>(f.handler.handle(request(Methods.THREAD_LIST))).threads.map { it.id })
     assertEquals(listOf("t1", "t2"), resultOf<ThreadListResult>(f.handler.handle(request(Methods.THREAD_LIST, "all" to true))).threads.map { it.id })
   }

@@ -227,6 +227,45 @@ fun MacTextField(
   }
 }
 
+@Composable
+fun MacTextArea(
+  value: String,
+  onValueChange: (String) -> Unit,
+  modifier: Modifier = Modifier,
+  minLines: Int = 3,
+) {
+  val colors = LocalDiffColors.current
+  var focused by remember { mutableStateOf(false) }
+  val ringColor = colors.accent.copy(alpha = 0.5f)
+  Box(
+    modifier = Modifier
+      .drawBehind {
+        if (focused) {
+          val ring = 3.dp.toPx()
+          drawRoundRect(
+            color = ringColor,
+            topLeft = Offset(-ring / 2, -ring / 2),
+            size = Size(size.width + ring, size.height + ring),
+            cornerRadius = CornerRadius(6.dp.toPx() + ring / 2),
+            style = Stroke(ring),
+          )
+        }
+      }
+      .background(colors.background, ControlShape)
+      .border(0.5.dp, if (focused) colors.accent else colors.border, ControlShape)
+      .padding(horizontal = 8.dp, vertical = 6.dp),
+  ) {
+    BasicTextField(
+      value = value,
+      onValueChange = onValueChange,
+      minLines = minLines,
+      textStyle = TextStyle(color = colors.text, fontSize = 13.sp),
+      cursorBrush = SolidColor(colors.text),
+      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+    )
+  }
+}
+
 private val SliderTrackHeight = 4.dp
 private val SliderKnobSize = 20.dp
 private val SliderWidth = 200.dp

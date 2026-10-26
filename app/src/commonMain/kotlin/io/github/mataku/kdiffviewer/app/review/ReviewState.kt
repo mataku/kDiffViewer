@@ -3,6 +3,7 @@ package io.github.mataku.kdiffviewer.app.review
 import androidx.compose.runtime.Immutable
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ViewerUiState
+import io.github.mataku.kdiffviewer.app.ui.review.ReviewActions
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.review.Author
@@ -65,7 +66,7 @@ class ReviewState(
   private val scope: CoroutineScope,
   private val reanchorContext: CoroutineContext,
   private val now: () -> Instant,
-) {
+) : ReviewActions {
   private val mutableSnapshot = MutableStateFlow(ReviewSnapshot.Empty)
   val snapshot: StateFlow<ReviewSnapshot> = mutableSnapshot.asStateFlow()
 
@@ -117,7 +118,7 @@ class ReviewState(
     return LoadSettlement(settled.lastLoadFailed, settled.core.settledFiles, settled.threads.count { it.outdated })
   }
 
-  fun startDraft(target: DraftTarget) {
+  override fun startDraft(target: DraftTarget) {
     mutate { current ->
       val existing = current.draft
       if (existing != null && existing.text.isNotBlank()) return@mutate current to Unit
@@ -139,7 +140,7 @@ class ReviewState(
     }
   }
 
-  fun updateDraft(text: String) {
+  override fun updateDraft(text: String) {
     mutate { current ->
       val draft = current.draft ?: return@mutate current to Unit
       if (draft.text == text) return@mutate current to Unit
@@ -147,13 +148,13 @@ class ReviewState(
     }
   }
 
-  fun cancelDraft() {
+  override fun cancelDraft() {
     mutate { current ->
       if (current.draft == null) current to Unit else current.copy(draft = null) to Unit
     }
   }
 
-  fun submitDraft() {
+  override fun submitDraft() {
     mutate { current ->
       val draft = current.draft ?: return@mutate current to Unit
       if (draft.text.isBlank()) return@mutate current to Unit
@@ -215,14 +216,18 @@ class ReviewState(
     next to ReviewResult.Ok(comment)
   }
 
-  fun setResolved(threadId: String, resolved: Boolean): ReviewResult<ReviewThread> = mutate { current ->
+  override fun setResolved(threadId: String, resolved: Boolean) {
+    resolveThread(threadId, resolved)
+  }
+
+  fun resolveThread(threadId: String, resolved: Boolean): ReviewResult<ReviewThread> = mutate { current ->
     val index = current.threads.indexOfFirst { it.id == threadId }
     if (index < 0) return@mutate current to ReviewResult.Err(ReviewError.ThreadNotFound(threadId))
     val next = current.withThreads(current.threads.replaced(index) { it.copy(resolved = resolved) }, current.core)
     next to ReviewResult.Ok(next.threads[index])
   }
 
-  fun delete(commentId: String) {
+  override fun delete(commentId: String) {
     mutate { current ->
       val index = current.threads.indexOfFirst { thread -> thread.comments.any { it.id == commentId && it.author == Author.User } }
       if (index < 0) return@mutate current to Unit

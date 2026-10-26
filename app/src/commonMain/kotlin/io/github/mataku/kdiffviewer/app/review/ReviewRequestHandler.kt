@@ -59,7 +59,7 @@ class ReviewRequestHandler(
 
     Methods.THREAD_RESOLVE -> {
       val params = Codec.params<ThreadResolveParams>(request)
-      when (val result = review.setResolved(params.threadId, true)) {
+      when (val result = review.resolveThread(params.threadId, true)) {
         is ReviewResult.Ok -> ok(Codec.json.encodeToJsonElement(ThreadDto.serializer(), result.value.toDto()))
         is ReviewResult.Err -> reviewFailure(result.error)
       }

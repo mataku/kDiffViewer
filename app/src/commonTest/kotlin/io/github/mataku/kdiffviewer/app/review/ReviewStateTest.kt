@@ -262,7 +262,7 @@ class ReviewStateTest {
   @Test
   fun resolveUnknownThreadIsError() = runTest(StandardTestDispatcher()) {
     val state = newState()
-    assertEquals(ReviewResult.Err(ReviewError.ThreadNotFound("t9")), state.setResolved("t9", true))
+    assertEquals(ReviewResult.Err(ReviewError.ThreadNotFound("t9")), state.resolveThread("t9", true))
     assertEquals(ReviewResult.Err(ReviewError.ThreadNotFound("t9")), state.reply("t9", Author.User, "x"))
   }
 
@@ -271,7 +271,7 @@ class ReviewStateTest {
     val state = newState()
     state.addThread(base, 1)
     state.addThread(base, 2)
-    val result = state.setResolved("t1", true)
+    val result = state.resolveThread("t1", true)
     assertTrue((result as ReviewResult.Ok).value.resolved)
     assertEquals(listOf("t2"), state.threads(includeResolved = false).map { it.id })
     assertEquals(listOf("t1", "t2"), state.threads(includeResolved = true).map { it.id })

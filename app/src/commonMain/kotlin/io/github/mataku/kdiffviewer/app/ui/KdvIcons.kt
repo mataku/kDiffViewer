@@ -66,6 +66,24 @@ object KdvIcons {
     lineTo(5.5f, 10.5f)
   }
 
+  val Comment: ImageVector = outlineIcon("Comment") {
+    moveTo(2.5f, 2.5f)
+    lineTo(13.5f, 2.5f)
+    lineTo(13.5f, 11f)
+    lineTo(7f, 11f)
+    lineTo(4f, 13.5f)
+    lineTo(4f, 11f)
+    lineTo(2.5f, 11f)
+    close()
+  }
+
+  val Plus: ImageVector = outlineIcon("Plus") {
+    moveTo(8f, 3f)
+    lineTo(8f, 13f)
+    moveTo(3f, 8f)
+    lineTo(13f, 8f)
+  }
+
   val File: ImageVector = outlineIcon("File") {
     moveTo(3.5f, 1.5f)
     lineTo(9.5f, 1.5f)
