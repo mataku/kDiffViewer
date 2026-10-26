@@ -38,6 +38,23 @@ fun languageIdFor(path: String): LanguageId? {
   }
 }
 
+fun languageIdForInfo(info: String): LanguageId? {
+  val word = info.trim().substringBefore(' ').substringBefore('\t').lowercase()
+  return when (word) {
+    "kotlin", "kt", "kts" -> LanguageId.Kotlin
+    "ruby", "rb" -> LanguageId.Ruby
+    "go", "golang" -> LanguageId.Go
+    "rust", "rs" -> LanguageId.Rust
+    "swift" -> LanguageId.Swift
+    "python", "py" -> LanguageId.Python
+    "java" -> LanguageId.Java
+    "javascript", "js" -> LanguageId.JavaScript
+    "typescript", "ts" -> LanguageId.TypeScript
+    "markdown", "md" -> LanguageId.Markdown
+    else -> null
+  }
+}
+
 class LanguageResolver<L>(
   private val accessors: Map<LanguageId, () -> L>,
   private val onFailure: (Throwable) -> Unit = { it.printStackTrace() },
@@ -46,8 +63,9 @@ class LanguageResolver<L>(
   private val loaded = HashMap<LanguageId, L>()
   private val failed = HashSet<LanguageId>()
 
-  suspend fun languageFor(path: String): L? {
-    val id = languageIdFor(path) ?: return null
+  suspend fun languageFor(path: String): L? = languageIdFor(path)?.let { languageFor(it) }
+
+  suspend fun languageFor(id: LanguageId): L? {
     val accessor = accessors[id] ?: return null
     return mutex.withLock {
       if (id in failed) return@withLock null

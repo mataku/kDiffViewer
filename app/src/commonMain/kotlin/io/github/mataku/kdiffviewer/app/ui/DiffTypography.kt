@@ -56,5 +56,7 @@ fun diffTypography(
   )
 }
 
+val DefaultDiffTypography: DiffTypography = diffTypography(FontFamily.Monospace, 12, 8, LightDiffColors)
+
 val LocalDiffTypography: ProvidableCompositionLocal<DiffTypography> =
-  staticCompositionLocalOf { diffTypography(FontFamily.Monospace, 12, 8, LightDiffColors) }
+  staticCompositionLocalOf { DefaultDiffTypography }

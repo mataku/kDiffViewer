@@ -7,6 +7,7 @@ spotless = "8.10.4"
 composeSyntaxHighlight = "0.7.0"
 jbrApi = "1.5.0"
 kotlinx-serialization = "1.11.0"
+markdown = "0.7.18"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
@@ -31,6 +32,7 @@ composeSyntaxHighlight-javascript = { module = "io.github.mataku:compose-syntax-
 composeSyntaxHighlight-typescript = { module = "io.github.mataku:compose-syntax-highlight-typescript", version.ref = "composeSyntaxHighlight" }
 composeSyntaxHighlight-markdown = { module = "io.github.mataku:compose-syntax-highlight-markdown", version.ref = "composeSyntaxHighlight" }
 
+jetbrains-markdown = { module = "org.jetbrains:markdown", version.ref = "markdown" }
 jbr-api = { module = "com.jetbrains:jbr-api", version.ref = "jbrApi" }
 
 [plugins]

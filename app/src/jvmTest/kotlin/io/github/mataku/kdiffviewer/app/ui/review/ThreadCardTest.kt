@@ -98,6 +98,17 @@ class ThreadCardTest {
   }
 
   @Test
+  fun rendersMarkdownBody() = runComposeUiTest {
+    setContent {
+      CompositionLocalProvider(LocalReviewActions provides FakeActions()) {
+        ThreadCard(thread(comments = listOf(Comment("c1", Author.User, "Use `foo`\n\n- a\n- b", at))), null)
+      }
+    }
+    onNodeWithText("Use foo").assertIsDisplayed()
+    onAllNodesWithText("•").assertCountEquals(2)
+  }
+
+  @Test
   fun resolveCallsActions() = runComposeUiTest {
     val actions = FakeActions()
     setContent { CompositionLocalProvider(LocalReviewActions provides actions) { ThreadCard(thread(), null) } }

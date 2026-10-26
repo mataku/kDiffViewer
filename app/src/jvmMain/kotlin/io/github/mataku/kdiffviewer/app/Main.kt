@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
@@ -20,6 +21,7 @@ import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
+import io.github.mataku.kdiffviewer.app.highlight.LocalCodeHighlighter
 import io.github.mataku.kdiffviewer.app.review.ReviewIntegration
 import io.github.mataku.kdiffviewer.app.review.ReviewRequestHandler
 import io.github.mataku.kdiffviewer.app.review.ReviewState
@@ -39,6 +41,7 @@ import io.github.mataku.kdiffviewer.app.ui.LocalTitleBarRegions
 import io.github.mataku.kdiffviewer.app.ui.OpenRepositoryScreen
 import io.github.mataku.kdiffviewer.app.ui.TitleBarHeight
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
+import io.github.mataku.kdiffviewer.app.ui.markdown.SafeUriHandler
 import io.github.mataku.kdiffviewer.app.ui.resolveFontFamily
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.app.ui.textClipEntry
@@ -231,7 +234,14 @@ private fun runApplication(
       }
     }
     val fontFamily = remember(settings.fontFamily) { resolveFontFamily(settings.fontFamily) }
-    CompositionLocalProvider(LocalTitleBarRegions provides titleBarRegions, LocalReviewActions provides review) {
+    val platformUriHandler = LocalUriHandler.current
+    val safeUriHandler = remember(platformUriHandler) { SafeUriHandler(platformUriHandler) }
+    CompositionLocalProvider(
+      LocalTitleBarRegions provides titleBarRegions,
+      LocalReviewActions provides review,
+      LocalCodeHighlighter provides factory.codeHighlighter,
+      LocalUriHandler provides safeUriHandler,
+    ) {
       KdvTheme(
         darkTheme = settings.appearance.isDark(),
         fontFamily = fontFamily,

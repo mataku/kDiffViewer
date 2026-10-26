@@ -54,6 +54,10 @@ kdv ./ --base HEAD
 
 `--base HEAD` shows only uncommitted changes.
 
+## Review comments
+
+Comment bodies render as GitHub-style Markdown: headings, emphasis, lists, task lists, block quotes, links, and code blocks, with fenced code in the bundled languages syntax-highlighted. Tables and images are not rendered. The comment composer has Write / Preview; press ⌘⇧P to switch between them.
+
 ## Coding agents
 
 Review comments left in the app can be read and answered from the terminal through `kdv thread`. Run `kdv agent-guide` for the instructions to give a coding agent.
