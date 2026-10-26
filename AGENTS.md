@@ -9,10 +9,13 @@ kDiffViewer is a desktop git diff viewer built with Kotlin Multiplatform and Com
 ```
 core/   KMP library (jvm target). Diff model, streaming unified diff parser, untracked-file synthesis, GitDiffSource.
         commonMain holds all logic; jvmMain holds only OS-specific implementations (process spawning, file reading, git lookup).
+protocol/ KMP library (jvm + macosArm64). Wire types shared by the app and the CLI.
+cli/    Kotlin/Native executable (macosArm64) producing `kdv`, which talks to running app windows over a Unix socket.
 app/    Compose Desktop app (jvm target). commonMain holds state holders and Compose UI; jvmMain holds main(), the folder picker, and packaging config.
-scripts/ kdv launcher and the large-diff generator for manual performance checks.
+scripts/ large-diff generator for manual performance checks.
 ```
 
+- Only `protocol` and `cli` have native targets; `core` and `app` stay jvm-only.
 - `core` must not depend on Compose.
 - OS-specific work stays behind the interfaces in `core/commonMain` (`GitCommandRunner`, `WorkingTreeReader`) so that a Kotlin/Native target or another backend (e.g. libgit2) can be added by writing new implementations.
 - `app` consumes `core` types; it does not run git itself.
