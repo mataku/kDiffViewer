@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,6 +71,7 @@ private fun FileDiff.badge(): String = if (isUntracked) "Untracked" else change.
 @Composable
 private fun FileHeaderRow(row: DiffRow.FileHeader) {
   val colors = LocalDiffColors.current
+  val typography = LocalDiffTypography.current
   Row(
     modifier = Modifier
       .fillMaxWidth()
@@ -88,7 +88,7 @@ private fun FileHeaderRow(row: DiffRow.FileHeader) {
       modifier = Modifier.weight(1f, fill = false),
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
-      style = TextStyle(color = colors.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
+      style = typography.headerPath,
     )
     BasicText(
       text = row.file.badge(),
@@ -96,17 +96,17 @@ private fun FileHeaderRow(row: DiffRow.FileHeader) {
         .testTag("file-badge-${row.fileIndex}")
         .border(1.dp, colors.border, RoundedCornerShape(10.dp))
         .padding(horizontal = 6.dp, vertical = 1.dp),
-      style = TextStyle(color = colors.mutedText, fontSize = 11.sp),
+      style = typography.headerBadge,
     )
     BasicText(
       text = "+${row.stats.additions}",
       modifier = Modifier.testTag("file-additions-${row.fileIndex}"),
-      style = TextStyle(color = colors.addedText, fontSize = 12.sp),
+      style = typography.headerAdditions,
     )
     BasicText(
       text = "$MINUS${row.stats.deletions}",
       modifier = Modifier.testTag("file-deletions-${row.fileIndex}"),
-      style = TextStyle(color = colors.removedText, fontSize = 12.sp),
+      style = typography.headerDeletions,
     )
   }
 }

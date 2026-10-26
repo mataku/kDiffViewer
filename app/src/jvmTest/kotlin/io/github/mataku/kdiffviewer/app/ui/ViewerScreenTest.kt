@@ -429,6 +429,17 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun headerPathGrowsWithFontSize() = runComposeUiTest {
+    var fontSize by mutableStateOf(12)
+    setContent { KdvTheme(darkTheme = false, fontSize = fontSize) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }
+    val small = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot.height
+    fontSize = 24
+    waitForIdle()
+    val large = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot.height
+    assertTrue(large > small, "small=$small large=$large")
+  }
+
+  @Test
   fun lineNumberColumnWidensWithFontSize() = runComposeUiTest {
     var fontSize by mutableStateOf(24)
     setContent { KdvTheme(darkTheme = false, fontSize = fontSize) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }

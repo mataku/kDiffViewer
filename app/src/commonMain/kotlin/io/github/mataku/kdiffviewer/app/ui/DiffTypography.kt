@@ -5,6 +5,7 @@ import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -17,6 +18,10 @@ class DiffTypography(
   val marker: TextStyle,
   val hunkHeader: TextStyle,
   val noNewline: TextStyle,
+  val headerPath: TextStyle,
+  val headerBadge: TextStyle,
+  val headerAdditions: TextStyle,
+  val headerDeletions: TextStyle,
   val lineNumberWidth: Dp,
   val tabWidth: Int,
 )
@@ -35,6 +40,10 @@ fun diffTypography(
     marker = base.copy(color = colors.text),
     hunkHeader = muted,
     noNewline = muted,
+    headerPath = base.copy(color = colors.text, fontWeight = FontWeight.SemiBold),
+    headerBadge = TextStyle(color = colors.mutedText, fontSize = 11.sp),
+    headerAdditions = TextStyle(color = colors.addedText, fontSize = 12.sp, fontFeatureSettings = "tnum"),
+    headerDeletions = TextStyle(color = colors.removedText, fontSize = 12.sp, fontFeatureSettings = "tnum"),
     lineNumberWidth = (48 * fontSize / 12f).dp,
     tabWidth = tabWidth,
   )
