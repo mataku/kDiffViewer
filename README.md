@@ -1,6 +1,6 @@
 # kDiffViewer
 
-kDiffViewer is a macOS desktop viewer for the git diff of a working tree, built with Kotlin Multiplatform and Compose Desktop. It shows a GitHub-like unified diff with a file tree and streams large diffs in as they load.
+kDiffViewer is a macOS desktop viewer for the git diff of a branch and its working tree, built with Kotlin Multiplatform and Compose Desktop. It shows a GitHub-like unified diff with a file tree and streams large diffs in as they load.
 
 Syntax highlighting covers Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScript, TypeScript, and Markdown.
 
@@ -15,6 +15,7 @@ Syntax highlighting covers Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScri
 ```sh
 ./gradlew :app:run --args=/absolute/path/to/repo
 ./gradlew :app:run --args=..
+./gradlew :app:run --args="/absolute/path/to/repo --base develop"
 ```
 
 Gradle runs the app with `app/` as its working directory, so a relative path is resolved from there, not from where you ran `./gradlew`. Any directory inside a repository shows the whole repository's diff; `--args=..` opens this repository with its own name in the header, while `--args=./` shows the same diff under the name `app`.
@@ -38,6 +39,20 @@ ln -s /Applications/kDiffViewer.app/Contents/app/resources/kdv /usr/local/bin/kd
 If `/usr/local/bin` is not writable by your user, run the command with `sudo`, or link `kdv` into another directory on your `PATH` (for example `~/.local/bin`).
 
 `kdv ./repo` opens a repository in kDiffViewer, and `kdv` with no argument opens the current directory. Bare words are commands (`thread`, `reload`, `windows`, `agent-guide`), so write relative paths as `./repo`. Run `kdv --help` for the full list.
+
+## Choosing the base
+
+The diff shows everything since the branch point plus staged, unstaged, and untracked changes, like a pull request that also includes uncommitted work. The base is the merge-base of `HEAD` and the branch `origin/HEAD` points at (usually the repository's default branch, such as `origin/main`); without `origin/HEAD` it is `HEAD`, which shows only uncommitted changes. The toolbar shows the base next to the current branch.
+
+Pass `--base <ref>` to compare against the merge-base with another ref, for example the parent of a stacked branch or a few commits back:
+
+```sh
+kdv ./ --base feature-a-base
+kdv ./ --base HEAD~3
+kdv ./ --base HEAD
+```
+
+`--base HEAD` shows only uncommitted changes.
 
 ## Coding agents
 
