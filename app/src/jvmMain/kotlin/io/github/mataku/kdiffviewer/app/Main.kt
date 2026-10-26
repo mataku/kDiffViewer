@@ -52,8 +52,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.awt.Desktop
@@ -124,18 +122,20 @@ private fun runApplication(
   }
   val review = remember { ReviewState(scope, Dispatchers.Default, Clock.System::now) }
   val reviewSnapshot by review.snapshot.collectAsState()
-  val integration = remember {
-    val registry = SessionRegistry(
+  val registry = remember {
+    SessionRegistry(
       Path.of(RegistryPaths.sessionsDir(System.getProperty("user.home"))),
       ProcessHandle.current().pid(),
       java.time.Instant::now,
       ::processAlive,
     )
+  }
+  val integration = remember {
     val handler = ReviewRequestHandler(
       review = review,
       reload = { withContext(Dispatchers.Main) { state.reload() } },
       info = {
-        WindowInfoResult(ProcessHandle.current().pid(), state.uiState.value.repo?.value, PROTOCOL_VERSION)
+        WindowInfoResult(ProcessHandle.current().pid(), registry.repoRoot, PROTOCOL_VERSION)
       },
     )
     ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, handler::handle)
@@ -149,15 +149,7 @@ private fun runApplication(
       false
     }
     if (!started) return@LaunchedEffect
-    state.uiState.map { it.repo }.distinctUntilChanged().collect { repo ->
-      withContext(Dispatchers.IO) {
-        try {
-          integration.publish(repo?.let { Path.of(it.value) })
-        } catch (e: Exception) {
-          e.printStackTrace()
-        }
-      }
-    }
+    integration.publishRoots(state.uiState)
   }
   val shutdown: () -> Unit = {
     integration.close()

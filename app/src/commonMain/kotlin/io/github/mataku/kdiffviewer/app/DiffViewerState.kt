@@ -64,6 +64,7 @@ data class ViewerUiState(
   val loadId: Long = 0,
   val highlights: List<HighlightSlot> = emptyList(),
   val head: HeadRef? = null,
+  val root: RepoPath? = null,
   val fingerprints: List<Long> = emptyList(),
   val collapsed: Set<CollapsedFile> = emptySet(),
 )
@@ -119,8 +120,10 @@ class DiffViewerState(
         status = LoadStatus.Loading,
         loadId = loadId,
         head = previous.head.takeIf { previous.repo == repo },
+        root = previous.root.takeIf { previous.repo == repo },
       )
     }
+    val knownRoot = mutableUiState.value.root
     val accumulator = LoadAccumulator(loadId, holding = keepPrevious)
     val run = highlightPipeline?.start(scope, repo)
     highlightRun = run
@@ -133,6 +136,17 @@ class DiffViewerState(
           null
         }
         updateIfCurrent(token) { it.copy(head = head) }
+      }
+      if (knownRoot == null) {
+        launch {
+          val root = try {
+            diffSource.root(repo)
+          } catch (e: Exception) {
+            ensureActive()
+            null
+          }
+          if (root != null) updateIfCurrent(token) { it.copy(root = root) }
+        }
       }
       val holdJob = if (keepPrevious) {
         launch {

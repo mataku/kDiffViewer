@@ -22,6 +22,10 @@ class SessionRegistry(
   private val entryPath: Path = Path.of(RegistryPaths.entryPath(dir.toString(), pid))
   private val startedAt: String = now().toString()
 
+  @Volatile
+  var repoRoot: String? = null
+    private set
+
   fun prepare(): Path? {
     if (!RegistryPaths.fitsSocketPath(socketPath.toString())) return null
     Files.createDirectories(dir, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")))
@@ -30,9 +34,10 @@ class SessionRegistry(
   }
 
   fun publish(repoRoot: Path?) {
+    val root = repoRoot?.toRealPath()?.toString()
     val entry = RegistryEntry(
       pid = pid,
-      repoRoot = repoRoot?.toRealPath()?.toString(),
+      repoRoot = root,
       socket = socketPath.toString(),
       startedAt = startedAt,
       protocolVersion = PROTOCOL_VERSION,
@@ -41,6 +46,7 @@ class SessionRegistry(
     try {
       Files.writeString(temp, Codec.json.encodeToString(RegistryEntry.serializer(), entry))
       Files.move(temp, entryPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+      this.repoRoot = root
     } finally {
       Files.deleteIfExists(temp)
     }

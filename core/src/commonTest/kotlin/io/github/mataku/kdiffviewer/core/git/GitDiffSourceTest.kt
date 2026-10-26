@@ -166,4 +166,19 @@ class GitDiffSourceTest {
     runner.runResults[shortHead] = GitResult(128, "", "fatal")
     assertEquals(null, source.head(RepoPath("/repo")))
   }
+
+  private val showToplevel = listOf("rev-parse", "--show-toplevel")
+
+  @Test
+  fun rootIsTheToplevelOfTheOpenedDirectory() = runTest {
+    runner.runResults[showToplevel] = GitResult(0, "/repo\n", "")
+    assertEquals(RepoPath("/repo"), source.root(RepoPath("/repo/sub")))
+    assertEquals("/repo/sub", runner.runCalls.single().workingDir)
+  }
+
+  @Test
+  fun rootIsNullOutsideARepository() = runTest {
+    runner.runResults[showToplevel] = GitResult(128, "", "fatal: not a git repository")
+    assertEquals(null, source.root(RepoPath("/tmp")))
+  }
 }

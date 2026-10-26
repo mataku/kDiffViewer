@@ -68,12 +68,18 @@ class DiffViewerStateTest {
 
   private class FakeSource(
     private val heads: List<HeadRef?> = emptyList(),
+    private val roots: Map<RepoPath, RepoPath> = emptyMap(),
     private val block: (Int) -> Flow<FileDiff>,
   ) : DiffSource {
     var calls = 0
+    var rootCalls = 0
     private var headCalls = 0
     override fun load(repo: RepoPath): Flow<FileDiff> = block(calls++)
     override suspend fun head(repo: RepoPath): HeadRef? = heads.getOrNull(headCalls++)
+    override suspend fun root(repo: RepoPath): RepoPath? {
+      rootCalls++
+      return roots[repo]
+    }
   }
 
   private fun TestScope.stateFor(source: DiffSource?) = DiffViewerState(source, this, 16)
@@ -126,6 +132,38 @@ class DiffViewerStateTest {
     state.reload()
     assertEquals(LoadStatus.Loading, state.uiState.value.status)
     assertEquals(HeadRef.Branch("main"), state.uiState.value.head)
+  }
+
+  @Test
+  fun openPublishesRepositoryRoot() = runTest(StandardTestDispatcher()) {
+    val sub = RepoPath("/work/repo/sub")
+    val state = stateFor(FakeSource(roots = mapOf(sub to RepoPath("/work/repo"))) { flow {} })
+    state.open(sub)
+    advanceUntilIdle()
+    assertEquals(sub, state.uiState.value.repo)
+    assertEquals(RepoPath("/work/repo"), state.uiState.value.root)
+  }
+
+  @Test
+  fun reloadKeepsRootWithoutAskingAgain() = runTest(StandardTestDispatcher()) {
+    val source = FakeSource(roots = mapOf(repo to RepoPath("/top"))) { flow {} }
+    val state = stateFor(source)
+    state.open(repo)
+    advanceUntilIdle()
+    state.reload()
+    assertEquals(RepoPath("/top"), state.uiState.value.root)
+    advanceUntilIdle()
+    assertEquals(RepoPath("/top"), state.uiState.value.root)
+    assertEquals(1, source.rootCalls)
+  }
+
+  @Test
+  fun openingAnotherRepoClearsRoot() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource(roots = mapOf(repo to RepoPath("/top"))) { flow {} })
+    state.open(repo)
+    advanceUntilIdle()
+    state.open(RepoPath("/other"))
+    assertNull(state.uiState.value.root)
   }
 
   @Test
