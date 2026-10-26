@@ -5,7 +5,7 @@ import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermissions
 import java.util.concurrent.TimeUnit
 
-fun requireGit(): String = checkNotNull(GitLocator.locateOnHost()) { "git executable not found on host" }
+fun requireGit(): String = checkNotNull((GitLocator.locateOnHost(null) as? GitLocation.Found)?.info?.path) { "git executable not found on host" }
 
 fun newTempDir(): File = Files.createTempDirectory("kdv-test").toFile().canonicalFile
 

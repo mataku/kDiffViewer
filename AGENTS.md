@@ -31,9 +31,27 @@ scripts/generate-large-diff.sh <dir> [ext]   # create a large repository for man
 
 - The build and the bundled runtime use the JetBrains Runtime (JBR) 25 toolchain (`JvmVendorSpec.JETBRAINS` in both modules; the foojay resolver in `settings.gradle.kts` downloads it when missing). The app relies on the JBR API (`com.jetbrains:jbr-api`) for the custom title bar, and falls back to the system title bar when `JBR.isWindowDecorationsSupported()` is false. Never package with Homebrew's OpenJDK and never set `compose.desktop.packaging.checkJdkVendor=false`: Homebrew's JDK links `libfontmanager.dylib` against Homebrew's harfbuzz and freetype, so the bundled runtime breaks when those formulae change ([Compose issue #3107](https://github.com/JetBrains/compose-multiplatform/issues/3107)). After packaging changes, check with `otool -L` that no dylib under the app's `Contents/runtime` references `/opt/homebrew` or `/usr/local`.
 - git output must not depend on the user's git configuration. `GitDiffSource` passes `-c core.quotePath=false`, `--no-color`, `--no-ext-diff`, `--no-textconv`, `--src-prefix=a/`, `--dst-prefix=b/`, `-M`, and `--submodule=short`; keep those flags when touching the diff command, and add one when a new config can change the output format.
-- Performance is a goal: diffs can have thousands of files and hundreds of thousands of rows. Keep `LazyColumn` rows keyed by index (the same path can appear twice), append rows incrementally, and avoid work proportional to the whole diff per batch.
-- When choosing between designs, prefer the one with lower CPU cost and memory use. State each option's cost when proposing it (work per update, recomposition scope, retained memory), and do not pick a slower or heavier option for simplicity alone; if one is chosen anyway, record why.
 - Formatting is 2-space indent via `.editorconfig` and ktlint (Spotless).
+
+## Performance and memory
+
+Diffs can have thousands of files and hundreds of thousands of rows, so CPU and memory cost is a design input, not a later fix.
+
+- Review cost at every stage without being asked: list each option's cost when proposing a design (work per update, recomposition scope, retained memory), put a "Performance and memory review" section in every plan, and have task and final reviews check it. Do not pick a slower or heavier option for simplicity alone; if one is chosen anyway, record why.
+- Keep the EDT free of blocking work (process spawns, file I/O, font enumeration); run it on `Dispatchers.IO` or before `application {}`.
+- `LazyColumn` diff rows: key by index (the same path can appear twice), append incrementally, and add no per-row allocation (build `TextStyle`s once and provide them through a static CompositionLocal), no per-row test tags or semantics nodes, and complete `remember` keys.
+- Avoid work proportional to the whole diff per batch, and avoid eager composition of large lists (e.g. Material `DropdownMenu`); use lazy lists.
+- Reuse expensive resources across swaps (grammars, highlighters), and release window-scoped resources when the window closes.
+- Inputs that do not change state must be no-ops (no reload, no probe, no write); conflate bursts of writes.
+
+## macOS UI
+
+- Follow macOS conventions (Apple HIG) over Material. Material3 is theme plumbing here; do not adopt its visual idioms (outlined/filled text fields, floating labels, red error borders, snackbars, FABs).
+- Build buttons, popup buttons, segmented controls, steppers and text fields from the `Mac*` composables in `app/src/commonMain/kotlin/io/github/mataku/kdiffviewer/app/ui/MacControls.kt`; add a missing control there instead of reaching for a Material widget.
+- Validation feedback goes inline next to the control as a small icon plus one short line of text; do not block with alerts for input errors.
+- Settings live under the application menu (`Settings…`, ⌘,) and apply immediately; no Save/Apply buttons.
+- Use standard macOS shortcuts and menu placement, and follow the system appearance by default.
+- When proposing UI, say which macOS app or system panel the pattern matches (System Settings, Xcode, Finder). If none does, ask before building it.
 
 ## Workflow
 

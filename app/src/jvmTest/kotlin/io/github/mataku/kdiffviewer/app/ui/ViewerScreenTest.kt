@@ -14,6 +14,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -69,8 +70,7 @@ class ViewerScreenTest {
   fun showsFileHeaderAndLines() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(listOf(modified("src/a.kt"))), {}) }
     onNodeWithText("src/a.kt", useUnmergedTree = true).assertIsDisplayed()
-    onNodeWithTag("file-additions-0", useUnmergedTree = true).assertTextEquals("+1")
-    onNodeWithTag("file-deletions-0", useUnmergedTree = true).assertTextEquals("−1")
+    onNodeWithTag("file-stats-0", useUnmergedTree = true).assertTextEquals("+1 −1")
     onNodeWithText("TWO").assertIsDisplayed()
     onNodeWithText("@@ -1,1 +1,1 @@ fun main()").assertIsDisplayed()
   }
@@ -84,6 +84,14 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun expandsTabsWithConfiguredTabWidth() = runComposeUiTest {
+    val line = DiffLine(LineKind.Added, "\tx", null, 1)
+    val file = FileDiff(null, "t.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", listOf(line)))))
+    setContent { KdvTheme(darkTheme = false, tabWidth = 4) { ViewerScreen(stateOf(listOf(file)), {}) } }
+    onNodeWithText("    x").assertIsDisplayed()
+  }
+
+  @Test
   fun longPathKeepsBadgeAndStatsVisible() = runComposeUiTest {
     val path = "very/long/" + "nested-directory/".repeat(5) + "a-file-with-a-rather-long-name.kt"
     setContent {
@@ -91,10 +99,37 @@ class ViewerScreenTest {
         ViewerScreen(stateOf(listOf(modified(path))), {})
       }
     }
-    listOf("file-badge-0", "file-additions-0", "file-deletions-0").forEach { tag ->
+    listOf("file-badge-0", "file-stats-0").forEach { tag ->
       val width = onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().size.width
       assertTrue(width > 0, "$tag width=$width")
     }
+  }
+
+  @Test
+  fun headerStatsRightAligned() = runComposeUiTest {
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }
+    val header = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot
+    val badge = onNodeWithTag("file-badge-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val stats = onNodeWithTag("file-stats-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    assertTrue(stats.left >= badge.right, "stats=$stats badge=$badge")
+    assertTrue(kotlin.math.abs(header.right - stats.right) <= 1f, "stats=$stats header=$header")
+  }
+
+  @Test
+  fun headerHidesZeroCounts() = runComposeUiTest {
+    val added = FileDiff(null, "n.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 40, 1, "", List(40) { DiffLine(LineKind.Added, "x$it", null, it + 1) }))))
+    val renamed = FileDiff("a.txt", "b.txt", ChangeType.Renamed, false, DiffContent.Text(emptyList()))
+    setContent { ViewerScreen(stateOf(listOf(added, renamed)), {}) }
+    onNodeWithTag("file-stats-0", useUnmergedTree = true).assertTextEquals("+40")
+    onNodeWithTag("file-stats-1", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun headerStatsSingleSpace() = runComposeUiTest {
+    val body = List(12) { DiffLine(LineKind.Added, "a$it", null, it + 1) } + List(3) { DiffLine(LineKind.Removed, "r$it", it + 1, null) }
+    val file = FileDiff("m.kt", "m.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 3, 1, 12, "", body))))
+    setContent { ViewerScreen(stateOf(listOf(file)), {}) }
+    onNodeWithTag("file-stats-0", useUnmergedTree = true).assertTextEquals("+12 −3")
   }
 
   @Test
@@ -321,8 +356,7 @@ class ViewerScreenTest {
   @Test
   fun treeShowsFileStatsFromTheDiff() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) }
-    onNodeWithTag("tree-additions-0", useUnmergedTree = true).assertTextEquals("+1")
-    onNodeWithTag("tree-deletions-0", useUnmergedTree = true).assertTextEquals("−1")
+    onNodeWithTag("tree-stats-0", useUnmergedTree = true).assertTextEquals("+1 −1")
   }
 
   @Test
@@ -360,7 +394,7 @@ class ViewerScreenTest {
     waitForIdle()
     val width = onNodeWithTag("file-tree").fetchSemanticsNode().boundsInRoot.width
     assertEquals(with(density) { MinTreeWidth.toPx() }, width)
-    onNodeWithTag("tree-additions-0", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithTag("tree-stats-0", useUnmergedTree = true).assertDoesNotExist()
   }
 
   @Test
@@ -417,6 +451,27 @@ class ViewerScreenTest {
   fun lineWithoutSpansStaysPlain() = runComposeUiTest {
     setContent { KdvTheme(darkTheme = false) { ViewerScreen(stateOf(listOf(keywordFile())), {}) } }
     assertEquals(emptyList(), lineText("fun x").spanStyles)
+  }
+
+  @Test
+  fun headerPathGrowsWithFontSize() = runComposeUiTest {
+    var fontSize by mutableStateOf(12)
+    setContent { KdvTheme(darkTheme = false, fontSize = fontSize) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }
+    val small = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot.height
+    fontSize = 24
+    waitForIdle()
+    val large = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot.height
+    assertTrue(large > small, "small=$small large=$large")
+  }
+
+  @Test
+  fun lineNumberColumnWidensWithFontSize() = runComposeUiTest {
+    var fontSize by mutableStateOf(24)
+    setContent { KdvTheme(darkTheme = false, fontSize = fontSize) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }
+    onAllNodesWithText("1", useUnmergedTree = true)[0].assertWidthIsEqualTo(90.dp)
+    fontSize = 12
+    waitForIdle()
+    onAllNodesWithText("1", useUnmergedTree = true)[0].assertWidthIsEqualTo(42.dp)
   }
 }
 

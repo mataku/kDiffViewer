@@ -24,9 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,8 +33,6 @@ import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.LineKind
-
-private const val MINUS = "−"
 
 private val FileHeaderTopMargin = 12.dp
 
@@ -74,6 +69,7 @@ private fun FileDiff.badge(): String = if (isUntracked) "Untracked" else change.
 @Composable
 private fun FileHeaderRow(row: DiffRow.FileHeader) {
   val colors = LocalDiffColors.current
+  val typography = LocalDiffTypography.current
   Row(
     modifier = Modifier
       .fillMaxWidth()
@@ -85,44 +81,45 @@ private fun FileHeaderRow(row: DiffRow.FileHeader) {
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    BasicText(
-      text = row.file.headerTitle(),
-      modifier = Modifier.weight(1f, fill = false),
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis,
-      style = TextStyle(color = colors.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
-    )
-    BasicText(
-      text = row.file.badge(),
-      modifier = Modifier
-        .testTag("file-badge-${row.fileIndex}")
-        .border(1.dp, colors.border, RoundedCornerShape(10.dp))
-        .padding(horizontal = 6.dp, vertical = 1.dp),
-      style = TextStyle(color = colors.mutedText, fontSize = 11.sp),
-    )
-    BasicText(
-      text = "+${row.stats.additions}",
-      modifier = Modifier.testTag("file-additions-${row.fileIndex}"),
-      style = TextStyle(color = colors.addedText, fontSize = 12.sp),
-    )
-    BasicText(
-      text = "$MINUS${row.stats.deletions}",
-      modifier = Modifier.testTag("file-deletions-${row.fileIndex}"),
-      style = TextStyle(color = colors.removedText, fontSize = 12.sp),
-    )
+    Row(
+      modifier = Modifier.weight(1f),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      BasicText(
+        text = row.file.headerTitle(),
+        modifier = Modifier.weight(1f, fill = false),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        style = typography.headerPath,
+      )
+      BasicText(
+        text = row.file.badge(),
+        modifier = Modifier
+          .testTag("file-badge-${row.fileIndex}")
+          .border(1.dp, colors.border, RoundedCornerShape(10.dp))
+          .padding(horizontal = 6.dp, vertical = 1.dp),
+        style = typography.headerBadge,
+      )
+    }
+    val statsText = remember(row.stats, typography) { statsText(row.stats, typography.headerAdditions, typography.headerDeletions) }
+    if (statsText != null) {
+      BasicText(text = statsText, modifier = Modifier.testTag("file-stats-${row.fileIndex}"))
+    }
   }
 }
 
 @Composable
 private fun HunkHeaderRow(row: DiffRow.HunkHeader) {
   val colors = LocalDiffColors.current
+  val typography = LocalDiffTypography.current
   BasicText(
-    text = expandTabs(hunkHeaderLabel(row.hunk)),
+    text = remember(row.hunk, typography.tabWidth) { expandTabs(hunkHeaderLabel(row.hunk), typography.tabWidth) },
     modifier = Modifier
       .fillMaxWidth()
       .background(colors.hunkBackground)
       .padding(horizontal = 12.dp, vertical = 2.dp),
-    style = TextStyle(color = colors.mutedText, fontSize = 12.sp, fontFamily = FontFamily.Monospace),
+    style = typography.hunkHeader,
   )
 }
 
@@ -140,12 +137,12 @@ private fun PlaceholderRow(message: String) {
 private fun LineRow(row: DiffRow.Line, slot: HighlightSlot?) {
   val line = row.line
   val colors = LocalDiffColors.current
-  val mono = TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+  val typography = LocalDiffTypography.current
   if (line.kind == LineKind.NoNewlineAtEof) {
     BasicText(
       text = "No newline at end of file",
-      modifier = Modifier.fillMaxWidth().padding(start = 112.dp),
-      style = mono.copy(color = colors.mutedText),
+      modifier = Modifier.fillMaxWidth().padding(start = typography.lineNumberWidth * 2 + 16.dp),
+      style = typography.noNewline,
     )
     return
   }
@@ -155,35 +152,35 @@ private fun LineRow(row: DiffRow.Line, slot: HighlightSlot?) {
     else -> Triple(colors.background, colors.background, " ")
   }
   Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-    LineNumberCell(line.oldLineNo, numberBackground, mono.copy(color = colors.mutedText))
-    LineNumberCell(line.newLineNo, numberBackground, mono.copy(color = colors.mutedText))
+    LineNumberCell(line.oldLineNo, numberBackground, typography)
+    LineNumberCell(line.newLineNo, numberBackground, typography)
     Box(modifier = Modifier.width(16.dp).fillMaxHeight().background(contentBackground)) {
       BasicText(
         text = marker,
         modifier = Modifier.align(Alignment.TopCenter),
-        style = mono.copy(color = colors.text),
+        style = typography.marker,
       )
     }
     val contentModifier = Modifier.weight(1f).fillMaxHeight().background(contentBackground)
-    val contentStyle = mono.copy(color = colors.text)
     val spans = slot?.value?.spans?.getOrNull(row.hunkIndex)?.getOrNull(row.lineIndex)
     if (spans != null) {
       val theme = LocalSyntaxTheme.current
-      val text = remember(line, spans, theme) { displayText(line.text, spans, theme) }
-      BasicText(text = text, modifier = contentModifier, style = contentStyle)
+      val text = remember(line, spans, theme, typography.tabWidth) { displayText(line.text, spans, theme, typography.tabWidth) }
+      BasicText(text = text, modifier = contentModifier, style = typography.code)
     } else {
-      BasicText(text = expandTabs(line.text), modifier = contentModifier, style = contentStyle)
+      val text = remember(line.text, typography.tabWidth) { expandTabs(line.text, typography.tabWidth) }
+      BasicText(text = text, modifier = contentModifier, style = typography.code)
     }
   }
 }
 
 @Composable
-private fun LineNumberCell(number: Int?, background: Color, style: TextStyle) {
-  Box(modifier = Modifier.width(48.dp).fillMaxHeight().background(background).padding(end = 6.dp)) {
+private fun LineNumberCell(number: Int?, background: Color, typography: DiffTypography) {
+  Box(modifier = Modifier.width(typography.lineNumberWidth).fillMaxHeight().background(background).padding(end = 6.dp)) {
     BasicText(
       text = number?.toString().orEmpty(),
       modifier = Modifier.fillMaxWidth(),
-      style = style.copy(textAlign = TextAlign.End),
+      style = typography.lineNumber,
     )
   }
 }

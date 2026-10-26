@@ -4,6 +4,7 @@ plugins {
   alias(libs.plugins.kotlinMultiplatform)
   alias(libs.plugins.composeMultiplatform)
   alias(libs.plugins.composeCompiler)
+  alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
@@ -21,6 +22,7 @@ kotlin {
       implementation(libs.compose.ui)
       implementation(libs.compose.material3)
       implementation(libs.kotlinx.coroutines.core)
+      implementation(libs.kotlinx.serialization.json)
       implementation(libs.composeSyntaxHighlight.core)
       implementation(libs.composeSyntaxHighlight.kotlin)
       implementation(libs.composeSyntaxHighlight.ruby)
@@ -56,6 +58,10 @@ compose.desktop {
       languageVersion.set(JavaLanguageVersion.of(25))
       vendor.set(JvmVendorSpec.JETBRAINS)
     }.get().metadata.installationPath.asFile.absolutePath
+
+    if (System.getProperty("os.name").startsWith("Mac")) {
+      jvmArgs("-Xdock:name=kDiffViewer")
+    }
 
     nativeDistributions {
       targetFormats(TargetFormat.Dmg)

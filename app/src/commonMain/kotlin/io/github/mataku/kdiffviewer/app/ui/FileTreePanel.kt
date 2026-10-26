@@ -3,6 +3,7 @@ package io.github.mataku.kdiffviewer.app.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,20 +12,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.TreeEntry
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 
@@ -41,10 +45,17 @@ fun FileTreePanel(
   modifier: Modifier = Modifier,
   topInset: Dp = 0.dp,
   statsOf: (Int) -> DiffStats? = { null },
+  statusOf: (Int) -> GitFileStatus? = { null },
   width: Dp = DefaultTreeWidth,
 ) {
   val colors = LocalDiffColors.current
+  val typography = LocalTreeTypography.current
   val showStats = width >= StatsVisibleWidth
+  val measurer = rememberTextMeasurer()
+  val density = LocalDensity.current
+  val statusWidth = remember(typography, measurer, density) {
+    with(density) { measurer.measure("M", typography.statusModified).size.width.toDp() }
+  }
   LazyColumn(
     modifier = modifier
       .width(width)
@@ -65,7 +76,7 @@ fun FileTreePanel(
       Row(
         rowModifier
           .fillMaxWidth()
-          .padding(start = (12 * row.depth).dp, top = 3.dp, bottom = 3.dp),
+          .padding(start = typography.indentPerDepth * row.depth, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
         val iconTint = ColorFilter.tint(colors.mutedText)
@@ -76,12 +87,12 @@ fun FileTreePanel(
             modifier = Modifier
               .testTag("tree-chevron-$index")
               .padding(end = 2.dp)
-              .size(12.dp)
+              .size(typography.chevronSize)
               .rotate(if (entry.collapsed) 0f else 90f),
             colorFilter = iconTint,
           )
         } else {
-          Spacer(Modifier.width(14.dp))
+          Spacer(Modifier.width(typography.chevronSize + 2.dp))
         }
         Image(
           imageVector = if (fileIndex != null) KdvIcons.File else KdvIcons.Folder,
@@ -89,33 +100,45 @@ fun FileTreePanel(
           modifier = Modifier
             .testTag(if (fileIndex != null) "tree-file-icon-$index" else "tree-folder-icon-$index")
             .padding(end = 6.dp)
-            .size(14.dp),
+            .size(typography.iconSize),
           colorFilter = iconTint,
         )
         BasicText(
           text = row.name,
           modifier = Modifier.weight(1f),
-          style = TextStyle(
-            color = if (fileIndex != null) colors.text else colors.mutedText,
-            fontSize = 13.sp,
-          ),
+          style = if (fileIndex != null) typography.name else typography.directoryName,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
         )
-        val stats = if (showStats && fileIndex != null) statsOf(fileIndex) else null
-        if (stats != null && (stats.additions > 0 || stats.deletions > 0)) {
-          BasicText(
-            text = "+${stats.additions}",
-            modifier = Modifier.testTag("tree-additions-$fileIndex").padding(start = 8.dp),
-            style = TextStyle(color = colors.addedText, fontSize = 11.sp),
-          )
-          BasicText(
-            text = "−${stats.deletions}",
-            modifier = Modifier.testTag("tree-deletions-$fileIndex").padding(start = 4.dp),
-            style = TextStyle(color = colors.removedText, fontSize = 11.sp),
-          )
+        if (showStats && fileIndex != null) {
+          val stats = statsOf(fileIndex)
+          val statsText = remember(stats, typography) { stats?.let { statsText(it, typography.additions, typography.deletions) } }
+          if (statsText != null) {
+            BasicText(
+              text = statsText,
+              modifier = Modifier.padding(start = 8.dp).testTag("tree-stats-$fileIndex"),
+            )
+          }
+          Box(Modifier.padding(start = 6.dp).widthIn(min = statusWidth), contentAlignment = Alignment.Center) {
+            val status = statusOf(fileIndex)
+            if (status != null) {
+              BasicText(
+                text = status.letter(),
+                modifier = Modifier.testTag("tree-status-$fileIndex"),
+                style = typography.statusStyle(status),
+              )
+            }
+          }
         }
       }
     }
   }
+}
+
+private fun GitFileStatus.letter(): String = when (this) {
+  GitFileStatus.Untracked -> "U"
+  GitFileStatus.Added -> "A"
+  GitFileStatus.Modified -> "M"
+  GitFileStatus.Deleted -> "D"
+  GitFileStatus.Renamed -> "R"
 }
