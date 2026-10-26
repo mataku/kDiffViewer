@@ -258,10 +258,39 @@ class ViewerScreenTest {
     setContent {
       ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.Commit("origin/develop", "m1", "a1b2c3d"), head = HeadRef.Branch("feature/x")), {})
     }
-    onNodeWithTag("base-label", useUnmergedTree = true).assertTextEquals("origin/develop · a1b2c3d")
+    onNodeWithTag("base-label", useUnmergedTree = true).assertTextEquals("origin/develop")
+    onNodeWithText("...", useUnmergedTree = true).assertExists()
+    onNodeWithText("→", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithText("a1b2c3d", substring = true, useUnmergedTree = true).assertDoesNotExist()
     val base = onNodeWithTag("base-label", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
     val head = onNodeWithTag("head-label", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
     assertTrue(base.right <= head.left, "base=$base head=$head")
+  }
+
+  @Test
+  fun headBaseShowsUncommittedChangesWithoutArrow() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.Commit("HEAD", "h1", "h1abc"), head = HeadRef.Branch("develop")), {}) }
+    onNodeWithTag("base-label", useUnmergedTree = true).assertTextEquals("Uncommitted changes")
+    onNodeWithTag("head-label", useUnmergedTree = true).assertTextEquals("develop")
+    onNodeWithText("→", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun hoveringBaseShowsMergeBaseTooltip() = runComposeUiTest {
+    setContent {
+      ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.Commit("origin/develop", "m1", "a1b2c3d"), head = HeadRef.Branch("feature/x")), {})
+    }
+    onNodeWithTag("base-label", useUnmergedTree = true).performMouseInput { moveTo(center) }
+    val text = "a1b2c3d is the merge-base of origin/develop and HEAD. The diff includes uncommitted changes."
+    waitUntil(timeoutMillis = 3_000) { onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+  }
+
+  @Test
+  fun hoveringHeadBaseShowsUncommittedTooltip() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.Commit("HEAD", "h1", "h1abc"), head = HeadRef.Branch("develop")), {}) }
+    onNodeWithTag("base-label", useUnmergedTree = true).performMouseInput { moveTo(center) }
+    val text = "The diff shows uncommitted changes against HEAD (h1abc)."
+    waitUntil(timeoutMillis = 3_000) { onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
   }
 
   @Test
