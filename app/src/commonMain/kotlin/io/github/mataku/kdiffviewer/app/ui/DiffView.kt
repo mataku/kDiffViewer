@@ -44,6 +44,18 @@ import io.github.mataku.kdiffviewer.core.model.LineKind
 private val FileHeaderTopMargin = 12.dp
 private val FileChevronSize = 12.dp
 
+private const val HEADER_CONTENT_TYPE = 0
+private const val HUNK_HEADER_CONTENT_TYPE = 1
+private const val LINE_CONTENT_TYPE = 2
+private const val PLACEHOLDER_CONTENT_TYPE = 3
+
+private fun DiffRow.contentType(): Int = when (this) {
+  is DiffRow.FileHeader -> HEADER_CONTENT_TYPE
+  is DiffRow.HunkHeader -> HUNK_HEADER_CONTENT_TYPE
+  is DiffRow.Line -> LINE_CONTENT_TYPE
+  is DiffRow.Placeholder -> PLACEHOLDER_CONTENT_TYPE
+}
+
 @Composable
 fun DiffView(
   rows: List<DiffRow>,
@@ -63,7 +75,7 @@ fun DiffView(
       val headerRow = layout.headerRowIndex(fileIndex)
       val collapsed = layout.isCollapsed(fileIndex)
       val header = rows[headerRow] as DiffRow.FileHeader
-      stickyHeader(key = header.key, contentType = DiffRow.FileHeader::class) {
+      stickyHeader(key = header.key, contentType = HEADER_CONTENT_TYPE) {
         FileHeaderRow(header, collapsed) { currentOnHeaderClick(header.fileIndex) }
       }
       if (!collapsed) {
@@ -71,7 +83,7 @@ fun DiffView(
         items(
           count = layout.bodyRowCount(fileIndex),
           key = { rows[bodyStart + it].key },
-          contentType = { rows[bodyStart + it]::class },
+          contentType = { rows[bodyStart + it].contentType() },
         ) { offset ->
           when (val row = rows[bodyStart + offset]) {
             is DiffRow.FileHeader -> Unit
