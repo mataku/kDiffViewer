@@ -748,6 +748,54 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun draftOnFileThatLeftTheDiffStaysVisibleAndCancellable() = runComposeUiTest {
+    val first = stateOf(listOf(modified("a.kt"), modified("b.kt"))).copy(loadId = 1)
+    var ui by mutableStateOf(first)
+    val review = reviewState(first)
+    review.startDraft(DraftTarget.NewThread(anchorOf(first.files[1], 0, 1)!!, Placement.OnLine(LineLocation(1, 0, 1))))
+    review.updateDraft("still here")
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    val second = stateOf(listOf(modified("a.kt"))).copy(loadId = 2)
+    ui = second
+    review.onViewerState(second)
+    waitForIdle()
+    onNodeWithText("Comments on files no longer in the diff").assertIsDisplayed()
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+    onNodeWithTag("comment-composer").assertTextEquals("still here")
+    onNodeWithTag("comment-composer").performKeyInput { pressKey(Key.Escape) }
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertDoesNotExist()
+    onNodeWithText("Comments on files no longer in the diff").assertDoesNotExist()
+    onNodeWithText("TWO").performMouseInput { moveTo(center) }
+    waitForIdle()
+    onNodeWithTag("add-comment").performClick()
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+  }
+
+  @Test
+  fun orphanDraftShowsEvenWhenDiffIsEmpty() = runComposeUiTest {
+    val first = stateOf(listOf(modified("a.kt"))).copy(loadId = 1)
+    var ui by mutableStateOf(first)
+    val review = reviewState(first)
+    review.startDraft(DraftTarget.NewThread(Anchor.File("a.kt"), Placement.OnFile(0)))
+    review.updateDraft("note")
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    val second = stateOf(emptyList()).copy(loadId = 2)
+    ui = second
+    review.onViewerState(second)
+    waitForIdle()
+    onNodeWithText("No changes").assertDoesNotExist()
+    onNodeWithTag("comment-composer").assertTextEquals("note")
+  }
+
+  @Test
   fun noAddCommentButtonOnNoNewlineRow() = runComposeUiTest {
     val body = listOf(DiffLine(LineKind.Added, "x", null, 1), DiffLine(LineKind.NoNewlineAtEof, "", null, null))
     val file = FileDiff(null, "n.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", body))))

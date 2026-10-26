@@ -39,11 +39,11 @@ fun NoteStack(threads: List<ReviewThread>, draftTarget: DraftTarget?, composeNew
 }
 
 @Composable
-fun OrphanSection(threads: List<ReviewThread>, draftTarget: DraftTarget?, modifier: Modifier = Modifier) {
+fun OrphanSection(threads: List<ReviewThread>, draftTarget: DraftTarget?, composeNew: Boolean, modifier: Modifier = Modifier) {
   val colors = LocalDiffColors.current
   val style = remember(colors) { TextStyle(color = colors.mutedText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
   Column(modifier = modifier.fillMaxWidth().padding(top = 12.dp)) {
     BasicText(text = "Comments on files no longer in the diff", style = style)
-    NoteStack(threads, draftTarget, composeNew = false)
+    NoteStack(threads, draftTarget, composeNew)
   }
 }

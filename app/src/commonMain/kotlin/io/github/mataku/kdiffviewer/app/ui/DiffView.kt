@@ -49,6 +49,7 @@ import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewPlacements
+import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.linePosition
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.NoteStack
@@ -138,7 +139,7 @@ fun DiffView(
   ) {
     if (layout.hasOrphanItem) {
       item(key = ORPHANS_KEY, contentType = ORPHANS_CONTENT_TYPE) {
-        OrphanSection(placements.orphans, draft)
+        OrphanSection(placements.orphans, draft, composeNew = draft.isOrphanThread())
       }
     }
     for (fileIndex in 0 until layout.fileCount) {

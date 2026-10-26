@@ -45,6 +45,7 @@ import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.diffLayoutOf
 import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
+import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.notesFiles
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftText
 import io.github.mataku.kdiffviewer.app.visibleTree
@@ -69,7 +70,7 @@ fun ViewerScreen(
   val draftTarget = review.draft?.target
   val draftText = rememberUpdatedState(review.draft?.text.orEmpty())
   val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(draftTarget) else emptySet() }
-  val hasOrphans = shown && review.placements.orphans.isNotEmpty()
+  val hasOrphans = shown && (review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
   val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, notesFiles, hasOrphans) {
     diffLayoutOf(state, notesFiles, hasOrphans)
   }

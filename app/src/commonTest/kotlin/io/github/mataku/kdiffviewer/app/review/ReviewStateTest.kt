@@ -14,6 +14,7 @@ import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.core.review.LineLocation
 import io.github.mataku.kdiffviewer.core.review.Placement
+import io.github.mataku.kdiffviewer.core.review.Side
 import io.github.mataku.kdiffviewer.core.review.anchorOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -259,6 +260,23 @@ class ReviewStateTest {
     val gone = state.snapshot.value.draft!!
     assertEquals("wip", gone.text)
     assertEquals(Placement.OnFile(0), (gone.target as DraftTarget.NewThread).placement)
+  }
+
+  @Test
+  fun newThreadDraftOnFileThatLeavesTheDiffBecomesOrphanAndKeepsText() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    val other = file("b.kt", "x", "y")
+    state.onViewerState(ui(1, base, other))
+    advanceUntilIdle()
+    val target = DraftTarget.NewThread(Anchor.Lines("b.kt", Side.New, 2, 2, listOf("y")), Placement.OnLine(LineLocation(1, 0, 1)))
+    state.startDraft(target)
+    state.updateDraft("wip")
+    state.onViewerState(ui(2, base))
+    advanceUntilIdle()
+    val draft = state.snapshot.value.draft!!
+    assertEquals("wip", draft.text)
+    assertEquals(Placement.Orphan, (draft.target as DraftTarget.NewThread).placement)
+    assertEquals(2L, state.snapshot.value.placements.loadId)
   }
 
   @Test

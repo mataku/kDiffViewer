@@ -29,6 +29,8 @@ sealed interface DraftTarget {
 
 data class Draft(val target: DraftTarget, val text: String)
 
+fun DraftTarget?.isOrphanThread(): Boolean = this is DraftTarget.NewThread && placement == Placement.Orphan
+
 fun ReviewPlacements.notesFiles(target: DraftTarget?): Set<Int> {
   val draftFile = if (target is DraftTarget.NewThread) (target.placement as? Placement.OnFile)?.fileIndex else null
   if (draftFile == null) return byFile.keys
