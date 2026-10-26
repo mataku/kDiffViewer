@@ -34,8 +34,6 @@ import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.LineKind
 
-private const val MINUS = "−"
-
 private val FileHeaderTopMargin = 12.dp
 
 @Composable
@@ -83,31 +81,31 @@ private fun FileHeaderRow(row: DiffRow.FileHeader) {
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    BasicText(
-      text = row.file.headerTitle(),
-      modifier = Modifier.weight(1f, fill = false),
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis,
-      style = typography.headerPath,
-    )
-    BasicText(
-      text = row.file.badge(),
-      modifier = Modifier
-        .testTag("file-badge-${row.fileIndex}")
-        .border(1.dp, colors.border, RoundedCornerShape(10.dp))
-        .padding(horizontal = 6.dp, vertical = 1.dp),
-      style = typography.headerBadge,
-    )
-    BasicText(
-      text = "+${row.stats.additions}",
-      modifier = Modifier.testTag("file-additions-${row.fileIndex}"),
-      style = typography.headerAdditions,
-    )
-    BasicText(
-      text = "$MINUS${row.stats.deletions}",
-      modifier = Modifier.testTag("file-deletions-${row.fileIndex}"),
-      style = typography.headerDeletions,
-    )
+    Row(
+      modifier = Modifier.weight(1f),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      BasicText(
+        text = row.file.headerTitle(),
+        modifier = Modifier.weight(1f, fill = false),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        style = typography.headerPath,
+      )
+      BasicText(
+        text = row.file.badge(),
+        modifier = Modifier
+          .testTag("file-badge-${row.fileIndex}")
+          .border(1.dp, colors.border, RoundedCornerShape(10.dp))
+          .padding(horizontal = 6.dp, vertical = 1.dp),
+        style = typography.headerBadge,
+      )
+    }
+    val statsText = remember(row.stats, typography) { statsText(row.stats, typography.headerAdditions, typography.headerDeletions) }
+    if (statsText != null) {
+      BasicText(text = statsText, modifier = Modifier.testTag("file-stats-${row.fileIndex}"))
+    }
   }
 }
 

@@ -24,11 +24,8 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.mataku.kdiffviewer.app.GitFileStatus
@@ -115,7 +112,7 @@ fun FileTreePanel(
         )
         if (showStats && fileIndex != null) {
           val stats = statsOf(fileIndex)
-          val statsText = remember(stats, typography) { stats?.let { compactStats(it, typography) } }
+          val statsText = remember(stats, typography) { stats?.let { statsText(it, typography.additions, typography.deletions) } }
           if (statsText != null) {
             BasicText(
               text = statsText,
@@ -135,15 +132,6 @@ fun FileTreePanel(
         }
       }
     }
-  }
-}
-
-private fun compactStats(stats: DiffStats, typography: TreeTypography): AnnotatedString? {
-  if (stats.additions <= 0 && stats.deletions <= 0) return null
-  return buildAnnotatedString {
-    if (stats.additions > 0) withStyle(typography.additions.toSpanStyle()) { append("+${stats.additions}") }
-    if (stats.additions > 0 && stats.deletions > 0) append(" ")
-    if (stats.deletions > 0) withStyle(typography.deletions.toSpanStyle()) { append("−${stats.deletions}") }
   }
 }
 

@@ -70,8 +70,7 @@ class ViewerScreenTest {
   fun showsFileHeaderAndLines() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(listOf(modified("src/a.kt"))), {}) }
     onNodeWithText("src/a.kt", useUnmergedTree = true).assertIsDisplayed()
-    onNodeWithTag("file-additions-0", useUnmergedTree = true).assertTextEquals("+1")
-    onNodeWithTag("file-deletions-0", useUnmergedTree = true).assertTextEquals("−1")
+    onNodeWithTag("file-stats-0", useUnmergedTree = true).assertTextEquals("+1 −1")
     onNodeWithText("TWO").assertIsDisplayed()
     onNodeWithText("@@ -1,1 +1,1 @@ fun main()").assertIsDisplayed()
   }
@@ -100,10 +99,37 @@ class ViewerScreenTest {
         ViewerScreen(stateOf(listOf(modified(path))), {})
       }
     }
-    listOf("file-badge-0", "file-additions-0", "file-deletions-0").forEach { tag ->
+    listOf("file-badge-0", "file-stats-0").forEach { tag ->
       val width = onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().size.width
       assertTrue(width > 0, "$tag width=$width")
     }
+  }
+
+  @Test
+  fun headerStatsRightAligned() = runComposeUiTest {
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }
+    val header = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot
+    val badge = onNodeWithTag("file-badge-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val stats = onNodeWithTag("file-stats-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    assertTrue(stats.left >= badge.right, "stats=$stats badge=$badge")
+    assertTrue(kotlin.math.abs(header.right - stats.right) <= 1f, "stats=$stats header=$header")
+  }
+
+  @Test
+  fun headerHidesZeroCounts() = runComposeUiTest {
+    val added = FileDiff(null, "n.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 40, 1, "", List(40) { DiffLine(LineKind.Added, "x$it", null, it + 1) }))))
+    val renamed = FileDiff("a.txt", "b.txt", ChangeType.Renamed, false, DiffContent.Text(emptyList()))
+    setContent { ViewerScreen(stateOf(listOf(added, renamed)), {}) }
+    onNodeWithTag("file-stats-0", useUnmergedTree = true).assertTextEquals("+40")
+    onNodeWithTag("file-stats-1", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun headerStatsSingleSpace() = runComposeUiTest {
+    val body = List(12) { DiffLine(LineKind.Added, "a$it", null, it + 1) } + List(3) { DiffLine(LineKind.Removed, "r$it", it + 1, null) }
+    val file = FileDiff("m.kt", "m.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 3, 1, 12, "", body))))
+    setContent { ViewerScreen(stateOf(listOf(file)), {}) }
+    onNodeWithTag("file-stats-0", useUnmergedTree = true).assertTextEquals("+12 −3")
   }
 
   @Test
