@@ -25,6 +25,11 @@ private fun parseOptions(args: List<String>): OptionsResult {
   while (i < args.size) {
     val arg = args[i]
     when {
+      arg == "--" -> {
+        positionals += args.drop(i + 1)
+        break
+      }
+
       arg == "--all" -> all = true
 
       arg == "--json" -> json = true
@@ -48,20 +53,34 @@ private fun parseOptions(args: List<String>): OptionsResult {
   return OptionsResult.Ok(ParsedOptions(positionals, all, json, author, TargetOptions(repo, pid)))
 }
 
+private val VALUE_OPTIONS = setOf("--author", "--repo", "--pid")
+
+private fun helpRequested(args: List<String>): Boolean {
+  var i = 0
+  while (i < args.size) {
+    val arg = args[i]
+    when {
+      arg == "--" -> return false
+      arg == "-h" || arg == "--help" -> return true
+      arg in VALUE_OPTIONS -> i++
+    }
+    i++
+  }
+  return false
+}
+
 fun parseArgs(args: List<String>): ParseResult {
   if (args.isEmpty()) return ParseResult.Ok(Command.Open(null))
   val first = args.first()
   val isPath = first == "." || first == ".." || first.contains('/')
   val topic = if (first == "thread") "thread" else null
-  if (args.any { it == "-h" || it == "--help" }) {
-    return ParseResult.Ok(Command.Help(if (isPath) null else topic))
-  }
+  if (helpRequested(args)) return ParseResult.Ok(Command.Help(topic))
   if (isPath) return ParseResult.Ok(Command.Open(first))
 
   val rest = args.drop(1)
   val options = when (val parsed = parseOptions(rest)) {
     is OptionsResult.Ok -> parsed.options
-    is OptionsResult.Error -> return ParseResult.UsageError("kdv: ${parsed.message}", topic)
+    is OptionsResult.Error -> return ParseResult.UsageError(parsed.message, topic)
   }
   val target = options.target
   val positionals = options.positionals
@@ -69,7 +88,7 @@ fun parseArgs(args: List<String>): ParseResult {
   fun noPositionals(command: Command): ParseResult = if (positionals.isEmpty()) {
     ParseResult.Ok(command)
   } else {
-    ParseResult.UsageError("kdv: unexpected argument '${positionals.first()}'", null)
+    ParseResult.UsageError("unexpected argument '${positionals.first()}'", null)
   }
 
   return when (first) {
@@ -83,18 +102,26 @@ fun parseArgs(args: List<String>): ParseResult {
 
 private fun parseThread(positionals: List<String>, options: ParsedOptions): ParseResult {
   val target = options.target
-  fun error(message: String) = ParseResult.UsageError("kdv: $message", "thread")
+  fun error(message: String) = ParseResult.UsageError(message, "thread")
   return when (val sub = positionals.firstOrNull()) {
-    "list" -> ParseResult.Ok(Command.ThreadList(options.all, options.json, target))
+    "list" -> if (positionals.size > 1) {
+      error("unexpected argument '${positionals[1]}'")
+    } else {
+      ParseResult.Ok(Command.ThreadList(options.all, options.json, target))
+    }
 
     "reply" -> {
       val id = positionals.getOrNull(1) ?: return error("thread reply needs <id> and <body|->")
       val body = positionals.getOrNull(2) ?: return error("thread reply needs <body|->")
+      if (positionals.size > 3) {
+        return error("thread reply takes a single <body>: quote it, or pass - to read it from stdin")
+      }
       ParseResult.Ok(Command.ThreadReply(id, body, options.author, target))
     }
 
     "resolve" -> {
       val id = positionals.getOrNull(1) ?: return error("thread resolve needs <id>")
+      if (positionals.size > 2) return error("unexpected argument '${positionals[2]}'")
       ParseResult.Ok(Command.ThreadResolve(id, target))
     }
 

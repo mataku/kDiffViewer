@@ -58,10 +58,17 @@ class ResolveTargetTest {
   }
 
   @Test
-  fun symlinkedCwdMatchesWhenCallerResolvesIt() {
+  fun symlinkedRepoOptionMatchesRealRoot() {
     val r = entry(1, "/real/r")
-    assertEquals(Resolution.Found(r), resolveTarget("/real/r/sub", TargetOptions(), listOf(r), identity))
-    assertEquals(Resolution.NoWindow, resolveTarget("/link/r/sub", TargetOptions(), listOf(r), identity))
+    val realpath: (String) -> String? = { if (it == "/link/r/sub") "/real/r/sub" else null }
+    assertEquals(Resolution.Found(r), resolveTarget("/cwd", TargetOptions(repo = "/link/r/sub"), listOf(r), realpath))
+  }
+
+  @Test
+  fun trailingSlashInRepoRootStillMatches() {
+    val r = entry(1, "/r/")
+    assertEquals(Resolution.Found(r), resolveTarget("/r/src", TargetOptions(), listOf(r), identity))
+    assertEquals(Resolution.NoWindow, resolveTarget("/r2", TargetOptions(), listOf(r), identity))
   }
 
   @Test

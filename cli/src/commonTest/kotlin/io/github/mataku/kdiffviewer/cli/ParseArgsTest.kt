@@ -103,6 +103,54 @@ class ParseArgsTest {
   }
 
   @Test
+  fun extraPositionalsAreRejected() {
+    val reply = error("thread", "reply", "t1", "fixed", "the", "bug")
+    assertEquals("thread", reply.topic)
+    assertTrue(reply.message.contains("quote"))
+    assertTrue(reply.message.contains("-"))
+    assertEquals("thread", error("thread", "list", "foo").topic)
+    assertEquals("thread", error("thread", "resolve", "t1", "x").topic)
+    error("reload", "x")
+  }
+
+  @Test
+  fun doubleDashMakesRemainingArgumentsPositional() {
+    assertEquals(
+      Command.ThreadReply("t1", "- item", "agent", TargetOptions()),
+      ok("thread", "reply", "t1", "--", "- item"),
+    )
+    assertEquals(
+      Command.ThreadReply("t1", "--help", "agent", TargetOptions()),
+      ok("thread", "reply", "t1", "--", "--help"),
+    )
+  }
+
+  @Test
+  fun helpIsNotDetectedAsOptionValue() {
+    assertEquals(
+      Command.ThreadReply("t1", "x", "-h", TargetOptions()),
+      ok("thread", "reply", "t1", "x", "--author", "-h"),
+    )
+  }
+
+  @Test
+  fun optionWithoutValueIsUsageError() {
+    assertEquals("thread", error("thread", "list", "--author").topic)
+    assertEquals("thread", error("thread", "list", "--repo").topic)
+  }
+
+  @Test
+  fun unknownOptionIsUsageError() {
+    assertEquals("thread", error("thread", "list", "--bogus").topic)
+  }
+
+  @Test
+  fun messagesCarryNoPrefix() {
+    assertEquals("unknown option '--bogus'", error("thread", "list", "--bogus").message)
+    assertEquals("missing value for --repo", error("reload", "--repo").message)
+  }
+
+  @Test
   fun usageTextMatchesSpec() {
     val expected = """
       kdv [path]                               Open path in kDiffViewer (no argument: current directory)
@@ -124,5 +172,16 @@ class ParseArgsTest {
     assertTrue(text.contains("kdv thread reply"))
     assertTrue(text.contains("kdv thread resolve"))
     assertTrue(!text.contains("kdv reload"))
+  }
+
+  @Test
+  fun threadUsageExactText() {
+    val expected = """
+      kdv thread list [--all] [--json]         Unresolved threads (all with --all)
+      kdv thread reply <id> <body|-> [--author <name>]
+      kdv thread resolve <id>
+      Common options: --repo <path>, --pid <pid>, -h/--help
+    """.trimIndent() + "\n"
+    assertEquals(expected, usage("thread"))
   }
 }
