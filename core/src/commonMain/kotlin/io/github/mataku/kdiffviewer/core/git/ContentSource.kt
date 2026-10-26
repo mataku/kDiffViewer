@@ -2,11 +2,12 @@ package io.github.mataku.kdiffviewer.core.git
 
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.Side
 import kotlin.coroutines.cancellation.CancellationException
 
 interface ContentSource {
-  suspend fun open(repo: RepoPath): ContentSession
+  suspend fun open(repo: RepoPath, base: ResolvedBase): ContentSession
 }
 
 interface ContentSession : AutoCloseable {
@@ -18,20 +19,18 @@ class GitContentSource(
   private val blobReaderFactory: (root: String) -> GitBlobReader,
   private val reader: WorkingTreeReader,
 ) : ContentSource {
-  override suspend fun open(repo: RepoPath): ContentSession {
+  override suspend fun open(repo: RepoPath, base: ResolvedBase): ContentSession {
     val rootResult = runner.run(repo.value, listOf("rev-parse", "--show-toplevel"))
     val root = rootResult.stdout.trimEnd('\n')
     if (rootResult.exitCode != 0 || root.isEmpty()) throw DiffLoadException.NotARepository(repo.value)
 
-    val head = runner.run(root, listOf("rev-parse", "--verify", "HEAD"))
-    val headId = if (head.exitCode == 0) head.stdout.trim().ifEmpty { null } else null
-    return GitContentSession(root, headId, blobReaderFactory(root), reader)
+    return GitContentSession(root, (base as? ResolvedBase.Commit)?.id, blobReaderFactory(root), reader)
   }
 }
 
 private class GitContentSession(
   private val root: String,
-  private val headId: String?,
+  private val baseId: String?,
   private val blobReader: GitBlobReader,
   private val reader: WorkingTreeReader,
 ) : ContentSession {
@@ -41,9 +40,9 @@ private class GitContentSession(
   }
 
   private suspend fun readOld(path: String?, maxBytes: Long): String? {
-    if (path == null || headId == null) return null
+    if (path == null || baseId == null) return null
     return readOrNull {
-      (blobReader.read(headId, path, maxBytes) as? BlobEntry.Regular)?.bytes?.decodeToString()
+      (blobReader.read(baseId, path, maxBytes) as? BlobEntry.Regular)?.bytes?.decodeToString()
     }
   }
 

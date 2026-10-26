@@ -2,9 +2,11 @@ package io.github.mataku.kdiffviewer.app.review
 
 import io.github.mataku.kdiffviewer.app.DiffViewerState
 import io.github.mataku.kdiffviewer.core.git.DiffSource
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.protocol.Codec
@@ -88,7 +90,8 @@ class ReviewIntegrationTest {
   }
 
   private class RootedSource(private val root: RepoPath) : DiffSource {
-    override fun load(repo: RepoPath): Flow<FileDiff> = emptyFlow()
+    override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase = ResolvedBase.EmptyTree
+    override fun load(repo: RepoPath, base: ResolvedBase): Flow<FileDiff> = emptyFlow()
 
     override suspend fun head(repo: RepoPath): HeadRef? = null
 

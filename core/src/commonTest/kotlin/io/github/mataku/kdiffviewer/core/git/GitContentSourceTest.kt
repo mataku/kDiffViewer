@@ -4,6 +4,7 @@ import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.Side
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
@@ -44,13 +45,14 @@ class GitContentSourceTest {
 
   private fun file(oldPath: String?, newPath: String?) = FileDiff(oldPath, newPath, ChangeType.Modified, isUntracked = false, DiffContent.Text(emptyList()))
 
-  private suspend fun session() = source.open(RepoPath("/repo"))
+  private suspend fun session(base: ResolvedBase = ResolvedBase.Commit("HEAD", "abc123", "abc123")) = source.open(RepoPath("/repo"), base)
 
   @Test
-  fun oldSideReadsBlobAtResolvedHeadId() = runTest {
+  fun oldSideReadsBlobAtBaseCommit() = runTest {
     blobs.entry = BlobEntry.Regular("old\n".encodeToByteArray())
-    assertEquals("old\n", session().read(file("a.kt", "a.kt"), Side.Old, 1024))
-    assertEquals(listOf(FakeGitBlobReader.Call("abc123", "a.kt", 1024)), blobs.calls)
+    assertEquals("old\n", session(ResolvedBase.Commit("origin/develop", "base1", "base1")).read(file("a.kt", "a.kt"), Side.Old, 1024))
+    assertEquals(listOf(FakeGitBlobReader.Call("base1", "a.kt", 1024)), blobs.calls)
+    assertTrue(runner.runCalls.none { it.args == verifyHead })
   }
 
   @Test
@@ -60,9 +62,8 @@ class GitContentSourceTest {
   }
 
   @Test
-  fun oldSideIsNullWithoutHead() = runTest {
-    runner.runResults[verifyHead] = GitResult(128, "", "fatal")
-    assertNull(session().read(file("a.kt", "a.kt"), Side.Old, 1024))
+  fun emptyTreeBaseHasNoOldSide() = runTest {
+    assertNull(session(ResolvedBase.EmptyTree).read(file("a.kt", "a.kt"), Side.Old, 1024))
     assertTrue(blobs.calls.isEmpty())
   }
 

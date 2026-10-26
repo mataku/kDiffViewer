@@ -23,6 +23,21 @@ class ParseArgsTest {
   }
 
   @Test
+  fun openWithBase() {
+    assertEquals(Command.Open("./a", "develop"), ok("./a", "--base", "develop"))
+    assertEquals(Command.Open(null, "HEAD~3"), ok("--base", "HEAD~3"))
+    assertEquals(Command.Open("./a", "x"), ok("--base", "x", "./a"))
+  }
+
+  @Test
+  fun openRejectsBadArguments() {
+    assertEquals("missing value for --base", error("./a", "--base").message)
+    assertEquals("invalid --base '-x'", error("./a", "--base", "-x").message)
+    assertEquals("unknown option '--foo'", error("./a", "--foo").message)
+    assertEquals("unexpected argument './b'", error("./a", "./b").message)
+  }
+
+  @Test
   fun pathLikeFirstArgumentOpens() {
     assertEquals(Command.Open("."), ok("."))
     assertEquals(Command.Open("./a"), ok("./a"))
@@ -153,7 +168,8 @@ class ParseArgsTest {
   @Test
   fun usageTextMatchesSpec() {
     val expected = """
-      kdv [path]                               Open path in kDiffViewer (no argument: current directory)
+      kdv [path] [--base <ref>]                Open path in kDiffViewer (no argument: current directory)
+                                               Base defaults to the merge-base with origin/HEAD
       kdv thread list [--all] [--json]         Unresolved threads (all with --all)
       kdv thread reply <id> <body|-> [--author <name>]
       kdv thread resolve <id>

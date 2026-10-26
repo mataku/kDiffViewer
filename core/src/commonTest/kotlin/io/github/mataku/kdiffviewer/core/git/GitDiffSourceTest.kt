@@ -1,9 +1,11 @@
 package io.github.mataku.kdiffviewer.core.git
 
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -48,7 +50,9 @@ class GitDiffSourceTest {
     runner.streams[diffArgs("HEAD")] = FakeGitCommandRunner.Stream(diff)
   }
 
-  private suspend fun load(path: String = "/repo/sub"): List<FileDiff> = source.load(RepoPath(path)).toList()
+  private val headBase = ResolvedBase.Commit("HEAD", "HEAD", "HEAD")
+
+  private suspend fun load(path: String = "/repo/sub", base: ResolvedBase = headBase): List<FileDiff> = source.load(RepoPath(path), base).toList()
 
   @Test
   fun loadsTrackedThenUntrackedAgainstHead() = runTest {
@@ -68,11 +72,20 @@ class GitDiffSourceTest {
   }
 
   @Test
-  fun usesEmptyTreeWhenHeadIsMissing() = runTest {
+  fun loadDiffsAgainstGivenCommit() = runTest {
     repoSetup()
-    runner.runResults[verifyHead] = GitResult(128, "", "fatal")
+    runner.streams[diffArgs("m1")] = FakeGitCommandRunner.Stream(modifiedDiff)
+    val result = load(base = ResolvedBase.Commit("origin/develop", "m1", "m1"))
+    assertEquals(1, result.size)
+    assertEquals(diffArgs("m1"), runner.streamCalls.single().args)
+    assertTrue(runner.runCalls.none { it.args == verifyHead })
+  }
+
+  @Test
+  fun emptyTreeBaseUsesEmptyTreeId() = runTest {
+    repoSetup()
     runner.streams[diffArgs("4b825dc642cb6eb9a060e54bf8d69288fbee4904")] = FakeGitCommandRunner.Stream(modifiedDiff)
-    val result = load()
+    val result = load(base = ResolvedBase.EmptyTree)
     assertEquals(1, result.size)
     assertTrue("4b825dc642cb6eb9a060e54bf8d69288fbee4904" in runner.streamCalls.single().args)
     assertTrue("HEAD" !in runner.streamCalls.single().args)
@@ -180,5 +193,125 @@ class GitDiffSourceTest {
   fun rootIsNullOutsideARepository() = runTest {
     runner.runResults[showToplevel] = GitResult(128, "", "fatal: not a git repository")
     assertEquals(null, source.root(RepoPath("/tmp")))
+  }
+
+  private val originHead = listOf("symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
+  private fun mergeBase(of: String) = listOf("merge-base", "--end-of-options", of, "h1")
+  private fun verifyRef(ref: String) = listOf("rev-parse", "--verify", "--quiet", "--end-of-options", "$ref^{commit}")
+  private fun short(id: String) = listOf("rev-parse", "--short", id)
+
+  private fun baseSetup() {
+    runner.runResults[toplevel] = GitResult(0, "/repo\n", "")
+    runner.runResults[verifyHead] = GitResult(0, "h1\n", "")
+    runner.runResults[short("h1")] = GitResult(0, "h1short\n", "")
+  }
+
+  private suspend fun resolve(spec: BaseSpec): ResolvedBase = source.resolveBase(RepoPath("/repo/sub"), spec)
+
+  @Test
+  fun defaultBaseIsMergeBaseWithOriginHead() = runTest {
+    baseSetup()
+    runner.runResults[originHead] = GitResult(0, "refs/remotes/origin/develop\n", "")
+    runner.runResults[mergeBase("refs/remotes/origin/develop")] = GitResult(0, "m1\n", "")
+    runner.runResults[short("m1")] = GitResult(0, "m1abc\n", "")
+    assertEquals(ResolvedBase.Commit("origin/develop", "m1", "m1abc"), resolve(BaseSpec.Default))
+    assertTrue(runner.runCalls.all { it.workingDir == "/repo/sub" })
+  }
+
+  @Test
+  fun defaultBaseFallsBackToHeadWithoutOriginHead() = runTest {
+    baseSetup()
+    runner.runResults[originHead] = GitResult(1, "", "")
+    assertEquals(ResolvedBase.Commit("HEAD", "h1", "h1short"), resolve(BaseSpec.Default))
+  }
+
+  @Test
+  fun defaultBaseFallsBackToHeadWhenMergeBaseFails() = runTest {
+    baseSetup()
+    runner.runResults[originHead] = GitResult(0, "refs/remotes/origin/gone\n", "")
+    runner.runResults[mergeBase("refs/remotes/origin/gone")] = GitResult(128, "", "fatal: Not a valid object name")
+    assertEquals(ResolvedBase.Commit("HEAD", "h1", "h1short"), resolve(BaseSpec.Default))
+  }
+
+  @Test
+  fun defaultBaseFallsBackToHeadWithoutCommonAncestor() = runTest {
+    baseSetup()
+    runner.runResults[originHead] = GitResult(0, "refs/remotes/origin/main\n", "")
+    runner.runResults[mergeBase("refs/remotes/origin/main")] = GitResult(1, "", "")
+    assertEquals(ResolvedBase.Commit("HEAD", "h1", "h1short"), resolve(BaseSpec.Default))
+  }
+
+  @Test
+  fun explicitRefOutsideARepositoryIsNotARepository() = runTest {
+    runner.runResults[toplevel] = GitResult(128, "", "fatal: not a git repository")
+    runner.runResults[verifyHead] = GitResult(128, "", "fatal: not a git repository")
+    runner.runResults[verifyRef("develop")] = GitResult(128, "", "fatal: not a git repository")
+    assertEquals("/repo/sub", assertFailsWith<DiffLoadException.NotARepository> { resolve(BaseSpec.Ref("develop")) }.path)
+  }
+
+  @Test
+  fun defaultBaseIsEmptyTreeWithoutHead() = runTest {
+    runner.runResults[toplevel] = GitResult(0, "/repo\n", "")
+    runner.runResults[verifyHead] = GitResult(128, "", "fatal")
+    assertEquals(ResolvedBase.EmptyTree, resolve(BaseSpec.Default))
+  }
+
+  @Test
+  fun explicitRefIsMergeBaseWithHead() = runTest {
+    baseSetup()
+    runner.runResults[verifyRef("HEAD~3")] = GitResult(0, "r1\n", "")
+    runner.runResults[mergeBase("r1")] = GitResult(0, "r1\n", "")
+    runner.runResults[short("r1")] = GitResult(0, "r1abc\n", "")
+    assertEquals(ResolvedBase.Commit("HEAD~3", "r1", "r1abc"), resolve(BaseSpec.Ref("HEAD~3")))
+  }
+
+  @Test
+  fun shortIdFallsBackToSevenCharacters() = runTest {
+    baseSetup()
+    runner.runResults[verifyRef("x")] = GitResult(0, "0123456789abcdef\n", "")
+    runner.runResults[mergeBase("0123456789abcdef")] = GitResult(0, "0123456789abcdef\n", "")
+    runner.runResults[short("0123456789abcdef")] = GitResult(128, "", "fatal")
+    assertEquals(ResolvedBase.Commit("x", "0123456789abcdef", "0123456"), resolve(BaseSpec.Ref("x")))
+  }
+
+  @Test
+  fun unknownRefThrowsUnknownBase() = runTest {
+    baseSetup()
+    runner.runResults[verifyRef("nope")] = GitResult(1, "", "")
+    assertEquals("nope", assertFailsWith<DiffLoadException.UnknownBase> { resolve(BaseSpec.Ref("nope")) }.ref)
+  }
+
+  @Test
+  fun unrelatedRefThrowsNoCommonAncestor() = runTest {
+    baseSetup()
+    runner.runResults[verifyRef("other")] = GitResult(0, "o1\n", "")
+    runner.runResults[mergeBase("o1")] = GitResult(1, "", "")
+    assertEquals("other", assertFailsWith<DiffLoadException.NoCommonAncestor> { resolve(BaseSpec.Ref("other")) }.ref)
+  }
+
+  @Test
+  fun explicitRefWithoutHeadHasNoCommonAncestor() = runTest {
+    runner.runResults[toplevel] = GitResult(0, "/repo\n", "")
+    runner.runResults[verifyHead] = GitResult(128, "", "fatal")
+    runner.runResults[verifyRef("x")] = GitResult(0, "x1\n", "")
+    assertEquals("x", assertFailsWith<DiffLoadException.NoCommonAncestor> { resolve(BaseSpec.Ref("x")) }.ref)
+  }
+
+  @Test
+  fun unknownRefWithoutHeadIsUnknownBase() = runTest {
+    runner.runResults[toplevel] = GitResult(0, "/repo\n", "")
+    runner.runResults[verifyHead] = GitResult(128, "", "fatal")
+    runner.runResults[verifyRef("x")] = GitResult(1, "", "")
+    assertEquals("x", assertFailsWith<DiffLoadException.UnknownBase> { resolve(BaseSpec.Ref("x")) }.ref)
+  }
+
+  @Test
+  fun mergeBaseErrorOnExplicitRefIsGitFailed() = runTest {
+    baseSetup()
+    runner.runResults[verifyRef("x")] = GitResult(0, "x1\n", "")
+    runner.runResults[mergeBase("x1")] = GitResult(128, "", "boom")
+    val e = assertFailsWith<DiffLoadException.GitFailed> { resolve(BaseSpec.Ref("x")) }
+    assertEquals(mergeBase("x1"), e.args)
+    assertEquals("boom", e.stderr)
   }
 }

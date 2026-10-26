@@ -83,7 +83,7 @@ private fun open(command: Command.Open, platform: CliPlatform) {
   val requested = command.path ?: platform.cwd()
   val path = platform.realpath(requested) ?: throw CliFailure("no such directory: $requested")
   val app = platform.env("KDV_APP") ?: DEFAULT_APP
-  if (!platform.launchApp(app, path)) throw CliFailure("kDiffViewer not found at $app (set KDV_APP)")
+  if (!platform.launchApp(app, path, command.base)) throw CliFailure("kDiffViewer not found at $app (set KDV_APP)")
 }
 
 private fun liveEntries(platform: CliPlatform): List<RegistryEntry> = platform.listRegistry(RegistryPaths.sessionsDir(platform.home())).filter { platform.isAlive(it.pid) }.sortedBy { it.pid }

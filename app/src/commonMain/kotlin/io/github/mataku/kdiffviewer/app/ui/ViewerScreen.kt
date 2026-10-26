@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
@@ -30,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -59,6 +62,7 @@ import io.github.mataku.kdiffviewer.app.ui.review.revealIndex
 import io.github.mataku.kdiffviewer.app.visibleTree
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.HeadRef
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.review.Placement
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -163,25 +167,42 @@ fun ViewerScreen(
             modifier = Modifier.testTag("repo-name"),
             style = TextStyle(color = colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
           )
-          state.head?.let { head ->
-            val (icon, iconTag, label) = when (head) {
-              is HeadRef.Branch -> Triple(KdvIcons.Branch, "head-branch-icon", head.name)
-              is HeadRef.Detached -> Triple(KdvIcons.Commit, "head-commit-icon", head.shortHash)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Image(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.testTag(iconTag).padding(end = 4.dp).size(12.dp),
-                colorFilter = ColorFilter.tint(colors.mutedText),
-              )
-              BasicText(
-                text = label,
-                modifier = Modifier.testTag("head-label"),
-                style = TextStyle(color = colors.mutedText, fontSize = 12.sp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-              )
+          val base = state.base as? ResolvedBase.Commit
+          val head = state.head
+          if (base != null || head != null) {
+            val labelStyle = TextStyle(color = colors.mutedText, fontSize = 12.sp)
+            Row(modifier = Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+              if (base != null) {
+                val uncommittedOnly = base.label == "HEAD"
+                BaseLabel(base, uncommittedOnly, labelStyle, Modifier.weight(1f, fill = false))
+                if (head != null) {
+                  BasicText(text = if (uncommittedOnly) "·" else "...", modifier = Modifier.padding(horizontal = 6.dp), style = labelStyle)
+                }
+              }
+              if (head != null) {
+                val (icon, iconTag, label) = when (head) {
+                  is HeadRef.Branch -> Triple(KdvIcons.Branch, "head-branch-icon", head.name)
+                  is HeadRef.Detached -> Triple(KdvIcons.Commit, "head-commit-icon", head.shortHash)
+                }
+                Row(
+                  modifier = Modifier.clip(TagShape).background(colors.text.copy(alpha = TAG_FILL_ALPHA)).padding(TagPadding),
+                  verticalAlignment = Alignment.CenterVertically,
+                ) {
+                  Image(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.testTag(iconTag).padding(end = 4.dp).size(12.dp),
+                    colorFilter = ColorFilter.tint(colors.mutedText),
+                  )
+                  BasicText(
+                    text = label,
+                    modifier = Modifier.testTag("head-label"),
+                    style = labelStyle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                  )
+                }
+              }
             }
           }
         }
@@ -232,5 +253,34 @@ fun ViewerScreen(
         }
       }
     }
+  }
+}
+
+private val TagShape = RoundedCornerShape(4.dp)
+private const val TAG_FILL_ALPHA = 0.08f
+private val TagPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+
+@Composable
+private fun BaseLabel(base: ResolvedBase.Commit, uncommittedOnly: Boolean, style: TextStyle, modifier: Modifier) {
+  val colors = LocalDiffColors.current
+  Row(
+    modifier = modifier.clip(TagShape).background(colors.text.copy(alpha = TAG_FILL_ALPHA)).padding(TagPadding),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    if (!uncommittedOnly) {
+      Image(
+        imageVector = KdvIcons.Branch,
+        contentDescription = null,
+        modifier = Modifier.padding(end = 4.dp).size(12.dp),
+        colorFilter = ColorFilter.tint(colors.mutedText),
+      )
+    }
+    BasicText(
+      text = if (uncommittedOnly) "Uncommitted changes" else base.label,
+      modifier = Modifier.testTag("base-label"),
+      style = style,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
   }
 }

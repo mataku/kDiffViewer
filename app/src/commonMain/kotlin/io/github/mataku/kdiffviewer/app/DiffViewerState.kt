@@ -7,9 +7,11 @@ import io.github.mataku.kdiffviewer.app.highlight.HighlightRun
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.core.git.DiffLoadException
 import io.github.mataku.kdiffviewer.core.git.DiffSource
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.displayPath
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -50,6 +52,15 @@ sealed interface ViewerError {
   data class NotARepository(val path: String) : ViewerError
 
   @Immutable
+  data class UnknownBase(val ref: String) : ViewerError
+
+  @Immutable
+  data class NoCommonAncestor(val ref: String) : ViewerError
+
+  @Immutable
+  data class InvalidLaunchArgs(val message: String) : ViewerError
+
+  @Immutable
   data class GitFailed(val stderr: String, val exitCode: Int? = null) : ViewerError
 }
 
@@ -67,6 +78,8 @@ data class ViewerUiState(
   val root: RepoPath? = null,
   val fingerprints: List<Long> = emptyList(),
   val collapsed: Set<CollapsedFile> = emptySet(),
+  val baseSpec: BaseSpec = BaseSpec.Default,
+  val base: ResolvedBase? = null,
 )
 
 @Immutable
@@ -97,7 +110,7 @@ class DiffViewerState(
   @Volatile
   private var currentLoad: Any? = null
 
-  fun open(repo: RepoPath): Long {
+  fun open(repo: RepoPath, base: BaseSpec = BaseSpec.Default): Long {
     loadJob?.cancel()
     loadJob = null
     highlightRun?.cancel()
@@ -107,11 +120,11 @@ class DiffViewerState(
     val loadId = ++nextLoadId
     val diffSource = source
     if (diffSource == null) {
-      mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(missingSourceError), loadId = loadId)
+      mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(missingSourceError), loadId = loadId, baseSpec = base)
       return loadId
     }
     val previous = mutableUiState.value
-    val keepPrevious = previous.repo == repo && previous.status !is LoadStatus.Failed
+    val keepPrevious = previous.repo == repo && previous.baseSpec == base && previous.status !is LoadStatus.Failed
     mutableUiState.value = if (keepPrevious) {
       previous.copy(status = LoadStatus.Loading)
     } else {
@@ -121,12 +134,12 @@ class DiffViewerState(
         loadId = loadId,
         head = previous.head.takeIf { previous.repo == repo },
         root = previous.root.takeIf { previous.repo == repo },
+        baseSpec = base,
+        base = previous.base.takeIf { previous.repo == repo && previous.baseSpec == base },
       )
     }
     val knownRoot = mutableUiState.value.root
     val accumulator = LoadAccumulator(loadId, holding = keepPrevious)
-    val run = highlightPipeline?.start(scope, repo)
-    highlightRun = run
     loadJob = scope.launch {
       launch {
         val head = try {
@@ -158,7 +171,12 @@ class DiffViewerState(
         null
       }
       try {
-        load(diffSource, repo, token, accumulator, run)
+        val resolved = diffSource.resolveBase(repo, base)
+        ensureActive()
+        updateIfCurrent(token) { it.copy(base = resolved) }
+        val run = highlightPipeline?.start(scope, repo, resolved)
+        highlightRun = run
+        load(diffSource, repo, resolved, token, accumulator, run)
         holdJob?.cancel()
         updateIfCurrent(token) {
           val done = it.withContentOf(accumulator, accumulator.tree.rows())
@@ -175,9 +193,18 @@ class DiffViewerState(
     return loadId
   }
 
+  fun fail(repo: RepoPath, error: ViewerError) {
+    loadJob?.cancel()
+    loadJob = null
+    highlightRun?.cancel()
+    highlightRun = null
+    currentLoad = null
+    mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(error), loadId = ++nextLoadId)
+  }
+
   fun reload(): Long? {
     val repo = mutableUiState.value.repo ?: return null
-    return open(repo)
+    return open(repo, mutableUiState.value.baseSpec)
   }
 
   fun setBackend(source: DiffSource?, highlightPipeline: HighlightPipeline<*>?, missingSourceError: ViewerError = ViewerError.GitNotFound) {
@@ -213,12 +240,12 @@ class DiffViewerState(
     return if (kept.size == collapsed.size) collapsed else kept
   }
 
-  private suspend fun load(diffSource: DiffSource, repo: RepoPath, token: Any, accumulator: LoadAccumulator, run: HighlightRun?) = coroutineScope {
+  private suspend fun load(diffSource: DiffSource, repo: RepoPath, base: ResolvedBase, token: Any, accumulator: LoadAccumulator, run: HighlightRun?) = coroutineScope {
     val channel = Channel<LoadedFile>(Channel.UNLIMITED)
     launch {
       var failure: Throwable? = null
       try {
-        diffSource.load(repo)
+        diffSource.load(repo, base)
           .map { LoadedFile(it, it.fingerprint()) }
           .flowOn(loadContext)
           .collect { channel.send(it) }
@@ -315,6 +342,8 @@ class DiffViewerState(
 
   private fun Throwable.toViewerError(): ViewerError = when (this) {
     is DiffLoadException.NotARepository -> ViewerError.NotARepository(path)
+    is DiffLoadException.UnknownBase -> ViewerError.UnknownBase(ref)
+    is DiffLoadException.NoCommonAncestor -> ViewerError.NoCommonAncestor(ref)
     is DiffLoadException.GitFailed -> ViewerError.GitFailed(stderr, exitCode)
     else -> ViewerError.GitFailed(message ?: toString())
   }

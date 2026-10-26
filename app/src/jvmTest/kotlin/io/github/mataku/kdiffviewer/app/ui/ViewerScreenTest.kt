@@ -14,6 +14,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -36,7 +37,9 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.withKeyDown
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.mataku.compose.highlight.core.HighlightSpan
 import io.github.mataku.kdiffviewer.app.CollapsedFile
 import io.github.mataku.kdiffviewer.app.DiffRow
@@ -61,6 +64,7 @@ import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.displayPath
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Author
@@ -71,6 +75,7 @@ import io.github.mataku.kdiffviewer.core.review.ReviewThread
 import io.github.mataku.kdiffviewer.core.review.anchorOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -250,6 +255,53 @@ class ViewerScreenTest {
     onNodeWithTag("head-label", useUnmergedTree = true).assertTextEquals("abc1234")
     onNodeWithTag("head-commit-icon", useUnmergedTree = true).assertIsDisplayed()
     onNodeWithTag("head-branch-icon", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun baseLabelPrecedesHead() = runComposeUiTest {
+    setContent {
+      ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.Commit("origin/develop", "m1", "a1b2c3d"), head = HeadRef.Branch("feature/x")), {})
+    }
+    onNodeWithTag("base-label", useUnmergedTree = true).assertTextEquals("origin/develop")
+    onNodeWithText("...", useUnmergedTree = true).assertExists()
+    onNodeWithText("→", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithText("a1b2c3d", substring = true, useUnmergedTree = true).assertDoesNotExist()
+    val base = onNodeWithTag("base-label", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val head = onNodeWithTag("head-label", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    assertTrue(base.right <= head.left, "base=$base head=$head")
+  }
+
+  @Test
+  fun headBaseShowsUncommittedChangesWithoutArrow() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.Commit("HEAD", "h1", "h1abc"), head = HeadRef.Branch("develop")), {}) }
+    onNodeWithTag("base-label", useUnmergedTree = true).assertTextEquals("Uncommitted changes")
+    onNodeWithTag("head-label", useUnmergedTree = true).assertTextEquals("develop")
+    onNodeWithText("→", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun hoveringBaseShowsNoTooltip() = runComposeUiTest {
+    setContent {
+      ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.Commit("origin/develop", "m1", "a1b2c3d"), head = HeadRef.Branch("feature/x")), {})
+    }
+    onNodeWithTag("base-label", useUnmergedTree = true).performMouseInput { moveTo(center) }
+    mainClock.advanceTimeBy(3_000)
+    waitForIdle()
+    onAllNodesWithText("merge-base", substring = true).assertCountEquals(0)
+  }
+
+  @Test
+  fun emptyTreeBaseShowsOnlyHead() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.EmptyTree, head = HeadRef.Branch("main")), {}) }
+    onNodeWithTag("base-label", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithTag("head-label", useUnmergedTree = true).assertTextEquals("main")
+  }
+
+  @Test
+  fun unresolvedBaseShowsOnlyHead() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()).copy(base = null, head = HeadRef.Branch("main")), {}) }
+    onNodeWithTag("base-label", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithTag("head-label", useUnmergedTree = true).assertTextEquals("main")
   }
 
   @Test
@@ -606,6 +658,66 @@ class ViewerScreenTest {
   }
 
   private val reviewUi get() = stateOf(listOf(modified("a.kt"))).copy(loadId = 1)
+
+  @Test
+  fun hoveringSingleLineRowDoesNotShiftRows() = runComposeUiTest {
+    val ui = stateOf(listOf(modified("a.kt", lines = 3))).copy(loadId = 1)
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    val before = onNodeWithText("ctx0").fetchSemanticsNode().boundsInRoot
+    onNodeWithText("TWO").performMouseInput { moveTo(center) }
+    waitForIdle()
+    onNodeWithTag("add-comment").assertIsDisplayed()
+    val after = onNodeWithText("ctx0").fetchSemanticsNode().boundsInRoot
+    assertEquals(before, after)
+  }
+
+  @Test
+  fun addCommentButtonSitsOnFirstLineOfWrappedRow() = runComposeUiTest {
+    val long = "TWO " + "word ".repeat(80)
+    val file = FileDiff(
+      "a.kt",
+      "a.kt",
+      ChangeType.Modified,
+      false,
+      DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", listOf(DiffLine(LineKind.Added, long, null, 1))))),
+    )
+    val ui = stateOf(listOf(file)).copy(loadId = 1)
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) {
+        Box(modifier = Modifier.width(800.dp)) { ViewerScreen(ui, {}, review = snapshot) }
+      }
+    }
+    val row = onNodeWithText(long).fetchSemanticsNode().boundsInRoot
+    val lineHeight = with(density) { 18.sp.toPx() }
+    assertTrue(row.height > lineHeight * 2, "row=$row")
+    onNodeWithText(long).performMouseInput { moveTo(center) }
+    waitForIdle()
+    val button = onNodeWithTag("add-comment").fetchSemanticsNode().boundsInRoot
+    assertTrue(abs(button.center.y - (row.top + lineHeight / 2)) <= 1f, "button=$button row=$row lineHeight=$lineHeight")
+  }
+
+  @Test
+  fun addCommentButtonFitsInsideSingleLineRow() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review, LocalDiffTypography provides diffTypography(FontFamily.Monospace, 9, 8, LightDiffColors)) {
+        ViewerScreen(ui, {}, review = snapshot)
+      }
+    }
+    val line = onNodeWithText("TWO").fetchSemanticsNode().boundsInRoot
+    onNodeWithText("TWO").performMouseInput { moveTo(center) }
+    waitForIdle()
+    val button = onNodeWithTag("add-comment").fetchSemanticsNode().boundsInRoot
+    assertTrue(button.height <= line.height, "button=$button line=$line")
+  }
 
   @Test
   fun hoveringLineShowsAddCommentAndClickOpensComposerUnderIt() = runComposeUiTest {

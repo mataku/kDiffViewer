@@ -34,6 +34,11 @@ Workflow
 
    It re-reads the diff from disk, re-anchors the remaining comments to the new line numbers, and prints how many files the diff has and how many threads are outdated.
 
+Opening a window
+
+Open a whole branch for review with kdv ./; the diff starts at the merge-base with origin/HEAD.
+For a branch stacked on another, pass the parent: kdv ./ --base <parent>.
+
 Options
 
   --repo <path>   Use the window for that repository instead of the current directory.

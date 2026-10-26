@@ -2,7 +2,7 @@
 
 ## Overview
 
-kDiffViewer is a desktop git diff viewer built with Kotlin Multiplatform and Compose Desktop. It opens a local repository and shows everything that differs from `HEAD` (staged, unstaged, and untracked) in a GitHub-like unified view. macOS is the primary target; Linux comes later. Part of the goal is to find out how far KMP can go for a desktop GUI app, so logic belongs in shared Kotlin, not in platform code.
+kDiffViewer is a desktop git diff viewer built with Kotlin Multiplatform and Compose Desktop. It opens a local repository and shows everything that differs from a base commit (committed, staged, unstaged, and untracked changes) in a GitHub-like unified view. The base is the merge-base of `HEAD` and the `origin/HEAD` target (falling back to `HEAD`), or the merge-base with a ref given by `--base <ref>`. macOS is the primary target; Linux comes later. Part of the goal is to find out how far KMP can go for a desktop GUI app, so logic belongs in shared Kotlin, not in platform code.
 
 ## Modules
 

@@ -3,7 +3,7 @@ package io.github.mataku.kdiffviewer.cli
 data class TargetOptions(val repo: String? = null, val pid: Long? = null)
 
 sealed interface Command {
-  data class Open(val path: String?) : Command
+  data class Open(val path: String?, val base: String? = null) : Command
 
   data class Help(val topic: String?) : Command
 

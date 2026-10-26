@@ -13,6 +13,7 @@ import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.Side
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.isActive
@@ -23,6 +24,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -31,9 +33,11 @@ class FakeContentSource(private val texts: Map<Pair<String, Side>, String>) : Co
   var opens = 0
   var closed = false
   val reads = mutableListOf<Pair<String, Side>>()
+  val openedBases = mutableListOf<ResolvedBase>()
 
-  override suspend fun open(repo: RepoPath): ContentSession {
+  override suspend fun open(repo: RepoPath, base: ResolvedBase): ContentSession {
     opens++
+    openedBases += base
     return object : ContentSession {
       override suspend fun read(file: FileDiff, side: Side, maxBytes: Long): String? {
         val path = (if (side == Side.Old) file.oldPath else file.newPath)!!
@@ -83,8 +87,10 @@ fun TestScope.pipeline(
   onFailure = onFailure,
 )
 
-fun TestScope.runEntries(pipeline: HighlightPipeline<String>, vararg files: FileDiff): Pair<HighlightRun, List<HighlightSlot>> {
-  val run = pipeline.start(backgroundScope, RepoPath("/repo"))
+val testBase = ResolvedBase.Commit("HEAD", "h", "h")
+
+fun TestScope.runEntries(pipeline: HighlightPipeline<String>, vararg files: FileDiff, base: ResolvedBase = testBase): Pair<HighlightRun, List<HighlightSlot>> {
+  val run = pipeline.start(backgroundScope, RepoPath("/repo"), base)
   val slots = files.map { HighlightSlot() }
   run.submit(files.mapIndexed { index, file -> HighlightEntry(index, file, slots[index]) })
   runCurrent()
@@ -114,6 +120,14 @@ class HighlightPipelineTest {
   )
 
   private fun addition(path: String) = textFile(null, path, listOf(line(LineKind.Added, "x", null, 1)), change = ChangeType.Added)
+
+  @Test
+  fun sessionOpensWithGivenBase() = runTest {
+    val source = FakeContentSource(modifiedTexts)
+    val base = ResolvedBase.Commit("origin/develop", "m1", "m1")
+    runEntries(pipeline(source, FakeHighlighter()), modified, base = base)
+    assertEquals(listOf<ResolvedBase>(base), source.openedBases)
+  }
 
   @Test
   fun writesSpansForShownLines() = runTest {
@@ -231,15 +245,32 @@ class HighlightPipelineTest {
   }
 
   @Test
-  fun failureStopsRunAndReportsIt() = runTest {
+  fun highlighterExceptionSkipsOnlyThatFileAndReportsIt() = runTest {
     val paths = (1..3).map { "$it.kt" }
     val source = FakeContentSource(paths.associate { (it to Side.New) to "x" })
-    val highlighter = FakeHighlighter().apply { onCall = { throw IllegalStateException("boom") } }
+    val highlighter = FakeHighlighter().apply { onCall = { if (it == 2) throw StringIndexOutOfBoundsException("boom") } }
     val failures = mutableListOf<Throwable>()
     val (_, slots) = runEntries(pipeline(source, highlighter) { failures += it }, *paths.map { addition(it) }.toTypedArray())
 
     assertEquals(1, failures.size)
-    assertTrue(failures[0] is IllegalStateException)
+    assertTrue(failures[0] is StringIndexOutOfBoundsException)
+    assertEquals(3, highlighter.calls.size)
+    assertNotNull(slots[0].value)
+    assertNull(slots[1].value)
+    assertNotNull(slots[2].value)
+    assertFalse(source.closed)
+  }
+
+  @Test
+  fun failureStopsRunAndReportsIt() = runTest {
+    val paths = (1..3).map { "$it.kt" }
+    val source = FakeContentSource(paths.associate { (it to Side.New) to "x" })
+    val highlighter = FakeHighlighter().apply { onCall = { throw LinkageError("boom") } }
+    val failures = mutableListOf<Throwable>()
+    val (_, slots) = runEntries(pipeline(source, highlighter) { failures += it }, *paths.map { addition(it) }.toTypedArray())
+
+    assertEquals(1, failures.size)
+    assertTrue(failures[0] is LinkageError)
     assertEquals(1, highlighter.calls.size)
     assertTrue(slots.all { it.value == null })
     assertTrue(source.closed)

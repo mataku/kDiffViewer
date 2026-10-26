@@ -16,6 +16,7 @@ import io.github.mataku.kdiffviewer.app.ui.lineText
 import io.github.mataku.kdiffviewer.core.git.ContentSession
 import io.github.mataku.kdiffviewer.core.git.ContentSource
 import io.github.mataku.kdiffviewer.core.git.DiffSource
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -24,6 +25,7 @@ import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.Side
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -45,7 +47,8 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class HighlightEndToEndTest {
   private class InMemoryDiffSource(var files: List<FileDiff>) : DiffSource {
-    override fun load(repo: RepoPath): Flow<FileDiff> = files.asFlow()
+    override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase = ResolvedBase.EmptyTree
+    override fun load(repo: RepoPath, base: ResolvedBase): Flow<FileDiff> = files.asFlow()
 
     override suspend fun head(repo: RepoPath): HeadRef? = null
   }
@@ -58,7 +61,7 @@ class HighlightEndToEndTest {
     private val opens = AtomicInteger()
     val reads = ConcurrentLinkedQueue<String>()
 
-    override suspend fun open(repo: RepoPath): ContentSession {
+    override suspend fun open(repo: RepoPath, base: ResolvedBase): ContentSession {
       val session = opens.incrementAndGet()
       return object : ContentSession {
         override suspend fun read(file: FileDiff, side: Side, maxBytes: Long): String? {
