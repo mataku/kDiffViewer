@@ -6,7 +6,7 @@ Syntax highlighting covers Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScri
 
 ## Requirements
 
-- JDK 25 to build; packaging uses the Eclipse Temurin 25 toolchain (another non-Homebrew distribution also works if you adjust the toolchain vendor)
+- JDK 25 to run Gradle; the build and the bundled runtime use the JetBrains Runtime 25 toolchain, which Gradle downloads automatically when it is not installed. The custom title bar needs JBR
 - Homebrew's OpenJDK is not suitable for packaging because it links font libraries from Homebrew into the bundled runtime ([Compose issue #3107](https://github.com/JetBrains/compose-multiplatform/issues/3107))
 - git 2.36 or later at runtime (blobs are read through `git cat-file --batch-command`)
 

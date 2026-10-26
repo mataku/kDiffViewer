@@ -9,7 +9,7 @@ plugins {
 kotlin {
   jvmToolchain {
     languageVersion.set(JavaLanguageVersion.of(25))
-    vendor.set(JvmVendorSpec.ADOPTIUM)
+    vendor.set(JvmVendorSpec.JETBRAINS)
   }
   jvm()
 
@@ -36,6 +36,7 @@ kotlin {
     jvmMain.dependencies {
       implementation(compose.desktop.currentOs)
       implementation(libs.kotlinx.coroutines.swing)
+      implementation(libs.jbr.api)
     }
     commonTest.dependencies {
       implementation(libs.kotlin.test)
@@ -53,7 +54,7 @@ compose.desktop {
     mainClass = "io.github.mataku.kdiffviewer.app.MainKt"
     javaHome = javaToolchains.launcherFor {
       languageVersion.set(JavaLanguageVersion.of(25))
-      vendor.set(JvmVendorSpec.ADOPTIUM)
+      vendor.set(JvmVendorSpec.JETBRAINS)
     }.get().metadata.installationPath.asFile.absolutePath
 
     nativeDistributions {
