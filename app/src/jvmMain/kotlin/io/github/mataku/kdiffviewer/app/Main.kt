@@ -45,11 +45,14 @@ private fun runApplication(args: Array<String>) = application {
   val scope = remember { MainScope() }
   DisposableEffect(Unit) { onDispose { scope.cancel() } }
   val state = remember {
-    val runner = (GitLocator.locateOnHost(null) as? GitLocation.Found)?.info?.path?.let(::ProcessGitCommandRunner)
+    val location = GitLocator.locateOnHost(null)
+    val runner = (location as? GitLocation.Found)?.info?.path?.let(::ProcessGitCommandRunner)
+    val missingSourceError = (location as? GitLocation.ConfiguredUnavailable)?.let { ViewerError.GitUnavailable(it.path) } ?: ViewerError.GitNotFound
     DiffViewerState(
       source = runner?.let { GitDiffSource(it, FileSystemWorkingTreeReader()) },
       scope = scope,
       highlightPipeline = if (runner != null && highlightEnabled()) highlightPipeline(runner) else null,
+      missingSourceError = missingSourceError,
     ).also { viewerState ->
       parseLaunchArgs(args, System.getProperty("user.dir"))?.let(viewerState::open)
     }
@@ -73,7 +76,7 @@ private fun runApplication(args: Array<String>) = application {
         val status = uiState.status
         when {
           uiState.repo == null -> OpenRepositoryScreen(onOpen = openFolder)
-          status is LoadStatus.Failed -> ErrorScreen(status.error, onOpenAnother = openFolder)
+          status is LoadStatus.Failed -> ErrorScreen(status.error, onOpenAnother = openFolder, onOpenSettings = {})
           else -> ViewerScreen(uiState, onReload = state::reload, titleBarInset = titleBarInset)
         }
       }

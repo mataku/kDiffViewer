@@ -39,6 +39,9 @@ sealed interface ViewerError {
   data object GitNotFound : ViewerError
 
   @Immutable
+  data class GitUnavailable(val path: String) : ViewerError
+
+  @Immutable
   data class NotARepository(val path: String) : ViewerError
 
   @Immutable
@@ -64,6 +67,7 @@ class DiffViewerState(
   private val batchWindowMillis: Long = 16,
   private var highlightPipeline: HighlightPipeline<*>? = null,
   private val reloadHoldMillis: Long = 300,
+  private var missingSourceError: ViewerError = ViewerError.GitNotFound,
 ) {
   private val mutableUiState = MutableStateFlow(ViewerUiState())
   val uiState: StateFlow<ViewerUiState> = mutableUiState.asStateFlow()
@@ -85,7 +89,7 @@ class DiffViewerState(
     val loadId = ++nextLoadId
     val diffSource = source
     if (diffSource == null) {
-      mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(ViewerError.GitNotFound), loadId = loadId)
+      mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(missingSourceError), loadId = loadId)
       return
     }
     val previous = mutableUiState.value
@@ -141,8 +145,9 @@ class DiffViewerState(
     open(repo)
   }
 
-  fun setBackend(source: DiffSource?, highlightPipeline: HighlightPipeline<*>?) {
+  fun setBackend(source: DiffSource?, highlightPipeline: HighlightPipeline<*>?, missingSourceError: ViewerError = ViewerError.GitNotFound) {
     this.source = source
+    this.missingSourceError = missingSourceError
     this.highlightPipeline = highlightPipeline
     reload()
   }

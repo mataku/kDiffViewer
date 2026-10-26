@@ -31,11 +31,12 @@ fun OpenRepositoryScreen(onOpen: () -> Unit) {
 }
 
 @Composable
-fun ErrorScreen(error: ViewerError, onOpenAnother: () -> Unit) {
+fun ErrorScreen(error: ViewerError, onOpenAnother: () -> Unit, onOpenSettings: () -> Unit) {
   MessageLayout {
     val colors = LocalDiffColors.current
     val message = when (error) {
-      ViewerError.GitNotFound -> "git was not found. Install git and restart kDiffViewer."
+      ViewerError.GitNotFound -> "git was not found. Choose a git executable in Settings."
+      is ViewerError.GitUnavailable -> "The configured git (${error.path}) cannot be run."
       is ViewerError.NotARepository -> "${error.path} is not a git repository."
       is ViewerError.GitFailed -> "git failed."
     }
@@ -56,7 +57,11 @@ fun ErrorScreen(error: ViewerError, onOpenAnother: () -> Unit) {
         )
       }
     }
-    ActionButton("Open Another Folder…", onOpenAnother)
+    if (error is ViewerError.GitNotFound || error is ViewerError.GitUnavailable) {
+      ActionButton("Open Settings…", onOpenSettings)
+    } else {
+      ActionButton("Open Another Folder…", onOpenAnother)
+    }
   }
 }
 

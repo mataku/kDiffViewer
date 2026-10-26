@@ -613,6 +613,24 @@ class DiffViewerStateTest {
   }
 
   @Test
+  fun missingSourceUsesConfiguredError() = runTest(StandardTestDispatcher()) {
+    val state = DiffViewerState(null, this, 16, missingSourceError = ViewerError.GitUnavailable("/gone"))
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(LoadStatus.Failed(ViewerError.GitUnavailable("/gone")), state.uiState.value.status)
+  }
+
+  @Test
+  fun setBackendNullWithErrorShowsThatError() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource { flow { emit(file("a")) } })
+    state.open(repo)
+    advanceUntilIdle()
+    state.setBackend(null, null, ViewerError.GitUnavailable("/x"))
+    advanceUntilIdle()
+    assertEquals(LoadStatus.Failed(ViewerError.GitUnavailable("/x")), state.uiState.value.status)
+  }
+
+  @Test
   fun setBackendToNullShowsGitNotFound() = runTest(StandardTestDispatcher()) {
     val state = stateFor(FakeSource { flow { emit(file("a")) } })
     state.open(repo)

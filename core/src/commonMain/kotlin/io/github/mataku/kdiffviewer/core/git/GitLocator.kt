@@ -3,9 +3,11 @@ package io.github.mataku.kdiffviewer.core.git
 data class GitInfo(val path: String, val version: String)
 
 sealed interface GitLocation {
-  data class Found(val info: GitInfo, val configuredRejected: Boolean) : GitLocation
+  data class Found(val info: GitInfo) : GitLocation
 
   data object NotFound : GitLocation
+
+  data class ConfiguredUnavailable(val path: String) : GitLocation
 }
 
 object GitLocator {
@@ -18,14 +20,16 @@ object GitLocator {
   )
 
   fun locate(configured: String?, pathEnv: String?, probe: (String) -> GitInfo?): GitLocation {
+    if (configured != null) {
+      return probe(configured)?.let(GitLocation::Found) ?: GitLocation.ConfiguredUnavailable(configured)
+    }
     val fromPath = pathEnv.orEmpty()
       .split(':')
       .filter { it.isNotEmpty() && it.trimEnd('/') != USR_BIN }
       .map { "${it.trimEnd('/')}/git" }
-    val candidates = (listOfNotNull(configured) + fromPath + FALLBACK_PATHS).distinct()
-    for (candidate in candidates) {
+    for (candidate in (fromPath + FALLBACK_PATHS).distinct()) {
       val info = probe(candidate) ?: continue
-      return GitLocation.Found(info, configuredRejected = configured != null && candidate != configured)
+      return GitLocation.Found(info)
     }
     return GitLocation.NotFound
   }

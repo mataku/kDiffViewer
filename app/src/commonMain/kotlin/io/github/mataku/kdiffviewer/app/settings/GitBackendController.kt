@@ -21,7 +21,7 @@ data class GitBackend(
 sealed interface GitStatus {
   data object Checking : GitStatus
 
-  data class Ready(val info: GitInfo, val configuredRejected: Boolean) : GitStatus
+  data class Ready(val info: GitInfo) : GitStatus
 
   data class Rejected(val path: String, val active: GitInfo?) : GitStatus
 
@@ -40,8 +40,9 @@ class GitBackendController(
 ) {
   private val state = MutableStateFlow(
     when (initial) {
-      is GitLocation.Found -> GitStatus.Ready(initial.info, initial.configuredRejected)
+      is GitLocation.Found -> GitStatus.Ready(initial.info)
       GitLocation.NotFound -> GitStatus.NotFound
+      is GitLocation.ConfiguredUnavailable -> GitStatus.Rejected(initial.path, null)
     },
   )
   val status: StateFlow<GitStatus> = state
@@ -52,11 +53,7 @@ class GitBackendController(
   fun commit(text: String) {
     val path = text.trim()
     val current = state.value
-    if (path == (settings.settings.value.gitPath ?: "") &&
-      (current is GitStatus.Ready || current is GitStatus.NotFound)
-    ) {
-      return
-    }
+    if (path == (settings.settings.value.gitPath ?: "") && current is GitStatus.Ready) return
     job?.cancel()
     state.value = GitStatus.Checking
     job = scope.launch {
@@ -70,7 +67,7 @@ class GitBackendController(
           state.value = GitStatus.Rejected(path, active)
         } else {
           settings.update { it.copy(gitPath = path) }
-          install(GitLocation.Found(info, configuredRejected = false))
+          install(GitLocation.Found(info))
         }
       }
     }
@@ -82,13 +79,20 @@ class GitBackendController(
         val backend = createBackend(location.info)
         active = location.info
         onBackend(backend)
-        state.value = GitStatus.Ready(location.info, location.configuredRejected)
+        state.value = GitStatus.Ready(location.info)
       }
 
       GitLocation.NotFound -> {
         active = null
         onBackend(null)
         state.value = GitStatus.NotFound
+      }
+
+      is GitLocation.ConfiguredUnavailable -> {
+        val previous = active
+        active = null
+        onBackend(null)
+        state.value = GitStatus.Rejected(location.path, previous)
       }
     }
   }

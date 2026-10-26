@@ -14,22 +14,23 @@ class GitLocatorTest {
   }
 
   @Test
-  fun configuredPathIsTriedFirst() {
+  fun configuredPathIsTheOnlyCandidate() {
     val probe = FakeProbe(setOf("/c/git", "/a/git"))
 
     val result = GitLocator.locate("/c/git", "/a", probe)
 
-    assertEquals(GitLocation.Found(GitInfo("/c/git", "git version 2"), configuredRejected = false), result)
+    assertEquals(GitLocation.Found(GitInfo("/c/git", "git version 2")), result)
     assertEquals(listOf("/c/git"), probe.calls)
   }
 
   @Test
-  fun rejectedConfiguredFallsBackAndFlags() {
-    val probe = FakeProbe(setOf("/a/git"))
+  fun rejectedConfiguredDoesNotFallBack() {
+    val probe = FakeProbe(setOf("/a/git", "/usr/bin/git"))
 
     val result = GitLocator.locate("/c/git", "/a", probe)
 
-    assertEquals(GitLocation.Found(GitInfo("/a/git", "git version 2"), configuredRejected = true), result)
+    assertEquals(GitLocation.ConfiguredUnavailable("/c/git"), result)
+    assertEquals(listOf("/c/git"), probe.calls)
   }
 
   @Test
@@ -54,10 +55,10 @@ class GitLocatorTest {
   fun duplicatesAreProbedOnce() {
     val probe = FakeProbe(emptySet())
 
-    GitLocator.locate("/a/git", "/opt/homebrew/bin:/a:/a", probe)
+    GitLocator.locate(null, "/opt/homebrew/bin:/a:/a", probe)
 
     assertEquals(probe.calls.distinct(), probe.calls)
-    assertEquals(listOf("/a/git", "/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git"), probe.calls)
+    assertEquals(listOf("/opt/homebrew/bin/git", "/a/git", "/usr/local/bin/git", "/usr/bin/git"), probe.calls)
   }
 
   @Test

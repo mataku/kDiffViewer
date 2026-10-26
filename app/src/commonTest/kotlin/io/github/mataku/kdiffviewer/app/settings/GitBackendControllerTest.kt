@@ -32,9 +32,9 @@ private fun info(path: String) = GitInfo(path, "git version 2.0 ($path)")
 class GitBackendControllerTest {
   private class Harness(
     scope: TestScope,
-    initial: GitLocation = GitLocation.Found(info("/initial"), configuredRejected = false),
+    initial: GitLocation = GitLocation.Found(info("/initial")),
     private val accepted: Set<String> = setOf("/g", "/a", "/b"),
-    private val located: GitLocation = GitLocation.Found(info("/auto"), configuredRejected = false),
+    private val located: GitLocation = GitLocation.Found(info("/auto")),
     initialGitPath: String? = null,
   ) {
     val storage = FakeSettingsStorage(
@@ -75,8 +75,32 @@ class GitBackendControllerTest {
     val h = Harness(this)
     advanceUntilIdle()
 
-    assertEquals(GitStatus.Ready(info("/initial"), false), h.controller.status.value)
+    assertEquals(GitStatus.Ready(info("/initial")), h.controller.status.value)
     assertTrue(h.installed.isEmpty())
+  }
+
+  @Test
+  fun initialConfiguredUnavailableIsRejected() = runTest(StandardTestDispatcher()) {
+    val h = Harness(this, initial = GitLocation.ConfiguredUnavailable("/gone"))
+    advanceUntilIdle()
+
+    assertEquals(GitStatus.Rejected("/gone", null), h.controller.status.value)
+    assertTrue(h.installed.isEmpty())
+  }
+
+  @Test
+  fun recommittingAfterRejectionRetries() = runTest(StandardTestDispatcher()) {
+    val h = Harness(
+      this,
+      initial = GitLocation.ConfiguredUnavailable("/gone"),
+      accepted = setOf("/gone"),
+      initialGitPath = "/gone",
+    )
+    h.controller.commit("/gone")
+    advanceUntilIdle()
+
+    assertEquals(listOf("/gone"), h.installed.map { it?.info?.path })
+    assertEquals(GitStatus.Ready(info("/gone")), h.controller.status.value)
   }
 
   @Test
@@ -87,7 +111,7 @@ class GitBackendControllerTest {
 
     assertEquals("/g", h.settings.settings.value.gitPath)
     assertEquals(listOf("/g"), h.installed.map { it?.info?.path })
-    assertEquals(GitStatus.Ready(info("/g"), false), h.controller.status.value)
+    assertEquals(GitStatus.Ready(info("/g")), h.controller.status.value)
   }
 
   @Test
@@ -139,7 +163,7 @@ class GitBackendControllerTest {
     assertNull(h.settings.settings.value.gitPath)
     assertEquals(listOf<String?>(null), h.locateCalls)
     assertEquals(listOf("/auto"), h.installed.map { it?.info?.path })
-    assertEquals(GitStatus.Ready(info("/auto"), false), h.controller.status.value)
+    assertEquals(GitStatus.Ready(info("/auto")), h.controller.status.value)
   }
 
   @Test
@@ -215,7 +239,7 @@ class GitBackendControllerTest {
   fun inFlightEmptyCommitCancelledDoesNotSaveNull() = runTest(StandardTestDispatcher()) {
     val h = Harness(
       this,
-      initial = GitLocation.Found(info("/g"), configuredRejected = false),
+      initial = GitLocation.Found(info("/g")),
       initialGitPath = "/g",
     )
     var triggered = false
