@@ -8,9 +8,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
@@ -39,6 +41,7 @@ import io.github.mataku.kdiffviewer.app.ui.TitleBarHeight
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
 import io.github.mataku.kdiffviewer.app.ui.resolveFontFamily
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
+import io.github.mataku.kdiffviewer.app.ui.textClipEntry
 import io.github.mataku.kdiffviewer.core.git.GitLocation
 import io.github.mataku.kdiffviewer.core.git.GitLocator
 import io.github.mataku.kdiffviewer.core.git.locateOnHost
@@ -52,6 +55,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.awt.Desktop
@@ -173,6 +177,7 @@ private fun runApplication(
     )
   }
   val uiState by state.uiState.collectAsState()
+  val selection = state.selection.collectAsState()
   val settings by repository.settings.collectAsState()
   val gitStatus by controller.status.collectAsState()
   var settingsOpen by remember { mutableStateOf(false) }
@@ -205,12 +210,21 @@ private fun runApplication(
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     val titleBarRegions = remember { installCustomTitleBar(window, TitleBarHeight) }
     val titleBarInset = if (titleBarRegions != null) TitleBarHeight else 0.dp
+    val clipboard = LocalClipboard.current
+    val windowScope = rememberCoroutineScope()
     MenuBar {
       Menu("File") {
         Item("Open…", shortcut = KeyShortcut(Key.O, meta = true), onClick = openFolder)
         if (!nativePreferences) {
           Item("Settings…", shortcut = KeyShortcut(Key.Comma, meta = true), onClick = { openSettings() })
         }
+      }
+      Menu("Edit") {
+        Item(
+          "Copy",
+          enabled = selection.value != null,
+          onClick = { state.copiedText()?.let { text -> windowScope.launch { clipboard.setClipEntry(textClipEntry(text)) } } },
+        )
       }
       Menu("View") {
         Item("Reload", shortcut = KeyShortcut(Key.R, meta = true), onClick = state::reload)
@@ -238,6 +252,9 @@ private fun runApplication(
             onToggleFile = state::toggleCollapsed,
             onExpandFile = state::expand,
             review = reviewSnapshot,
+            selection = selection,
+            onLineNumberClick = state::clickLineNumber,
+            onClearSelection = state::clearSelection,
           )
         }
       }
