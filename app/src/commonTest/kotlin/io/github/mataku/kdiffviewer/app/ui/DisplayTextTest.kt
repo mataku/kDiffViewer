@@ -14,25 +14,25 @@ import kotlin.test.assertSame
 class DisplayTextTest {
   @Test
   fun tabAtColumnZeroExpandsToEightSpaces() {
-    assertEquals("        x", expandTabs("\tx"))
+    assertEquals("        x", expandTabs("\tx", 8))
   }
 
   @Test
   fun tabMidLineExpandsToNextMultipleOfEight() {
-    assertEquals("abc     d", expandTabs("abc\td"))
-    assertEquals("abcdefgh        i", expandTabs("abcdefgh\ti"))
+    assertEquals("abc     d", expandTabs("abc\td", 8))
+    assertEquals("abcdefgh        i", expandTabs("abcdefgh\ti", 8))
   }
 
   @Test
   fun multipleTabsEachAdvanceToNextStop() {
-    assertEquals("a       b       c", expandTabs("a\tb\tc"))
-    assertEquals("                x", expandTabs("\t\tx"))
+    assertEquals("a       b       c", expandTabs("a\tb\tc", 8))
+    assertEquals("                x", expandTabs("\t\tx", 8))
   }
 
   @Test
   fun textWithoutTabsIsReturnedAsIs() {
     val text = "no tabs here"
-    assertSame(text, expandTabs(text))
+    assertSame(text, expandTabs(text, 8))
   }
 
   @Test
@@ -51,35 +51,35 @@ class DisplayTextTest {
 
   @Test
   fun lineWithoutTabsKeepsOffsets() {
-    val result = displayText("fun x", listOf(HighlightSpan(0, 3, "keyword")), theme)
+    val result = displayText("fun x", listOf(HighlightSpan(0, 3, "keyword")), theme, 8)
     assertEquals("fun x", result.text)
     assertEquals(listOf(AnnotatedString.Range(red, 0, 3)), result.spanStyles)
   }
 
   @Test
   fun tabBeforeSpanShiftsIt() {
-    val result = displayText("\tfun", listOf(HighlightSpan(1, 4, "keyword")), theme)
+    val result = displayText("\tfun", listOf(HighlightSpan(1, 4, "keyword")), theme, 8)
     assertEquals("        fun", result.text)
     assertEquals(listOf(AnnotatedString.Range(red, 8, 11)), result.spanStyles)
   }
 
   @Test
   fun tabInsideSpanWidensIt() {
-    val result = displayText("a\tb", listOf(HighlightSpan(0, 3, "string")), theme)
+    val result = displayText("a\tb", listOf(HighlightSpan(0, 3, "string")), theme, 8)
     assertEquals("a       b", result.text)
     assertEquals(listOf(AnnotatedString.Range(blue, 0, 9)), result.spanStyles)
   }
 
   @Test
   fun spanEndingAtLineEnd() {
-    val result = displayText("ab\t", listOf(HighlightSpan(2, 3, "string")), theme)
+    val result = displayText("ab\t", listOf(HighlightSpan(2, 3, "string")), theme, 8)
     assertEquals(listOf(AnnotatedString.Range(blue, 2, 8)), result.spanStyles)
   }
 
   @Test
   fun unresolvedCaptureIsSkipped() {
     val spans = listOf(HighlightSpan(0, 1, "variable"), HighlightSpan(0, 1, "keyword"))
-    assertEquals(listOf(AnnotatedString.Range(red, 0, 1)), displayText("ab", spans, theme).spanStyles)
+    assertEquals(listOf(AnnotatedString.Range(red, 0, 1)), displayText("ab", spans, theme, 8).spanStyles)
   }
 
   @Test
@@ -87,7 +87,7 @@ class DisplayTextTest {
     val spans = listOf(HighlightSpan(0, 5, "string"), HighlightSpan(1, 2, "keyword"))
     assertEquals(
       listOf(AnnotatedString.Range(blue, 0, 5), AnnotatedString.Range(red, 1, 2)),
-      displayText("abcde", spans, theme).spanStyles,
+      displayText("abcde", spans, theme, 8).spanStyles,
     )
   }
 
@@ -95,13 +95,13 @@ class DisplayTextTest {
   fun baseStyleIsNotApplied() {
     val green = SpanStyle(color = Color.Green)
     val themed = SyntaxTheme(keyword = red, baseStyle = green)
-    val result = displayText("fun", listOf(HighlightSpan(0, 3, "keyword")), themed)
+    val result = displayText("fun", listOf(HighlightSpan(0, 3, "keyword")), themed, 8)
     assertEquals(listOf(AnnotatedString.Range(red, 0, 3)), result.spanStyles)
   }
 
   @Test
   fun tabAtNonZeroColumnInsideSpanWidensIt() {
-    val result = displayText("ab\tc", listOf(HighlightSpan(0, 4, "string")), theme)
+    val result = displayText("ab\tc", listOf(HighlightSpan(0, 4, "string")), theme, 8)
     assertEquals("ab      c", result.text)
     assertEquals(listOf(AnnotatedString.Range(blue, 0, 9)), result.spanStyles)
   }
@@ -109,7 +109,7 @@ class DisplayTextTest {
   @Test
   fun displayTextMatchesExpandTabs() {
     listOf("", "abc", "ab\tc", "\ta\tb", "\t\t", "abcdefgh\ti").forEach {
-      assertEquals(expandTabs(it), displayText(it, emptyList(), theme).text)
+      assertEquals(expandTabs(it, 8), displayText(it, emptyList(), theme, 8).text)
     }
   }
 
@@ -126,5 +126,17 @@ class DisplayTextTest {
   @Test
   fun repoNameOfRootIsThePathItself() {
     assertEquals("/", repoName(RepoPath("/")))
+  }
+
+  @Test
+  fun tabWidthTwoAndFour() {
+    assertEquals("a b", expandTabs("a\tb", 2))
+    assertEquals("a   b", expandTabs("a\tb", 4))
+  }
+
+  @Test
+  fun displayTextOffsetsFollowTabWidth() {
+    val result = displayText("\tfun", listOf(HighlightSpan(1, 4, "keyword")), theme, 4)
+    assertEquals(listOf(AnnotatedString.Range(red, 4, 7)), result.spanStyles)
   }
 }

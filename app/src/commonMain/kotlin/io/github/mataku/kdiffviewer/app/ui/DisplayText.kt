@@ -7,20 +7,18 @@ import io.github.mataku.compose.highlight.core.SyntaxTheme
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 
-private const val TAB_WIDTH = 8
-
-private fun StringBuilder.appendExpanded(char: Char) {
+private fun StringBuilder.appendExpanded(char: Char, tabWidth: Int) {
   if (char == '\t') {
-    repeat(TAB_WIDTH - length % TAB_WIDTH) { append(' ') }
+    repeat(tabWidth - length % tabWidth) { append(' ') }
   } else {
     append(char)
   }
 }
 
-fun expandTabs(text: String): String {
+fun expandTabs(text: String, tabWidth: Int): String {
   if ('\t' !in text) return text
-  val builder = StringBuilder(text.length + TAB_WIDTH)
-  for (char in text) builder.appendExpanded(char)
+  val builder = StringBuilder(text.length + tabWidth)
+  for (char in text) builder.appendExpanded(char, tabWidth)
   return builder.toString()
 }
 
@@ -28,16 +26,17 @@ fun displayText(
   text: String,
   spans: List<HighlightSpan>,
   theme: SyntaxTheme,
+  tabWidth: Int,
 ): AnnotatedString {
   if ('\t' !in text) {
     val ranges = resolveRanges(spans, theme) { it }
     return AnnotatedString(text, spanStyles = ranges, paragraphStyles = emptyList())
   }
-  val builder = StringBuilder(text.length + TAB_WIDTH)
+  val builder = StringBuilder(text.length + tabWidth)
   val offsets = IntArray(text.length + 1)
   for (index in text.indices) {
     offsets[index] = builder.length
-    builder.appendExpanded(text[index])
+    builder.appendExpanded(text[index], tabWidth)
   }
   offsets[text.length] = builder.length
   val ranges = resolveRanges(spans, theme) { offsets[it] }

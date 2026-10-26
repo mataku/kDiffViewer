@@ -14,6 +14,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -417,6 +418,12 @@ class ViewerScreenTest {
   fun lineWithoutSpansStaysPlain() = runComposeUiTest {
     setContent { KdvTheme(darkTheme = false) { ViewerScreen(stateOf(listOf(keywordFile())), {}) } }
     assertEquals(emptyList(), lineText("fun x").spanStyles)
+  }
+
+  @Test
+  fun lineNumberColumnWidensWithFontSize() = runComposeUiTest {
+    setContent { KdvTheme(darkTheme = false, fontSize = 24) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }
+    onNodeWithTag("line-number-0-0-0-old", useUnmergedTree = true).assertWidthIsEqualTo(96.dp)
   }
 }
 
