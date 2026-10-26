@@ -8,6 +8,9 @@ kotlin {
       baseName = "kdv"
       entryPoint = "io.github.mataku.kdiffviewer.cli.main"
     }
+    compilations.getByName("main").cinterops.create("spawn") {
+      defFile(project.file("src/nativeInterop/cinterop/spawn.def"))
+    }
   }
 
   sourceSets {
