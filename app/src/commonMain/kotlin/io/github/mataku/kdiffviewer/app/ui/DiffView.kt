@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,17 +28,33 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.isPrimaryPressed
+import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -48,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import io.github.mataku.compose.highlight.core.LocalSyntaxTheme
 import io.github.mataku.kdiffviewer.app.DiffLayout
 import io.github.mataku.kdiffviewer.app.DiffRow
+import io.github.mataku.kdiffviewer.app.LineSelection
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewPlacements
@@ -64,6 +82,7 @@ import io.github.mataku.kdiffviewer.core.review.LineLocation
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.anchorOf
 import io.github.mataku.kdiffviewer.core.review.anchorPath
+import kotlinx.coroutines.launch
 
 private val FileHeaderTopMargin = 12.dp
 private val FileChevronSize = 12.dp
@@ -97,6 +116,9 @@ fun DiffView(
   placements: ReviewPlacements,
   draftTarget: DraftTarget?,
   loadId: Long,
+  selection: State<LineSelection?>,
+  onLineNumberClick: (rowIndex: Int, extend: Boolean) -> Unit,
+  onClearSelection: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val currentOnHeaderClick by rememberUpdatedState(onHeaderClick)
@@ -126,68 +148,110 @@ fun DiffView(
     }
   }
   val noteIndent = typography.lineNumberWidth * 2 + 16.dp
-  val hoverModifier = if (onAddComment == null) {
-    Modifier
-  } else {
-    Modifier
-      .onPointerEvent(PointerEventType.Enter) { event -> hoveredKey.value = keyAt(listState, event.changes.first().position.y) }
-      .onPointerEvent(PointerEventType.Move) { event -> hoveredKey.value = keyAt(listState, event.changes.first().position.y) }
-      .onPointerEvent(PointerEventType.Exit) { hoveredKey.value = null }
+  val density = LocalDensity.current
+  val numberStart = with(density) { ContentHorizontalMargin.toPx() }
+  val numberEnd = numberStart + with(density) { (typography.lineNumberWidth * 2).toPx() }
+  val rowAtPointer: (Offset) -> Int = { position -> lineNumberRowAt(listState, layout, rows, position, numberStart, numberEnd) }
+  val overLineNumber = remember { mutableStateOf(false) }
+  val listFocused = remember { mutableStateOf(false) }
+  val focusRequester = remember { FocusRequester() }
+  val clipboard = LocalClipboard.current
+  val coroutineScope = rememberCoroutineScope()
+  val onHover: (Offset) -> Unit = { position ->
+    if (onAddComment != null) hoveredKey.value = keyAt(listState, position.y)
+    overLineNumber.value = rowAtPointer(position) >= 0
   }
-  LazyColumn(
-    state = listState,
-    modifier = modifier.testTag("diff-list").then(hoverModifier),
-    contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = FileHeaderTopMargin),
-  ) {
-    if (layout.hasOrphanItem) {
-      item(key = ORPHANS_KEY, contentType = ORPHANS_CONTENT_TYPE) {
-        OrphanSection(placements.orphans, draft, composeNew = draft.isOrphanThread())
-      }
-    }
-    for (fileIndex in 0 until layout.fileCount) {
-      val headerRow = layout.headerRowIndex(fileIndex)
-      val collapsed = layout.isCollapsed(fileIndex)
-      val header = rows[headerRow] as DiffRow.FileHeader
-      stickyHeader(key = header.key, contentType = HEADER_CONTENT_TYPE) {
-        FileHeaderRow(header, collapsed, onFileComment) { currentOnHeaderClick(header.fileIndex) }
-      }
-      if (!collapsed) {
-        if (layout.hasNotes(fileIndex)) {
-          item(key = "n$fileIndex", contentType = NOTES_CONTENT_TYPE) {
-            NoteStack(
-              threads = (if (shown) placements.byFile[fileIndex] else null).orEmpty(),
-              draftTarget = draft,
-              composeNew = draftFileIndex == fileIndex,
-            )
-          }
+  LineNumberCursor(overLineNumber, modifier) {
+    LazyColumn(
+      state = listState,
+      modifier = Modifier
+        .testTag("diff-list")
+        .onPointerEvent(PointerEventType.Enter) { event -> onHover(event.changes.first().position) }
+        .onPointerEvent(PointerEventType.Move) { event -> onHover(event.changes.first().position) }
+        .onPointerEvent(PointerEventType.Exit) {
+          hoveredKey.value = null
+          overLineNumber.value = false
         }
-        val bodyStart = headerRow + 1
-        items(
-          count = layout.bodyRowCount(fileIndex),
-          key = { rows[bodyStart + it].key },
-          contentType = { rows[bodyStart + it].contentType() },
-        ) { offset ->
-          when (val row = rows[bodyStart + offset]) {
-            is DiffRow.FileHeader -> Unit
-
-            is DiffRow.HunkHeader -> HunkHeaderRow(row)
-
-            is DiffRow.Line -> {
-              val slot = highlights.getOrNull(row.fileIndex)
-              val position = if (hasLineThreads || draftLinePos >= 0) linePosition(row.fileIndex, row.hunkIndex, row.lineIndex) else -1L
-              val threads = if (hasLineThreads) placements.byLine[position] else null
-              val composing = position >= 0 && position == draftLinePos
-              if (threads == null && !composing) {
-                LineRow(row, slot, hoveredKey, onAddComment)
-              } else {
-                Column {
-                  LineRow(row, slot, hoveredKey, onAddComment)
-                  NoteStack(threads.orEmpty(), draft, composing, Modifier.padding(start = noteIndent, end = 8.dp))
-                }
-              }
+        .onPointerEvent(PointerEventType.Press) { event ->
+          val change = event.changes.first()
+          if (change.isConsumed || !event.buttons.isPrimaryPressed) return@onPointerEvent
+          val rowIndex = rowAtPointer(change.position)
+          if (rowIndex < 0) return@onPointerEvent
+          focusRequester.requestFocus()
+          onLineNumberClick(rowIndex, event.keyboardModifiers.isShiftPressed)
+        }
+        .onFocusChanged { listFocused.value = it.isFocused }
+        .onPreviewKeyEvent { event ->
+          if (!listFocused.value || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+          when {
+            event.key == Key.Escape && selection.value != null -> {
+              onClearSelection()
+              true
             }
 
-            is DiffRow.Placeholder -> PlaceholderRow(row.message)
+            event.key == Key.C && event.isMetaPressed -> {
+              val text = selection.value?.copiedText(rows) ?: return@onPreviewKeyEvent false
+              coroutineScope.launch { clipboard.setClipEntry(textClipEntry(text)) }
+              true
+            }
+
+            else -> false
+          }
+        }
+        .focusRequester(focusRequester)
+        .focusable(),
+      contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = FileHeaderTopMargin),
+    ) {
+      if (layout.hasOrphanItem) {
+        item(key = ORPHANS_KEY, contentType = ORPHANS_CONTENT_TYPE) {
+          OrphanSection(placements.orphans, draft, composeNew = draft.isOrphanThread())
+        }
+      }
+      for (fileIndex in 0 until layout.fileCount) {
+        val headerRow = layout.headerRowIndex(fileIndex)
+        val collapsed = layout.isCollapsed(fileIndex)
+        val header = rows[headerRow] as DiffRow.FileHeader
+        stickyHeader(key = header.key, contentType = HEADER_CONTENT_TYPE) {
+          FileHeaderRow(header, collapsed, onFileComment) { currentOnHeaderClick(header.fileIndex) }
+        }
+        if (!collapsed) {
+          if (layout.hasNotes(fileIndex)) {
+            item(key = "n$fileIndex", contentType = NOTES_CONTENT_TYPE) {
+              NoteStack(
+                threads = (if (shown) placements.byFile[fileIndex] else null).orEmpty(),
+                draftTarget = draft,
+                composeNew = draftFileIndex == fileIndex,
+              )
+            }
+          }
+          val bodyStart = headerRow + 1
+          items(
+            count = layout.bodyRowCount(fileIndex),
+            key = { rows[bodyStart + it].key },
+            contentType = { rows[bodyStart + it].contentType() },
+          ) { offset ->
+            when (val row = rows[bodyStart + offset]) {
+              is DiffRow.FileHeader -> Unit
+
+              is DiffRow.HunkHeader -> HunkHeaderRow(row)
+
+              is DiffRow.Line -> {
+                val slot = highlights.getOrNull(row.fileIndex)
+                val position = if (hasLineThreads || draftLinePos >= 0) linePosition(row.fileIndex, row.hunkIndex, row.lineIndex) else -1L
+                val threads = if (hasLineThreads) placements.byLine[position] else null
+                val composing = position >= 0 && position == draftLinePos
+                if (threads == null && !composing) {
+                  LineRow(row, bodyStart + offset, slot, hoveredKey, selection, onAddComment)
+                } else {
+                  Column {
+                    LineRow(row, bodyStart + offset, slot, hoveredKey, selection, onAddComment)
+                    NoteStack(threads.orEmpty(), draft, composing, Modifier.padding(start = noteIndent, end = 8.dp))
+                  }
+                }
+              }
+
+              is DiffRow.Placeholder -> PlaceholderRow(row.message)
+            }
           }
         }
       }
@@ -196,6 +260,27 @@ fun DiffView(
 }
 
 private fun keyAt(listState: LazyListState, y: Float): String? = listState.layoutInfo.visibleItemsInfo.firstOrNull { y >= it.offset && y < it.offset + it.size }?.key as? String
+
+private fun lineNumberRowAt(listState: LazyListState, layout: DiffLayout, rows: List<DiffRow>, position: Offset, numberStart: Float, numberEnd: Float): Int {
+  if (position.x < numberStart || position.x >= numberEnd) return -1
+  var visibleIndex = -1
+  for (item in listState.layoutInfo.visibleItemsInfo) {
+    if (position.y < item.offset || position.y >= item.offset + item.size) continue
+    if (item.contentType != LINE_CONTENT_TYPE) return -1
+    visibleIndex = item.index
+  }
+  if (visibleIndex < 0) return -1
+  val rowIndex = layout.rowIndexOf(visibleIndex)
+  val row = rows.getOrNull(rowIndex) as? DiffRow.Line ?: return -1
+  return if (row.line.kind == LineKind.NoNewlineAtEof) -1 else rowIndex
+}
+
+@Composable
+private fun LineNumberCursor(overLineNumber: State<Boolean>, modifier: Modifier, content: @Composable () -> Unit) {
+  Box(modifier = modifier.pointerHoverIcon(if (overLineNumber.value) PointerIcon.Hand else PointerIcon.Default)) {
+    content()
+  }
+}
 
 private fun FileDiff.headerTitle(): String = when {
   change == ChangeType.Renamed && oldPath != null && newPath != null -> "$oldPath → $newPath"
@@ -295,7 +380,14 @@ private fun PlaceholderRow(message: String) {
 }
 
 @Composable
-private fun LineRow(row: DiffRow.Line, slot: HighlightSlot?, hoveredKey: State<String?>, onAddComment: ((DiffRow.Line) -> Unit)?) {
+private fun LineRow(
+  row: DiffRow.Line,
+  rowIndex: Int,
+  slot: HighlightSlot?,
+  hoveredKey: State<String?>,
+  selection: State<LineSelection?>,
+  onAddComment: ((DiffRow.Line) -> Unit)?,
+) {
   val line = row.line
   val colors = LocalDiffColors.current
   val typography = LocalDiffTypography.current
@@ -307,13 +399,24 @@ private fun LineRow(row: DiffRow.Line, slot: HighlightSlot?, hoveredKey: State<S
     )
     return
   }
-  val (contentBackground, numberBackground, marker) = when (line.kind) {
-    LineKind.Added -> Triple(colors.addedBackground, colors.addedLineNumberBackground, "+")
-    LineKind.Removed -> Triple(colors.removedBackground, colors.removedLineNumberBackground, "-")
-    else -> Triple(colors.background, colors.background, " ")
-  }
   val key = row.key
-  val hovered by remember(key) { derivedStateOf { hoveredKey.value == key } }
+  val flags by remember(key, rowIndex, hoveredKey, selection) {
+    derivedStateOf {
+      (if (hoveredKey.value == key) HOVERED_FLAG else 0) or (if (selection.value?.contains(rowIndex) == true) SELECTED_FLAG else 0)
+    }
+  }
+  val hovered = flags and HOVERED_FLAG != 0
+  val (contentBackground, numberBackground) = when {
+    flags and SELECTED_FLAG != 0 -> colors.selectedBackground to colors.selectedLineNumberBackground
+    line.kind == LineKind.Added -> colors.addedBackground to colors.addedLineNumberBackground
+    line.kind == LineKind.Removed -> colors.removedBackground to colors.removedLineNumberBackground
+    else -> colors.background to colors.background
+  }
+  val marker = when (line.kind) {
+    LineKind.Added -> "+"
+    LineKind.Removed -> "-"
+    else -> " "
+  }
   Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
     LineNumberCell(line.oldLineNo, numberBackground, typography, row, if (hovered) onAddComment else null)
     LineNumberCell(line.newLineNo, numberBackground, typography, null, null)
@@ -336,6 +439,9 @@ private fun LineRow(row: DiffRow.Line, slot: HighlightSlot?, hoveredKey: State<S
     }
   }
 }
+
+private const val HOVERED_FLAG = 1
+private const val SELECTED_FLAG = 2
 
 @Composable
 private fun LineNumberCell(number: Int?, background: Color, typography: DiffTypography, row: DiffRow.Line?, onAdd: ((DiffRow.Line) -> Unit)?) {

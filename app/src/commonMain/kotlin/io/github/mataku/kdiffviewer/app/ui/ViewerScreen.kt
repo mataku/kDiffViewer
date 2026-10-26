@@ -23,6 +23,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.GitFileStatus
+import io.github.mataku.kdiffviewer.app.LineSelection
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ScrollRestorer
 import io.github.mataku.kdiffviewer.app.ViewerUiState
@@ -76,6 +78,9 @@ fun ViewerScreen(
   onToggleFile: (Int) -> Unit = {},
   onExpandFile: (Int) -> Unit = {},
   review: ReviewSnapshot = ReviewSnapshot.Empty,
+  selection: State<LineSelection?> = NoSelection,
+  onLineNumberClick: (rowIndex: Int, extend: Boolean) -> Unit = { _, _ -> },
+  onClearSelection: () -> Unit = {},
 ) {
   val colors = LocalDiffColors.current
   val listState = rememberLazyListState()
@@ -239,6 +244,9 @@ fun ViewerScreen(
               placements = review.placements,
               draftTarget = draftTarget,
               loadId = state.loadId,
+              selection = selection,
+              onLineNumberClick = onLineNumberClick,
+              onClearSelection = onClearSelection,
               onHeaderClick = { fileIndex ->
                 val header = layout.headerVisibleIndex(fileIndex)
                 val pinned = listState.firstVisibleItemIndex >= header
@@ -254,6 +262,10 @@ fun ViewerScreen(
       }
     }
   }
+}
+
+private object NoSelection : State<LineSelection?> {
+  override val value: LineSelection? get() = null
 }
 
 private val TagShape = RoundedCornerShape(4.dp)
