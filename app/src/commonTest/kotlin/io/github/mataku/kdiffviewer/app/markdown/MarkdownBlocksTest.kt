@@ -1,7 +1,9 @@
 package io.github.mataku.kdiffviewer.app.markdown
 
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -148,5 +150,30 @@ class MarkdownBlocksTest {
     assertEquals(listOf(para("x *y*")), parser.parse("x *y*"))
     assertEquals("boom", reported?.message)
     assertTrue(reported is IllegalStateException)
+  }
+
+  @Test
+  fun indentedCodeKeepsContentTabAfterFourSpaces() {
+    assertEquals(
+      listOf(MdBlock.CodeBlock(null, "\ta")),
+      parseMarkdown("    \ta"),
+    )
+  }
+
+  @Test
+  fun indentedCodeStripsLeadingTab() {
+    assertEquals(listOf(MdBlock.CodeBlock(null, "a")), parseMarkdown("\ta"))
+  }
+
+  @Test
+  fun errorsAreNotSwallowed() {
+    val parser = MarkdownBodyParser(buildTree = { throw OutOfMemoryError() })
+    assertFailsWith<OutOfMemoryError> { parser.parse("a") }
+  }
+
+  @Test
+  fun cancellationIsNotSwallowed() {
+    val parser = MarkdownBodyParser(buildTree = { throw CancellationException("x") })
+    assertFailsWith<CancellationException> { parser.parse("a") }
   }
 }

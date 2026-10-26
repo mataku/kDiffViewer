@@ -5,10 +5,14 @@ import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.ast.getTextInNode
+import org.intellij.markdown.flavours.gfm.GFMElementTypes
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.flavours.gfm.GFMTokenTypes
+import org.intellij.markdown.html.entities.Entities
 import org.intellij.markdown.parser.CancellationToken
+import org.intellij.markdown.parser.LinkMap
 import org.intellij.markdown.parser.MarkdownParser
+import kotlin.coroutines.cancellation.CancellationException
 
 private const val MAX_NESTING = 8
 
@@ -17,6 +21,42 @@ private val gfmParser = MarkdownParser(GFMFlavourDescriptor(), true, Cancellatio
 private fun gfmTree(source: String): ASTNode {
   val text: CharSequence = source
   return gfmParser.buildMarkdownTreeFromString(text)
+}
+
+private val textEscapes = Regex("""\\([!-/:-@\[-`{-~])|&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});""")
+
+private fun decodeText(raw: String): String {
+  if ('\\' !in raw && '&' !in raw) return raw
+  return textEscapes.replace(raw) { match ->
+    val escaped = match.groupValues[1]
+    if (escaped.isNotEmpty()) return@replace escaped
+    val entity = match.groupValues[2]
+    val codePoint =
+      when {
+        entity.startsWith("#x") || entity.startsWith("#X") -> entity.substring(2).toIntOrNull(16)
+        entity.startsWith("#") -> entity.substring(1).toIntOrNull()
+        else -> Entities.map["&$entity;"] ?: Entities.map[entity]
+      }
+    if (codePoint == null || codePoint <= 0 || codePoint > 0x10FFFF || codePoint in 0xD800..0xDFFF) {
+      match.value
+    } else {
+      codePointToString(codePoint)
+    }
+  }
+}
+
+private fun codePointToString(codePoint: Int): String = if (codePoint < 0x10000) {
+  codePoint.toChar().toString()
+} else {
+  val offset = codePoint - 0x10000
+  charArrayOf((0xD800 + (offset shr 10)).toChar(), (0xDC00 + (offset and 0x3FF)).toChar()).concatToString()
+}
+
+private fun isAllowedLinkUrl(url: String): Boolean {
+  val colon = url.indexOf(':')
+  if (colon <= 0) return false
+  val scheme = url.substring(0, colon).lowercase()
+  return scheme == "http" || scheme == "https" || scheme == "mailto"
 }
 
 class MarkdownBodyParser(
@@ -28,14 +68,17 @@ class MarkdownBodyParser(
     if (normalized.isBlank()) return emptyList()
     return try {
       val root = buildTree(normalized)
-      Mapper(normalized).blocks(root, 0)
-    } catch (e: Throwable) {
+      Mapper(root, normalized).blocks(root, 0)
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
       onFailure(e)
       listOf(MdBlock.Paragraph(MdInline(normalized, emptyList())))
     }
   }
 
   private class Mapper(
+    private val root: ASTNode,
     private val source: String,
   ) {
     fun blocks(
@@ -80,21 +123,163 @@ class MarkdownBodyParser(
       return MdBlock.Heading(level, if (content == null) MdInline("", emptyList()) else inline(content))
     }
 
+    private val linkMap by lazy(LazyThreadSafetyMode.NONE) { LinkMap.buildLinkMap(root, source) }
+
     private fun inline(node: ASTNode): MdInline {
-      val flat = StringBuilder()
-      collectLeaves(node, flat)
-      val text = flat.lines().joinToString("\n") { it.trimStart() }.trim()
-      return MdInline(text, emptyList())
+      val writer = InlineWriter()
+      writer.children(node.children)
+      return writer.finish()
     }
 
-    private fun collectLeaves(
-      node: ASTNode,
-      out: StringBuilder,
-    ) {
-      if (node.children.isEmpty()) {
-        if (node.type != MarkdownTokenTypes.BLOCK_QUOTE) out.append(text(node))
-      } else {
-        node.children.forEach { collectLeaves(it, out) }
+    private inner class InlineWriter {
+      private val out = StringBuilder()
+      private val spans = mutableListOf<MdSpan>()
+
+      fun finish(): MdInline {
+        trimTrailingBlanks()
+        return MdInline(out.toString(), spans)
+      }
+
+      fun children(nodes: List<ASTNode>) {
+        nodes.forEach { visit(it) }
+      }
+
+      private fun atLineStart() = out.isEmpty() || out.last() == '\n'
+
+      private fun trimTrailingBlanks() {
+        var end = out.length
+        while (end > 0 && (out[end - 1] == ' ' || out[end - 1] == '\t')) end--
+        out.setLength(end)
+        spans.replaceAll { if (it.end > end) it.copy(end = end) else it }
+        spans.removeAll { it.start >= it.end }
+      }
+
+      private fun span(
+        kind: MdSpanKind,
+        start: Int,
+        url: String? = null,
+      ) {
+        if (out.length > start) spans.add(MdSpan(kind, start, out.length, url))
+      }
+
+      private fun visit(node: ASTNode) {
+        val type = node.type
+        when (type) {
+          MarkdownTokenTypes.EOL -> {
+            trimTrailingBlanks()
+            out.append('\n')
+          }
+
+          MarkdownTokenTypes.HARD_LINE_BREAK, MarkdownTokenTypes.BLOCK_QUOTE -> {}
+
+          MarkdownTokenTypes.WHITE_SPACE -> if (!atLineStart()) out.append(text(node))
+
+          MarkdownTokenTypes.TEXT -> out.append(decodeText(text(node)))
+
+          MarkdownElementTypes.STRONG -> styled(MdSpanKind.Strong, node, MarkdownTokenTypes.EMPH)
+
+          MarkdownElementTypes.EMPH -> styled(MdSpanKind.Emphasis, node, MarkdownTokenTypes.EMPH)
+
+          GFMElementTypes.STRIKETHROUGH -> styled(MdSpanKind.Strikethrough, node, GFMTokenTypes.TILDE)
+
+          MarkdownElementTypes.CODE_SPAN -> codeSpan(node)
+
+          MarkdownElementTypes.INLINE_LINK -> inlineLink(node)
+
+          MarkdownElementTypes.FULL_REFERENCE_LINK -> referenceLink(node, node.children.firstOrNull { it.type == MarkdownElementTypes.LINK_TEXT }, node.children.firstOrNull { it.type == MarkdownElementTypes.LINK_LABEL })
+
+          MarkdownElementTypes.SHORT_REFERENCE_LINK -> {
+            val label = node.children.firstOrNull { it.type == MarkdownElementTypes.LINK_LABEL }
+            referenceLink(node, label, label)
+          }
+
+          MarkdownElementTypes.AUTOLINK -> autolink(node)
+
+          GFMTokenTypes.GFM_AUTOLINK -> link(text(node)) { out.append(text(node)) }
+
+          MarkdownElementTypes.IMAGE -> children(node.children.filter { it.type != MarkdownTokenTypes.EXCLAMATION_MARK })
+
+          else -> if (node.children.isEmpty()) out.append(text(node)) else children(node.children)
+        }
+      }
+
+      private fun inner(
+        node: ASTNode,
+        marker: IElementType,
+      ): List<ASTNode> {
+        val kids = node.children
+        val from = kids.indexOfFirst { it.type != marker }
+        if (from < 0) return emptyList()
+        val to = kids.indexOfLast { it.type != marker }
+        return kids.subList(from, to + 1)
+      }
+
+      private fun styled(
+        kind: MdSpanKind,
+        node: ASTNode,
+        marker: IElementType,
+      ) {
+        val start = out.length
+        children(inner(node, marker))
+        span(kind, start)
+      }
+
+      private fun codeSpan(node: ASTNode) {
+        val start = out.length
+        inner(node, MarkdownTokenTypes.BACKTICK).forEach { out.append(text(it)) }
+        span(MdSpanKind.Code, start)
+      }
+
+      private fun link(
+        url: String,
+        content: () -> Unit,
+      ) {
+        val start = out.length
+        content()
+        if (isAllowedLinkUrl(url)) span(MdSpanKind.Link, start, url)
+      }
+
+      private fun bracketed(node: ASTNode): List<ASTNode> {
+        val kids = node.children
+        val from = if (kids.firstOrNull()?.type == MarkdownTokenTypes.LBRACKET) 1 else 0
+        val to = if (kids.lastOrNull()?.type == MarkdownTokenTypes.RBRACKET) kids.size - 1 else kids.size
+        return kids.subList(from, maxOf(from, to))
+      }
+
+      private fun inlineLink(node: ASTNode) {
+        val linkText = node.children.firstOrNull { it.type == MarkdownElementTypes.LINK_TEXT }
+        val destination = node.children.firstOrNull { it.type == MarkdownElementTypes.LINK_DESTINATION }
+        val url = destination?.let { text(it).removeSurrounding("<", ">") }
+        if (linkText == null || url == null) {
+          children(node.children)
+        } else {
+          link(url) { children(bracketed(linkText)) }
+        }
+      }
+
+      private fun referenceLink(
+        node: ASTNode,
+        content: ASTNode?,
+        label: ASTNode?,
+      ) {
+        val labelText = label?.let { text(it) }?.takeUnless { it == "[]" } ?: content?.let { text(it) }
+        val url = labelText?.let { linkMap.getLinkInfo(it)?.destination?.toString() }
+        if (content == null || url == null) {
+          children(node.children)
+        } else {
+          link(url) { children(bracketed(content)) }
+        }
+      }
+
+      private fun autolink(node: ASTNode) {
+        val target = node.children.firstOrNull { it.type == MarkdownTokenTypes.AUTOLINK }
+        if (target == null) {
+          children(node.children)
+          return
+        }
+        val raw = text(target)
+        val url = if (':' !in raw && '@' in raw) "mailto:$raw" else raw
+        link(url) { out.append(raw) }
       }
     }
 
@@ -123,7 +308,13 @@ class MarkdownBodyParser(
           .filter { it.type == MarkdownTokenTypes.CODE_LINE || it.type == MarkdownTokenTypes.EOL }
           .joinToString("") { child ->
             val raw = text(child)
-            if (child.type == MarkdownTokenTypes.EOL) raw else raw.removePrefix("    ").removePrefix("\t")
+            if (child.type == MarkdownTokenTypes.EOL) {
+              raw
+            } else if (raw.startsWith("    ")) {
+              raw.substring(4)
+            } else {
+              raw.removePrefix("\t")
+            }
           }
       return MdBlock.CodeBlock(null, code)
     }
