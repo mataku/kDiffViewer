@@ -30,6 +30,7 @@ import io.github.mataku.kdiffviewer.app.ui.DiffColors
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffTypography
 import io.github.mataku.kdiffviewer.app.ui.MacPushButton
+import io.github.mataku.kdiffviewer.app.ui.markdown.MarkdownBody
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.core.review.Comment
@@ -41,7 +42,6 @@ private val CardShape = RoundedCornerShape(6.dp)
 private class CardStyles(colors: DiffColors) {
   val collapsed = TextStyle(color = colors.mutedText, fontSize = 12.sp)
   val author = TextStyle(color = colors.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-  val body = TextStyle(color = colors.text, fontSize = 13.sp)
   val link = TextStyle(color = colors.accent, fontSize = 12.sp)
   fun badge(color: Color) = TextStyle(color = color, fontSize = 11.sp, fontWeight = FontWeight.Medium)
   val agentBadge = badge(colors.agentBadge)
@@ -147,7 +147,7 @@ private fun CommentView(comment: Comment, editing: Boolean, actions: ReviewActio
         onCancel = actions::cancelDraft,
       )
     } else {
-      BasicText(comment.body, style = styles.body)
+      MarkdownBody(comment.body)
     }
   }
 }

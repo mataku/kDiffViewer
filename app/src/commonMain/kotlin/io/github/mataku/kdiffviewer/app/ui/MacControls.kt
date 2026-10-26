@@ -58,6 +58,7 @@ import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -153,6 +154,7 @@ fun <T> MacSegmented(
   tag: (T) -> String,
   onSelect: (T) -> Unit,
   modifier: Modifier = Modifier,
+  segmentWidth: Dp = 44.dp,
 ) {
   val colors = LocalDiffColors.current
   Row(
@@ -172,7 +174,7 @@ fun <T> MacSegmented(
         modifier = Modifier
           .testTag(tag(option))
           .height(22.dp)
-          .width(44.dp)
+          .width(segmentWidth)
           .then(segmentModifier)
           .semantics { this.selected = isSelected }
           .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, role = Role.RadioButton) { onSelect(option) },

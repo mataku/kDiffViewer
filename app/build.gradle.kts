@@ -35,6 +35,7 @@ kotlin {
       implementation(libs.composeSyntaxHighlight.javascript)
       implementation(libs.composeSyntaxHighlight.typescript)
       implementation(libs.composeSyntaxHighlight.markdown)
+      implementation(libs.jetbrains.markdown)
     }
     jvmMain.dependencies {
       implementation(compose.desktop.currentOs)

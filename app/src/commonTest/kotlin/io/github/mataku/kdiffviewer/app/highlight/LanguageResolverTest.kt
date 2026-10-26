@@ -52,4 +52,33 @@ class LanguageResolverTest {
     repeat(3) { r.languageFor("x.kt") }
     assertEquals(1, calls)
   }
+
+  @Test
+  fun mapsInfoStringsToLanguages() {
+    assertEquals(LanguageId.Kotlin, languageIdForInfo("kotlin"))
+    assertEquals(LanguageId.Kotlin, languageIdForInfo("kt"))
+    assertEquals(LanguageId.Kotlin, languageIdForInfo("kts"))
+    assertEquals(LanguageId.Ruby, languageIdForInfo("ruby"))
+    assertEquals(LanguageId.Ruby, languageIdForInfo("rb"))
+    assertEquals(LanguageId.Go, languageIdForInfo("go"))
+    assertEquals(LanguageId.Go, languageIdForInfo("golang"))
+    assertEquals(LanguageId.Rust, languageIdForInfo("rust"))
+    assertEquals(LanguageId.Rust, languageIdForInfo("rs"))
+    assertEquals(LanguageId.Swift, languageIdForInfo("swift"))
+    assertEquals(LanguageId.Python, languageIdForInfo("python"))
+    assertEquals(LanguageId.Python, languageIdForInfo("py"))
+    assertEquals(LanguageId.Java, languageIdForInfo("java"))
+    assertEquals(LanguageId.JavaScript, languageIdForInfo("javascript"))
+    assertEquals(LanguageId.JavaScript, languageIdForInfo("js"))
+    assertEquals(LanguageId.TypeScript, languageIdForInfo("typescript"))
+    assertEquals(LanguageId.TypeScript, languageIdForInfo("ts"))
+    assertEquals(LanguageId.Markdown, languageIdForInfo("markdown"))
+    assertEquals(LanguageId.Markdown, languageIdForInfo("md"))
+    assertEquals(LanguageId.Kotlin, languageIdForInfo("Kotlin"))
+    assertEquals(LanguageId.Kotlin, languageIdForInfo("KT"))
+    assertEquals(LanguageId.Kotlin, languageIdForInfo("kotlin title=x"))
+    assertNull(languageIdForInfo(""))
+    assertNull(languageIdForInfo("  "))
+    assertNull(languageIdForInfo("cobol"))
+  }
 }
