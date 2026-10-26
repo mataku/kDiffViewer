@@ -15,9 +15,11 @@ class CodeHighlighter<L>(
 ) {
   suspend fun highlight(code: String, info: String?, theme: SyntaxTheme): AnnotatedString? {
     val id = info?.let(::languageIdForInfo) ?: return null
-    val language = languages.languageFor(id) ?: return null
     return try {
-      withContext(dispatcher) { highlight(code, language, theme) }
+      withContext(dispatcher) {
+        val language = languages.languageFor(id) ?: return@withContext null
+        highlight(code, language, theme)
+      }
     } catch (e: CancellationException) {
       throw e
     } catch (t: Throwable) {
