@@ -14,7 +14,10 @@ Syntax highlighting covers Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScri
 
 ```sh
 ./gradlew :app:run --args=/absolute/path/to/repo
+./gradlew :app:run --args=..
 ```
+
+Gradle runs the app with `app/` as its working directory, so a relative path is resolved from there, not from where you ran `./gradlew`. Any directory inside a repository shows the whole repository's diff; `--args=..` opens this repository with its own name in the header, while `--args=./` shows the same diff under the name `app`.
 
 ## Build the app
 
