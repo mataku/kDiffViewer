@@ -89,6 +89,17 @@ class SessionRegistryTest {
   }
 
   @Test
+  fun `startedAt stays at construction time across publishes`() {
+    var clock = now
+    val registry = SessionRegistry(dir, 100, { clock }, { true })
+    registry.prepare()
+    clock = now.plusSeconds(60)
+    registry.publish(null)
+    val entry = Codec.json.decodeFromString(RegistryEntry.serializer(), Files.readString(dir.resolve("100.json")))
+    assertEquals(now.toString(), entry.startedAt)
+  }
+
+  @Test
   fun `remove deletes both files`() {
     val registry = registry()
     registry.prepare()

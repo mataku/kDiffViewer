@@ -15,11 +15,12 @@ fun processAlive(pid: Long): Boolean = ProcessHandle.of(pid).map { it.isAlive }.
 class SessionRegistry(
   private val dir: Path,
   private val pid: Long,
-  private val now: () -> Instant,
+  now: () -> Instant,
   private val isAlive: (Long) -> Boolean,
 ) {
   private val socketPath: Path = Path.of(RegistryPaths.socketPath(dir.toString(), pid))
   private val entryPath: Path = Path.of(RegistryPaths.entryPath(dir.toString(), pid))
+  private val startedAt: String = now().toString()
 
   fun prepare(): Path? {
     if (!RegistryPaths.fitsSocketPath(socketPath.toString())) return null
@@ -33,7 +34,7 @@ class SessionRegistry(
       pid = pid,
       repoRoot = repoRoot?.toRealPath()?.toString(),
       socket = socketPath.toString(),
-      startedAt = now().toString(),
+      startedAt = startedAt,
       protocolVersion = PROTOCOL_VERSION,
     )
     val temp = Files.createTempFile(dir, "$pid-", ".tmp")
