@@ -65,13 +65,16 @@ data class ViewerUiState(
   val highlights: List<HighlightSlot> = emptyList(),
   val head: HeadRef? = null,
   val fingerprints: List<Long> = emptyList(),
-  val collapsed: Map<String, Long> = emptyMap(),
+  val collapsed: Set<CollapsedFile> = emptySet(),
 )
+
+@Immutable
+data class CollapsedFile(val displayPath: String, val fingerprint: Long)
 
 fun ViewerUiState.isCollapsed(fileIndex: Int): Boolean {
   val file = files.getOrNull(fileIndex) ?: return false
   val fingerprint = fingerprints.getOrNull(fileIndex) ?: return false
-  return collapsed[file.displayPath] == fingerprint
+  return CollapsedFile(file.displayPath, fingerprint) in collapsed
 }
 
 class DiffViewerState(
@@ -173,29 +176,24 @@ class DiffViewerState(
     mutableUiState.update { current ->
       val file = current.files.getOrNull(fileIndex) ?: return@update current
       val fingerprint = current.fingerprints.getOrNull(fileIndex) ?: return@update current
-      val collapsed = if (current.isCollapsed(fileIndex)) {
-        current.collapsed - file.displayPath
-      } else {
-        current.collapsed + (file.displayPath to fingerprint)
-      }
-      current.copy(collapsed = collapsed)
+      val entry = CollapsedFile(file.displayPath, fingerprint)
+      current.copy(collapsed = if (entry in current.collapsed) current.collapsed - entry else current.collapsed + entry)
     }
   }
 
   fun expand(fileIndex: Int) {
     mutableUiState.update { current ->
       if (!current.isCollapsed(fileIndex)) return@update current
-      current.copy(collapsed = current.collapsed - current.files[fileIndex].displayPath)
+      current.copy(collapsed = current.collapsed - CollapsedFile(current.files[fileIndex].displayPath, current.fingerprints[fileIndex]))
     }
   }
 
-  private fun ViewerUiState.prunedCollapsed(): Map<String, Long> {
+  private fun ViewerUiState.prunedCollapsed(): Set<CollapsedFile> {
     if (collapsed.isEmpty()) return collapsed
-    val kept = HashMap<String, Long>()
+    val kept = HashSet<CollapsedFile>()
     files.forEachIndexed { index, file ->
-      val path = file.displayPath
-      val fingerprint = collapsed[path]
-      if (fingerprint != null && fingerprint == fingerprints[index]) kept[path] = fingerprint
+      val entry = CollapsedFile(file.displayPath, fingerprints[index])
+      if (entry in collapsed) kept += entry
     }
     return if (kept.size == collapsed.size) collapsed else kept
   }

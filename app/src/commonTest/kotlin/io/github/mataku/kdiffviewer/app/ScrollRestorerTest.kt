@@ -33,7 +33,7 @@ class ScrollRestorerTest {
     val rows = flattenRows(files)
     val headers = rows.mapIndexedNotNull { index, row -> if (row is DiffRow.FileHeader) index else null }
     val fingerprints = files.map { it.fingerprint() }
-    val collapsed = collapsedIndices.associate { files[it].displayPath to fingerprints[it] }
+    val collapsed = collapsedIndices.map { CollapsedFile(files[it].displayPath, fingerprints[it]) }.toSet()
     return ViewerUiState(repoPath, status, files, rows, headers, buildFileTree(files), loadId, fingerprints = fingerprints, collapsed = collapsed)
   }
 

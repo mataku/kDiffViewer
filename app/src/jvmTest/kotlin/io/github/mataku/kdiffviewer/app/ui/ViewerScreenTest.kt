@@ -29,6 +29,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import io.github.mataku.compose.highlight.core.HighlightSpan
+import io.github.mataku.kdiffviewer.app.CollapsedFile
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ViewerUiState
@@ -61,8 +62,8 @@ class ViewerScreenTest {
   }
 
   private fun ViewerUiState.toggled(fileIndex: Int): ViewerUiState {
-    val path = files[fileIndex].displayPath
-    return copy(collapsed = if (isCollapsed(fileIndex)) collapsed - path else collapsed + (path to fingerprints[fileIndex]))
+    val entry = CollapsedFile(files[fileIndex].displayPath, fingerprints[fileIndex])
+    return copy(collapsed = if (entry in collapsed) collapsed - entry else collapsed + entry)
   }
 
   private fun ViewerUiState.expanded(fileIndex: Int): ViewerUiState = if (isCollapsed(fileIndex)) toggled(fileIndex) else this

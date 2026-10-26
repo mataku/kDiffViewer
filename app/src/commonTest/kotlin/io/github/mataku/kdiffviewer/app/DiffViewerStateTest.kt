@@ -677,10 +677,10 @@ class DiffViewerStateTest {
     advanceUntilIdle()
     state.toggleCollapsed(0)
     assertTrue(state.uiState.value.isCollapsed(0))
-    assertEquals(mapOf("a" to a.fingerprint()), state.uiState.value.collapsed)
+    assertEquals(setOf(CollapsedFile("a", a.fingerprint())), state.uiState.value.collapsed)
     state.toggleCollapsed(0)
     assertFalse(state.uiState.value.isCollapsed(0))
-    assertEquals(emptyMap(), state.uiState.value.collapsed)
+    assertEquals(emptySet(), state.uiState.value.collapsed)
   }
 
   @Test
@@ -735,7 +735,7 @@ class DiffViewerStateTest {
     state.reload()
     advanceUntilIdle()
     assertFalse(state.uiState.value.isCollapsed(0))
-    assertEquals(emptyMap(), state.uiState.value.collapsed)
+    assertEquals(emptySet(), state.uiState.value.collapsed)
   }
 
   @Test
@@ -746,7 +746,7 @@ class DiffViewerStateTest {
     state.toggleCollapsed(0)
     state.reload()
     advanceUntilIdle()
-    assertEquals(emptyMap(), state.uiState.value.collapsed)
+    assertEquals(emptySet(), state.uiState.value.collapsed)
   }
 
   @Test
@@ -780,7 +780,7 @@ class DiffViewerStateTest {
     advanceUntilIdle()
     state.toggleCollapsed(0)
     state.open(RepoPath("/other"))
-    assertEquals(emptyMap(), state.uiState.value.collapsed)
+    assertEquals(emptySet(), state.uiState.value.collapsed)
   }
 
   @Test
@@ -812,5 +812,41 @@ class DiffViewerStateTest {
     state.toggleCollapsed(1)
     assertTrue(state.uiState.value.isCollapsed(1))
     assertFalse(state.uiState.value.isCollapsed(0))
+  }
+
+  @Test
+  fun bothFilesWithTheSamePathCanBeCollapsed() = runTest(StandardTestDispatcher()) {
+    val deleted = FileDiff(
+      "x",
+      null,
+      ChangeType.Deleted,
+      false,
+      DiffContent.Text(listOf(Hunk(1, 1, 0, 0, "", listOf(DiffLine(LineKind.Removed, "old", 1, null))))),
+    )
+    val untracked = FileDiff(
+      null,
+      "x",
+      ChangeType.Added,
+      true,
+      DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", listOf(DiffLine(LineKind.Added, "new", null, 1))))),
+    )
+    val state = stateFor(
+      FakeSource {
+        flow {
+          emit(deleted)
+          emit(untracked)
+        }
+      },
+    )
+    state.open(repo)
+    advanceUntilIdle()
+    state.toggleCollapsed(0)
+    state.toggleCollapsed(1)
+    assertTrue(state.uiState.value.isCollapsed(0))
+    assertTrue(state.uiState.value.isCollapsed(1))
+    state.reload()
+    advanceUntilIdle()
+    assertTrue(state.uiState.value.isCollapsed(0))
+    assertTrue(state.uiState.value.isCollapsed(1))
   }
 }
