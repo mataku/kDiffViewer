@@ -68,6 +68,7 @@ class MarkdownBodyParser(
   fun parse(source: String): List<MdBlock> {
     val normalized = source.replace("\r\n", "\n").replace('\r', '\n')
     if (normalized.isBlank()) return emptyList()
+    if (exceedsContainerDepth(normalized)) return plainFallback(normalized)
     return try {
       val root = buildTree(normalized)
       Mapper(root, normalized).blocks(root, 0)
@@ -75,9 +76,15 @@ class MarkdownBodyParser(
       throw e
     } catch (e: Exception) {
       onFailure(e)
-      listOf(MdBlock.Paragraph(MdInline(normalized, emptyList())))
+      plainFallback(normalized)
+    } catch (e: Throwable) {
+      if (!isStackOverflow(e)) throw e
+      onFailure(e)
+      plainFallback(normalized)
     }
   }
+
+  private fun plainFallback(text: String) = listOf<MdBlock>(MdBlock.Paragraph(MdInline(text, emptyList())))
 
   private class Mapper(
     private val root: ASTNode,
