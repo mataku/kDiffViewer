@@ -103,6 +103,7 @@ private fun runApplication(
       scope = scope,
       highlightPipeline = backend?.highlightPipeline,
       missingSourceError = missingSourceError,
+      loadContext = Dispatchers.Default,
     ).also { viewerState ->
       parseLaunchArgs(args, System.getProperty("user.dir"))?.let(viewerState::open)
     }

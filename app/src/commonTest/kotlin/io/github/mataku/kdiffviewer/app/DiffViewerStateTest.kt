@@ -35,8 +35,10 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -648,5 +650,167 @@ class DiffViewerStateTest {
     val ui = state.uiState.value
     assertEquals(ui.files.size, ui.highlights.size)
     ui.highlights.forEach { assertNull(it.value) }
+  }
+
+  private fun textFileWith(path: String, text: String) = FileDiff(
+    path,
+    path,
+    ChangeType.Modified,
+    false,
+    DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", listOf(DiffLine(LineKind.Context, text, 1, 1))))),
+  )
+
+  @Test
+  fun loadAppendsOneFingerprintPerFile() = runTest(StandardTestDispatcher()) {
+    val files = listOf(fileWithLines("a", 2), fileWithLines("b", 3))
+    val state = stateFor(FakeSource { flow { files.forEach { emit(it) } } })
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(files.map { it.fingerprint() }, state.uiState.value.fingerprints)
+  }
+
+  @Test
+  fun toggleCollapsedCollapsesAndExpands() = runTest(StandardTestDispatcher()) {
+    val a = fileWithLines("a", 2)
+    val state = stateFor(FakeSource { flow { emit(a) } })
+    state.open(repo)
+    advanceUntilIdle()
+    state.toggleCollapsed(0)
+    assertTrue(state.uiState.value.isCollapsed(0))
+    assertEquals(mapOf("a" to a.fingerprint()), state.uiState.value.collapsed)
+    state.toggleCollapsed(0)
+    assertFalse(state.uiState.value.isCollapsed(0))
+    assertEquals(emptyMap(), state.uiState.value.collapsed)
+  }
+
+  @Test
+  fun expandOnExpandedFileEmitsNothing() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource { flow { emit(fileWithLines("a", 2)) } })
+    state.open(repo)
+    advanceUntilIdle()
+    val before = state.uiState.value
+    state.expand(0)
+    assertSame(before, state.uiState.value)
+  }
+
+  @Test
+  fun collapseSurvivesLaterBatches() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(
+      FakeSource {
+        flow {
+          emit(fileWithLines("a", 2))
+          delay(100)
+          emit(fileWithLines("b", 2))
+        }
+      },
+    )
+    state.open(repo)
+    advanceTimeBy(50)
+    runCurrent()
+    assertEquals(1, state.uiState.value.files.size)
+    state.toggleCollapsed(0)
+    advanceUntilIdle()
+    assertEquals(LoadStatus.Done, state.uiState.value.status)
+    assertTrue(state.uiState.value.isCollapsed(0))
+    assertFalse(state.uiState.value.isCollapsed(1))
+  }
+
+  @Test
+  fun reloadWithSameDiffKeepsFileCollapsed() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource { flow { emit(textFileWith("a", "same")) } })
+    state.open(repo)
+    advanceUntilIdle()
+    state.toggleCollapsed(0)
+    state.reload()
+    advanceUntilIdle()
+    assertTrue(state.uiState.value.isCollapsed(0))
+  }
+
+  @Test
+  fun reloadWithChangedDiffExpandsAndPrunes() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource { call -> flow { emit(textFileWith("a", "v$call")) } })
+    state.open(repo)
+    advanceUntilIdle()
+    state.toggleCollapsed(0)
+    state.reload()
+    advanceUntilIdle()
+    assertFalse(state.uiState.value.isCollapsed(0))
+    assertEquals(emptyMap(), state.uiState.value.collapsed)
+  }
+
+  @Test
+  fun reloadPrunesMissingPaths() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource { call -> flow { emit(fileWithLines(if (call == 0) "a" else "b", 2)) } })
+    state.open(repo)
+    advanceUntilIdle()
+    state.toggleCollapsed(0)
+    state.reload()
+    advanceUntilIdle()
+    assertEquals(emptyMap(), state.uiState.value.collapsed)
+  }
+
+  @Test
+  fun previousContentStaysCollapsedDuringReloadHold() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(
+      FakeSource { call ->
+        if (call == 0) {
+          flow { emit(fileWithLines("a", 2)) }
+        } else {
+          flow {
+            delay(200)
+            emit(fileWithLines("a", 2))
+          }
+        }
+      },
+    )
+    state.open(repo)
+    advanceUntilIdle()
+    state.toggleCollapsed(0)
+    state.reload()
+    advanceTimeBy(100)
+    runCurrent()
+    assertEquals(LoadStatus.Loading, state.uiState.value.status)
+    assertTrue(state.uiState.value.isCollapsed(0))
+  }
+
+  @Test
+  fun openingAnotherRepoClearsCollapsed() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource { flow { emit(fileWithLines("a", 2)) } })
+    state.open(repo)
+    advanceUntilIdle()
+    state.toggleCollapsed(0)
+    state.open(RepoPath("/other"))
+    assertEquals(emptyMap(), state.uiState.value.collapsed)
+  }
+
+  @Test
+  fun samePathWithDifferentDiffsCollapsesIndependently() = runTest(StandardTestDispatcher()) {
+    val deleted = FileDiff(
+      "x",
+      null,
+      ChangeType.Deleted,
+      false,
+      DiffContent.Text(listOf(Hunk(1, 1, 0, 0, "", listOf(DiffLine(LineKind.Removed, "old", 1, null))))),
+    )
+    val untracked = FileDiff(
+      null,
+      "x",
+      ChangeType.Added,
+      true,
+      DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", listOf(DiffLine(LineKind.Added, "new", null, 1))))),
+    )
+    val state = stateFor(
+      FakeSource {
+        flow {
+          emit(deleted)
+          emit(untracked)
+        }
+      },
+    )
+    state.open(repo)
+    advanceUntilIdle()
+    state.toggleCollapsed(1)
+    assertTrue(state.uiState.value.isCollapsed(1))
+    assertFalse(state.uiState.value.isCollapsed(0))
   }
 }
