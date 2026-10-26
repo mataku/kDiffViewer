@@ -12,6 +12,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
+import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.TreeEntry
 import io.github.mataku.kdiffviewer.app.TreeRow
 import io.github.mataku.kdiffviewer.core.model.DiffStats
@@ -67,6 +68,77 @@ class FileTreePanelTest {
   fun fileWithoutLineChangesShowsNoStats() = runComposeUiTest {
     setContent { FileTreePanel(entries, {}, {}, statsOf = { DiffStats(0, 0) }, width = 280.dp) }
     onNodeWithTag("tree-additions-0", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithTag("tree-deletions-0", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun zeroCountsAreHidden() = runComposeUiTest {
+    setContent { FileTreePanel(entries, {}, {}, statsOf = { DiffStats(0, 3) }, width = 280.dp) }
+    onNodeWithTag("tree-additions-0", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithTag("tree-deletions-0", useUnmergedTree = true).assertTextEquals("−3")
+  }
+
+  @Test
+  fun deletionsAlignAcrossRows() = runComposeUiTest {
+    val two = listOf(
+      TreeEntry(TreeRow(0, "a.kt", 0), null, false),
+      TreeEntry(TreeRow(0, "b.kt", 1), null, false),
+    )
+    val stats = listOf(DiffStats(12, 3), DiffStats(0, 25))
+    setContent { FileTreePanel(two, {}, {}, statsOf = { stats[it] }, width = 280.dp) }
+    val first = onNodeWithTag("tree-deletions-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val second = onNodeWithTag("tree-deletions-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    assertEquals(first.right, second.right)
+  }
+
+  @Test
+  fun deletionsLeftEdgeAlignsAtTheSameDigitCount() = runComposeUiTest {
+    val two = listOf(
+      TreeEntry(TreeRow(0, "a.kt", 0), null, false),
+      TreeEntry(TreeRow(0, "b.kt", 1), null, false),
+    )
+    val stats = listOf(DiffStats(12, 3), DiffStats(0, 5))
+    setContent { FileTreePanel(two, {}, {}, statsOf = { stats[it] }, width = 280.dp) }
+    val first = onNodeWithTag("tree-deletions-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val second = onNodeWithTag("tree-deletions-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    assertEquals(first.left, second.left)
+    assertEquals(first.right, second.right)
+  }
+
+  @Test
+  fun deletionsRightEdgeAlignsAcrossDigitCounts() = runComposeUiTest {
+    val two = listOf(
+      TreeEntry(TreeRow(0, "a.kt", 0), null, false),
+      TreeEntry(TreeRow(0, "b.kt", 1), null, false),
+    )
+    val stats = listOf(DiffStats(1, 3), DiffStats(0, 12345))
+    setContent { FileTreePanel(two, {}, {}, statsOf = { stats[it] }, width = 280.dp) }
+    val first = onNodeWithTag("tree-deletions-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val second = onNodeWithTag("tree-deletions-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    assertEquals(first.right, second.right)
+  }
+
+  @Test
+  fun statusLetterShown() = runComposeUiTest {
+    val five = GitFileStatus.entries.mapIndexed { i, _ -> TreeEntry(TreeRow(0, "f$i.kt", i), null, false) }
+    setContent { FileTreePanel(five, {}, {}, statusOf = { GitFileStatus.entries[it] }, width = 280.dp) }
+    val expected = listOf("U", "A", "M", "D", "R")
+    expected.forEachIndexed { i, letter ->
+      onNodeWithTag("tree-status-$i", useUnmergedTree = true).assertTextEquals(letter)
+    }
+  }
+
+  @Test
+  fun directoryShowsNoStatusLetter() = runComposeUiTest {
+    val directories = listOf(TreeEntry(TreeRow(0, "src", null), "src", false))
+    setContent { FileTreePanel(directories, {}, {}, statusOf = { GitFileStatus.Modified }, width = 280.dp) }
+    onNodeWithTag("tree-status-0", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun statusHiddenBelowStatsWidth() = runComposeUiTest {
+    setContent { FileTreePanel(entries, {}, {}, statusOf = { GitFileStatus.Modified }, width = 200.dp) }
+    onNodeWithTag("tree-status-0", useUnmergedTree = true).assertDoesNotExist()
   }
 
   @Test

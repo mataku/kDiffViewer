@@ -38,9 +38,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.DiffRow
+import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ScrollRestorer
 import io.github.mataku.kdiffviewer.app.ViewerUiState
+import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.visibleTree
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.HeadRef
@@ -71,6 +73,9 @@ fun ViewerScreen(
   val statsOf: (Int) -> DiffStats? = remember(rows, headerRowIndex) {
     { fileIndex -> (headerRowIndex.getOrNull(fileIndex)?.let(rows::getOrNull) as? DiffRow.FileHeader)?.stats }
   }
+  val statusOf: (Int) -> GitFileStatus? = remember(rows, headerRowIndex) {
+    { fileIndex -> (headerRowIndex.getOrNull(fileIndex)?.let(rows::getOrNull) as? DiffRow.FileHeader)?.file?.gitStatus() }
+  }
   val treeEntries = remember(state.tree, collapsed) { visibleTree(state.tree, collapsed) }
   Row(modifier = modifier.fillMaxSize().background(colors.background)) {
     FileTreePanel(
@@ -81,6 +86,7 @@ fun ViewerScreen(
       },
       onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
       statsOf = statsOf,
+      statusOf = statusOf,
       width = treeWidth,
     )
     PaneDivider(

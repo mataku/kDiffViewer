@@ -3,6 +3,7 @@ package io.github.mataku.kdiffviewer.app.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,18 +12,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.TreeEntry
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 
@@ -39,11 +45,23 @@ fun FileTreePanel(
   modifier: Modifier = Modifier,
   topInset: Dp = 0.dp,
   statsOf: (Int) -> DiffStats? = { null },
+  statusOf: (Int) -> GitFileStatus? = { null },
   width: Dp = DefaultTreeWidth,
 ) {
   val colors = LocalDiffColors.current
   val typography = LocalTreeTypography.current
   val showStats = width >= StatsVisibleWidth
+  val measurer = rememberTextMeasurer()
+  val density = LocalDensity.current
+  val additionsWidth = remember(typography, measurer, density) {
+    with(density) { measurer.measure("+9999", typography.additions).size.width.toDp() }
+  }
+  val deletionsWidth = remember(typography, measurer, density) {
+    with(density) { measurer.measure("−9999", typography.deletions).size.width.toDp() }
+  }
+  val statusWidth = remember(typography, measurer, density) {
+    with(density) { measurer.measure("M", typography.statusModified).size.width.toDp() }
+  }
   LazyColumn(
     modifier = modifier
       .width(width)
@@ -98,20 +116,46 @@ fun FileTreePanel(
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
         )
-        val stats = if (showStats && fileIndex != null) statsOf(fileIndex) else null
-        if (stats != null && (stats.additions > 0 || stats.deletions > 0)) {
-          BasicText(
-            text = "+${stats.additions}",
-            modifier = Modifier.testTag("tree-additions-$fileIndex").padding(start = 8.dp),
-            style = typography.additions,
-          )
-          BasicText(
-            text = "−${stats.deletions}",
-            modifier = Modifier.testTag("tree-deletions-$fileIndex").padding(start = 4.dp),
-            style = typography.deletions,
-          )
+        if (showStats && fileIndex != null) {
+          val stats = statsOf(fileIndex)
+          Box(Modifier.padding(start = 8.dp).widthIn(min = additionsWidth), contentAlignment = Alignment.CenterEnd) {
+            if (stats != null && stats.additions > 0) {
+              BasicText(
+                text = "+${stats.additions}",
+                modifier = Modifier.testTag("tree-additions-$fileIndex"),
+                style = typography.additions,
+              )
+            }
+          }
+          Box(Modifier.padding(start = 4.dp).widthIn(min = deletionsWidth), contentAlignment = Alignment.CenterEnd) {
+            if (stats != null && stats.deletions > 0) {
+              BasicText(
+                text = "−${stats.deletions}",
+                modifier = Modifier.testTag("tree-deletions-$fileIndex"),
+                style = typography.deletions,
+              )
+            }
+          }
+          Box(Modifier.padding(start = 6.dp).widthIn(min = statusWidth), contentAlignment = Alignment.Center) {
+            val status = statusOf(fileIndex)
+            if (status != null) {
+              BasicText(
+                text = status.letter(),
+                modifier = Modifier.testTag("tree-status-$fileIndex"),
+                style = typography.statusStyle(status),
+              )
+            }
+          }
         }
       }
     }
   }
+}
+
+private fun GitFileStatus.letter(): String = when (this) {
+  GitFileStatus.Untracked -> "U"
+  GitFileStatus.Added -> "A"
+  GitFileStatus.Modified -> "M"
+  GitFileStatus.Deleted -> "D"
+  GitFileStatus.Renamed -> "R"
 }

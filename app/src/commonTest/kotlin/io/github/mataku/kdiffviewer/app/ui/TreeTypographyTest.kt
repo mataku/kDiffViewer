@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app.ui
 
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.test.Test
@@ -43,5 +44,20 @@ class TreeTypographyTest {
     assertEquals(LightDiffColors.mutedText, t.directoryName.color)
     assertEquals(LightDiffColors.addedText, t.additions.color)
     assertEquals(LightDiffColors.removedText, t.deletions.color)
+  }
+
+  @Test
+  fun statusStylesAreSemiboldTabularAndColoredPerKind() {
+    val t = treeTypography(13, LightDiffColors)
+    assertEquals(11.sp, t.statusModified.fontSize)
+    assertEquals(FontWeight.SemiBold, t.statusModified.fontWeight)
+    assertEquals("tnum", t.statusModified.fontFeatureSettings)
+    assertEquals("tnum", t.additions.fontFeatureSettings)
+    assertEquals("tnum", t.deletions.fontFeatureSettings)
+    assertEquals(LightDiffColors.addedText, t.statusUntracked.color)
+    assertEquals(LightDiffColors.addedText, t.statusAdded.color)
+    assertEquals(LightDiffColors.modifiedText, t.statusModified.color)
+    assertEquals(LightDiffColors.removedText, t.statusDeleted.color)
+    assertEquals(LightDiffColors.renamedText, t.statusRenamed.color)
   }
 }
