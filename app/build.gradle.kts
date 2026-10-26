@@ -59,6 +59,8 @@ compose.desktop {
       vendor.set(JvmVendorSpec.JETBRAINS)
     }.get().metadata.installationPath.asFile.absolutePath
 
+    jvmArgs("-Xdock:name=kDiffViewer")
+
     nativeDistributions {
       targetFormats(TargetFormat.Dmg)
       packageName = "kDiffViewer"
