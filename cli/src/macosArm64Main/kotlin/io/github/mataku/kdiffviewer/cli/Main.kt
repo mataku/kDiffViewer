@@ -25,7 +25,7 @@ object MacPlatform : CliPlatform {
 
   override fun readStdin(): String = readFd(0)
 
-  override fun launchApp(app: String, path: String): Boolean = posixLaunchApp(app, path)
+  override fun launchApp(app: String, path: String, base: String?): Boolean = posixLaunchApp(app, path, base)
 }
 
 fun main(args: Array<String>) {

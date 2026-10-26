@@ -19,7 +19,7 @@ interface CliPlatform {
 
   fun readStdin(): String
 
-  fun launchApp(app: String, path: String): Boolean
+  fun launchApp(app: String, path: String, base: String?): Boolean
 }
 
 class TransportException(message: String) : Exception(message)

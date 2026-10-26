@@ -12,7 +12,10 @@ fun usage(topic: String?): String {
   val lines = if (topic == "thread") {
     THREAD_LINES
   } else {
-    listOf("kdv [path]                               Open path in kDiffViewer (no argument: current directory)") +
+    listOf(
+      "kdv [path] [--base <ref>]                Open path in kDiffViewer (no argument: current directory)",
+      "                                         Base defaults to the merge-base with origin/HEAD",
+    ) +
       THREAD_LINES +
       listOf(
         "kdv reload                               Reload the diff and re-anchor comments",

@@ -53,7 +53,7 @@ private fun parseOptions(args: List<String>): OptionsResult {
   return OptionsResult.Ok(ParsedOptions(positionals, all, json, author, TargetOptions(repo, pid)))
 }
 
-private val VALUE_OPTIONS = setOf("--author", "--repo", "--pid")
+private val VALUE_OPTIONS = setOf("--author", "--repo", "--pid", "--base")
 
 private fun helpRequested(args: List<String>): Boolean {
   var i = 0
@@ -75,7 +75,7 @@ fun parseArgs(args: List<String>): ParseResult {
   val isPath = first == "." || first == ".." || first.contains('/')
   val topic = if (first == "thread") "thread" else null
   if (helpRequested(args)) return ParseResult.Ok(Command.Help(topic))
-  if (isPath) return ParseResult.Ok(Command.Open(first))
+  if (isPath || first == "--base") return parseOpen(args)
 
   val rest = args.drop(1)
   val options = when (val parsed = parseOptions(rest)) {
@@ -98,6 +98,31 @@ fun parseArgs(args: List<String>): ParseResult {
     "agent-guide" -> noPositionals(Command.AgentGuide(target))
     else -> ParseResult.UsageError("unknown command '$first'\nTo open a directory, pass a path: kdv ./$first", null)
   }
+}
+
+private fun parseOpen(args: List<String>): ParseResult {
+  var path: String? = null
+  var base: String? = null
+  var i = 0
+  while (i < args.size) {
+    val arg = args[i]
+    when {
+      arg == "--base" -> {
+        val value = args.getOrNull(i + 1) ?: return ParseResult.UsageError("missing value for --base", null)
+        if (value.startsWith("-")) return ParseResult.UsageError("invalid --base '$value'", null)
+        base = value
+        i++
+      }
+
+      arg.length > 1 && arg.startsWith("-") -> return ParseResult.UsageError("unknown option '$arg'", null)
+
+      path == null -> path = arg
+
+      else -> return ParseResult.UsageError("unexpected argument '$arg'", null)
+    }
+    i++
+  }
+  return ParseResult.Ok(Command.Open(path, base))
 }
 
 private fun parseThread(positionals: List<String>, options: ParsedOptions): ParseResult {

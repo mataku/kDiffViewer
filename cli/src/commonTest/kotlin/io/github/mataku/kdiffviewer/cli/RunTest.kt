@@ -25,7 +25,7 @@ private class FakePlatform(
   val respond: (String, String) -> String = { _, _ -> error("unexpected request") },
 ) : CliPlatform {
   val requests = mutableListOf<Pair<String, RequestEnvelope>>()
-  var launched: Pair<String, String>? = null
+  var launched: Triple<String, String, String?>? = null
   val envVars = mutableMapOf<String, String>()
 
   override fun cwd() = cwd
@@ -51,8 +51,8 @@ private class FakePlatform(
 
   override fun readStdin() = stdin
 
-  override fun launchApp(app: String, path: String): Boolean {
-    launched = app to path
+  override fun launchApp(app: String, path: String, base: String?): Boolean {
+    launched = Triple(app, path, base)
     return appExists
   }
 }
@@ -268,7 +268,7 @@ class RunTest {
     val p = FakePlatform()
     val (code, _, _) = exec(p, "/abs/dir")
     assertEquals(0, code)
-    assertEquals("/Applications/kDiffViewer.app" to "/abs/dir", p.launched)
+    assertEquals(Triple("/Applications/kDiffViewer.app", "/abs/dir", null), p.launched)
   }
 
   @Test
@@ -277,7 +277,24 @@ class RunTest {
     p.envVars["KDV_APP"] = "/opt/kdv.app"
     val (code, _, _) = exec(p)
     assertEquals(0, code)
-    assertEquals("/opt/kdv.app" to "/work/repo/sub", p.launched)
+    assertEquals(Triple("/opt/kdv.app", "/work/repo/sub", null), p.launched)
+  }
+
+  @Test
+  fun openForwardsBase() {
+    val p = FakePlatform()
+    val (code, _, _) = exec(p, "--base", "develop")
+    assertEquals(0, code)
+    assertEquals(Triple("/Applications/kDiffViewer.app", "/work/repo/sub", "develop"), p.launched)
+  }
+
+  @Test
+  fun openWithBadBaseIsUsageErrorAndLaunchesNothing() {
+    val p = FakePlatform()
+    val (code, _, err) = exec(p, "./", "--base", "-x")
+    assertEquals(2, code)
+    assertTrue(err.startsWith("kdv: invalid --base '-x'\n"), err)
+    assertEquals(null, p.launched)
   }
 
   @Test
