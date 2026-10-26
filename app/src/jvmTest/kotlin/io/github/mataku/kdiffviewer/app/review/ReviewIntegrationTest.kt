@@ -75,6 +75,17 @@ class ReviewIntegrationTest {
   }
 
   @Test
+  fun startAfterCloseDoesNothing() {
+    val registry = SessionRegistry(dir, 4245L, { java.time.Instant.EPOCH }, ::processAlive)
+    val closed = ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, { "{}" }, warn = {}).also { integration = it }
+    closed.close()
+    assertFalse(closed.start())
+    closed.publish(dir)
+    assertFalse(Files.exists(dir.resolve("4245.sock")))
+    assertFalse(Files.exists(dir.resolve("4245.json")))
+  }
+
+  @Test
   fun tooLongSocketPathDisablesIntegrationWithWarning() {
     val long = Files.createTempDirectory(Path.of("/tmp"), "kdv").resolve("x".repeat(120))
     val warnings = mutableListOf<String>()

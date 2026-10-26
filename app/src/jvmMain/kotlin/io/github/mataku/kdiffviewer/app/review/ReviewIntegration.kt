@@ -15,9 +15,11 @@ class ReviewIntegration(
 ) {
   private val scope = CoroutineScope(SupervisorJob() + parentContext)
   private var server: ReviewSocketServer? = null
+  private var closed = false
 
   @Synchronized
   fun start(): Boolean {
+    if (closed) return false
     check(server == null) { "Integration already started" }
     val socket = registry.prepare()
     if (socket == null) {
@@ -36,6 +38,7 @@ class ReviewIntegration(
 
   @Synchronized
   fun close() {
+    closed = true
     server?.close()
     server = null
     scope.cancel()
