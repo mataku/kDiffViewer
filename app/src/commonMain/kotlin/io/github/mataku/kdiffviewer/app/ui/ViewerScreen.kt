@@ -19,14 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.PlainTooltip
-import androidx.compose.material3.Text
-import androidx.compose.material3.TooltipAnchorPosition
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -267,40 +260,27 @@ private val TagShape = RoundedCornerShape(4.dp)
 private const val TAG_FILL_ALPHA = 0.08f
 private val TagPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BaseLabel(base: ResolvedBase.Commit, uncommittedOnly: Boolean, style: TextStyle, modifier: Modifier) {
   val colors = LocalDiffColors.current
-  val tooltip = if (uncommittedOnly) {
-    "The diff shows uncommitted changes against HEAD (${base.shortId})."
-  } else {
-    "${base.shortId} is the merge-base of ${base.label} and HEAD. The diff includes uncommitted changes."
-  }
-  TooltipBox(
-    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
-    tooltip = { PlainTooltip { Text(tooltip) } },
-    state = rememberTooltipState(),
-    modifier = modifier,
+  Row(
+    modifier = modifier.clip(TagShape).background(colors.text.copy(alpha = TAG_FILL_ALPHA)).padding(TagPadding),
+    verticalAlignment = Alignment.CenterVertically,
   ) {
-    Row(
-      modifier = Modifier.clip(TagShape).background(colors.text.copy(alpha = TAG_FILL_ALPHA)).padding(TagPadding),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      if (!uncommittedOnly) {
-        Image(
-          imageVector = KdvIcons.Branch,
-          contentDescription = null,
-          modifier = Modifier.padding(end = 4.dp).size(12.dp),
-          colorFilter = ColorFilter.tint(colors.mutedText),
-        )
-      }
-      BasicText(
-        text = if (uncommittedOnly) "Uncommitted changes" else base.label,
-        modifier = Modifier.testTag("base-label"),
-        style = style,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
+    if (!uncommittedOnly) {
+      Image(
+        imageVector = KdvIcons.Branch,
+        contentDescription = null,
+        modifier = Modifier.padding(end = 4.dp).size(12.dp),
+        colorFilter = ColorFilter.tint(colors.mutedText),
       )
     }
+    BasicText(
+      text = if (uncommittedOnly) "Uncommitted changes" else base.label,
+      modifier = Modifier.testTag("base-label"),
+      style = style,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
   }
 }

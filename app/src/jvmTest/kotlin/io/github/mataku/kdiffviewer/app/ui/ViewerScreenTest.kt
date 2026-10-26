@@ -14,6 +14,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -279,21 +280,14 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun hoveringBaseShowsMergeBaseTooltip() = runComposeUiTest {
+  fun hoveringBaseShowsNoTooltip() = runComposeUiTest {
     setContent {
       ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.Commit("origin/develop", "m1", "a1b2c3d"), head = HeadRef.Branch("feature/x")), {})
     }
     onNodeWithTag("base-label", useUnmergedTree = true).performMouseInput { moveTo(center) }
-    val text = "a1b2c3d is the merge-base of origin/develop and HEAD. The diff includes uncommitted changes."
-    waitUntil(timeoutMillis = 3_000) { onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
-  }
-
-  @Test
-  fun hoveringHeadBaseShowsUncommittedTooltip() = runComposeUiTest {
-    setContent { ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.Commit("HEAD", "h1", "h1abc"), head = HeadRef.Branch("develop")), {}) }
-    onNodeWithTag("base-label", useUnmergedTree = true).performMouseInput { moveTo(center) }
-    val text = "The diff shows uncommitted changes against HEAD (h1abc)."
-    waitUntil(timeoutMillis = 3_000) { onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+    mainClock.advanceTimeBy(3_000)
+    waitForIdle()
+    onAllNodesWithText("merge-base", substring = true).assertCountEquals(0)
   }
 
   @Test
