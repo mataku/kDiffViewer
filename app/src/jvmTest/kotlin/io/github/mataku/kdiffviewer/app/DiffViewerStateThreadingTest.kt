@@ -1,11 +1,13 @@
 package io.github.mataku.kdiffviewer.app
 
 import io.github.mataku.kdiffviewer.core.git.DiffSource
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,6 +27,7 @@ class DiffViewerStateThreadingTest {
   private val fileCount = 3000
 
   private val source = object : DiffSource {
+    override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase = ResolvedBase.EmptyTree
     override fun load(repo: RepoPath): Flow<FileDiff> = flow {
       repeat(fileCount) { index ->
         emit(FileDiff("f$index", "f$index", ChangeType.Modified, false, DiffContent.Text(emptyList())))

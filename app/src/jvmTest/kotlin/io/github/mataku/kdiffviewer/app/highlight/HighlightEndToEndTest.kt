@@ -16,6 +16,7 @@ import io.github.mataku.kdiffviewer.app.ui.lineText
 import io.github.mataku.kdiffviewer.core.git.ContentSession
 import io.github.mataku.kdiffviewer.core.git.ContentSource
 import io.github.mataku.kdiffviewer.core.git.DiffSource
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -24,6 +25,7 @@ import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.Side
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -45,6 +47,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class HighlightEndToEndTest {
   private class InMemoryDiffSource(var files: List<FileDiff>) : DiffSource {
+    override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase = ResolvedBase.EmptyTree
     override fun load(repo: RepoPath): Flow<FileDiff> = files.asFlow()
 
     override suspend fun head(repo: RepoPath): HeadRef? = null

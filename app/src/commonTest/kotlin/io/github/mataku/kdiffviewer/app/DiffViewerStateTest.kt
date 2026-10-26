@@ -8,6 +8,7 @@ import io.github.mataku.kdiffviewer.app.highlight.pipeline
 import io.github.mataku.kdiffviewer.app.highlight.textFile
 import io.github.mataku.kdiffviewer.core.git.DiffLoadException
 import io.github.mataku.kdiffviewer.core.git.DiffSource
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -16,6 +17,7 @@ import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.Side
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -74,6 +76,7 @@ class DiffViewerStateTest {
     var calls = 0
     var rootCalls = 0
     private var headCalls = 0
+    override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase = ResolvedBase.EmptyTree
     override fun load(repo: RepoPath): Flow<FileDiff> = block(calls++)
     override suspend fun head(repo: RepoPath): HeadRef? = heads.getOrNull(headCalls++)
     override suspend fun root(repo: RepoPath): RepoPath? {
@@ -178,6 +181,7 @@ class DiffViewerStateTest {
   @Test
   fun headFailureDoesNotFailTheLoad() = runTest(StandardTestDispatcher()) {
     val source = object : DiffSource {
+      override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase = ResolvedBase.EmptyTree
       override fun load(repo: RepoPath): Flow<FileDiff> = flow { emit(file("a")) }
       override suspend fun head(repo: RepoPath): HeadRef? = throw IllegalStateException("boom")
     }

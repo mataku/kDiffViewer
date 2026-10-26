@@ -3,9 +3,11 @@ package io.github.mataku.kdiffviewer.app.settings
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.git.GitInfo
 import io.github.mataku.kdiffviewer.core.git.GitLocation
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -21,6 +23,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 private object NoopDiffSource : DiffSource {
+  override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase = ResolvedBase.EmptyTree
   override fun load(repo: RepoPath): Flow<FileDiff> = emptyFlow()
 
   override suspend fun head(repo: RepoPath): HeadRef? = null

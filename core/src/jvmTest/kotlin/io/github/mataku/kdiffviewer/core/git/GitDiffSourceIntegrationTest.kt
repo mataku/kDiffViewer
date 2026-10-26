@@ -1,10 +1,12 @@
 package io.github.mataku.kdiffviewer.core.git
 
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.displayPath
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -184,5 +186,63 @@ class GitDiffSourceIntegrationTest {
   fun headOfUnbornBranchIsItsName() {
     initRepo()
     assertEquals(HeadRef.Branch("main"), runBlocking { source.head(RepoPath(repo.path)) })
+  }
+
+  private fun resolve(spec: BaseSpec): ResolvedBase = runBlocking { source.resolveBase(RepoPath(repo.path), spec) }
+
+  private fun sha(rev: String): String = runGit(repo, "rev-parse", rev).trim()
+
+  private fun branchOffOriginMain(): String {
+    initRepo()
+    write("a.txt", "1\n")
+    commitAll("c1")
+    val branchPoint = sha("HEAD")
+    runGit(repo, "update-ref", "refs/remotes/origin/main", branchPoint)
+    runGit(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+    runGit(repo, "switch", "-c", "feature")
+    write("feature.txt", "f\n")
+    commitAll("c2")
+    runGit(repo, "switch", "main")
+    write("upstream.txt", "u\n")
+    commitAll("c3")
+    runGit(repo, "update-ref", "refs/remotes/origin/main", sha("HEAD"))
+    runGit(repo, "switch", "feature")
+    return branchPoint
+  }
+
+  @Test
+  fun defaultBaseIsBranchPointOfOriginHead() {
+    val branchPoint = branchOffOriginMain()
+    val short = runGit(repo, "rev-parse", "--short", branchPoint).trim()
+    assertEquals(ResolvedBase.Commit("origin/main", branchPoint, short), resolve(BaseSpec.Default))
+  }
+
+  @Test
+  fun detachedHeadUsesOriginHeadMergeBase() {
+    val branchPoint = branchOffOriginMain()
+    runGit(repo, "switch", "--detach", "feature")
+    val base = resolve(BaseSpec.Default) as ResolvedBase.Commit
+    assertEquals("origin/main", base.label)
+    assertEquals(branchPoint, base.id)
+  }
+
+  @Test
+  fun explicitParentRef() {
+    initRepo()
+    write("a.txt", "1\n")
+    commitAll("c1")
+    write("a.txt", "2\n")
+    commitAll("c2")
+    val base = resolve(BaseSpec.Ref("HEAD~1")) as ResolvedBase.Commit
+    assertEquals("HEAD~1", base.label)
+    assertEquals(sha("HEAD~1"), base.id)
+  }
+
+  @Test
+  fun nonCommitRefIsUnknownBase() {
+    initRepo()
+    write("a.txt", "1\n")
+    commitAll()
+    assertFailsWith<DiffLoadException.UnknownBase> { resolve(BaseSpec.Ref("HEAD:a.txt")) }
   }
 }
