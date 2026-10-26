@@ -24,9 +24,10 @@ class DiffLayout internal constructor(
     return end - headerRows[fileIndex] - 1
   }
 
-  fun fileIndexOfVisible(visibleIndex: Int): Int = lastAtOrBelow(headerVisible, visibleIndex)
+  fun fileIndexOfVisible(visibleIndex: Int): Int = if (headerRows.isEmpty()) -1 else lastAtOrBelow(headerVisible, visibleIndex)
 
   fun rowIndexOf(visibleIndex: Int): Int {
+    if (headerRows.isEmpty()) return -1
     if (hasOrphanItem && visibleIndex == 0) return headerRows[0]
     val fileIndex = fileIndexOfVisible(visibleIndex)
     val offset = visibleIndex - headerVisible[fileIndex]
@@ -35,6 +36,7 @@ class DiffLayout internal constructor(
   }
 
   fun visibleIndexOf(rowIndex: Int): Int {
+    if (headerRows.isEmpty()) return -1
     val fileIndex = lastAtOrBelow(headerRows, rowIndex)
     if (collapsed[fileIndex]) return headerVisible[fileIndex]
     val offset = rowIndex - headerRows[fileIndex]
