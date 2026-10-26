@@ -74,6 +74,8 @@ class GitDiffSource(
 
   override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase {
     val dir = repo.value
+    val toplevel = runner.run(dir, listOf("rev-parse", "--show-toplevel"))
+    if (toplevel.exitCode != 0 || toplevel.stdout.trimEnd('\n').isEmpty()) throw DiffLoadException.NotARepository(dir)
     val head = runner.run(dir, listOf("rev-parse", "--verify", "HEAD"))
     val headId = head.stdout.trim().takeIf { head.exitCode == 0 && it.isNotEmpty() }
     return when (spec) {
@@ -81,7 +83,7 @@ class GitDiffSource(
         if (headId == null) return ResolvedBase.EmptyTree
         val originHead = runner.run(dir, listOf("symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"))
         val target = originHead.stdout.trim().takeIf { originHead.exitCode == 0 && it.isNotEmpty() }
-        val mergeBase = target?.let { runner.run(dir, listOf("merge-base", it, headId)) }
+        val mergeBase = target?.let { runner.run(dir, listOf("merge-base", "--end-of-options", it, headId)) }
         val baseId = mergeBase?.stdout?.trim()?.takeIf { mergeBase.exitCode == 0 && it.isNotEmpty() }
         if (target == null || baseId == null) {
           commit(dir, "HEAD", headId)
@@ -91,11 +93,11 @@ class GitDiffSource(
       }
 
       is BaseSpec.Ref -> {
-        val verify = runner.run(dir, listOf("rev-parse", "--verify", "--quiet", "${spec.ref}^{commit}"))
+        val verify = runner.run(dir, listOf("rev-parse", "--verify", "--quiet", "--end-of-options", "${spec.ref}^{commit}"))
         val refId = verify.stdout.trim().takeIf { verify.exitCode == 0 && it.isNotEmpty() }
           ?: throw DiffLoadException.UnknownBase(spec.ref)
         if (headId == null) throw DiffLoadException.NoCommonAncestor(spec.ref)
-        val mergeBaseArgs = listOf("merge-base", refId, headId)
+        val mergeBaseArgs = listOf("merge-base", "--end-of-options", refId, headId)
         val mergeBase = runner.run(dir, mergeBaseArgs)
         when (mergeBase.exitCode) {
           0 -> commit(dir, spec.ref, mergeBase.stdout.trim())

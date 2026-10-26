@@ -254,6 +254,23 @@ class GitDiffSourceIntegrationTest {
   }
 
   @Test
+  fun optionLikeOriginHeadTargetFallsBackToHead() {
+    initRepo()
+    write("a.txt", "1\n")
+    commitAll()
+    File(repo, ".git/refs/remotes/origin").mkdirs()
+    File(repo, ".git/refs/remotes/origin/HEAD").writeText("ref: --octopus\n")
+    val base = resolve(BaseSpec.Default) as ResolvedBase.Commit
+    assertEquals("HEAD", base.label)
+    assertEquals(sha("HEAD"), base.id)
+  }
+
+  @Test
+  fun explicitRefOutsideARepositoryIsNotARepository() {
+    assertFailsWith<DiffLoadException.NotARepository> { resolve(BaseSpec.Ref("develop")) }
+  }
+
+  @Test
   fun nonCommitRefIsUnknownBase() {
     initRepo()
     write("a.txt", "1\n")

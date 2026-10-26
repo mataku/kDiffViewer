@@ -196,11 +196,12 @@ class GitDiffSourceTest {
   }
 
   private val originHead = listOf("symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
-  private fun mergeBase(of: String) = listOf("merge-base", of, "h1")
-  private fun verifyRef(ref: String) = listOf("rev-parse", "--verify", "--quiet", "$ref^{commit}")
+  private fun mergeBase(of: String) = listOf("merge-base", "--end-of-options", of, "h1")
+  private fun verifyRef(ref: String) = listOf("rev-parse", "--verify", "--quiet", "--end-of-options", "$ref^{commit}")
   private fun short(id: String) = listOf("rev-parse", "--short", id)
 
   private fun baseSetup() {
+    runner.runResults[toplevel] = GitResult(0, "/repo\n", "")
     runner.runResults[verifyHead] = GitResult(0, "h1\n", "")
     runner.runResults[short("h1")] = GitResult(0, "h1short\n", "")
   }
@@ -241,7 +242,16 @@ class GitDiffSourceTest {
   }
 
   @Test
+  fun explicitRefOutsideARepositoryIsNotARepository() = runTest {
+    runner.runResults[toplevel] = GitResult(128, "", "fatal: not a git repository")
+    runner.runResults[verifyHead] = GitResult(128, "", "fatal: not a git repository")
+    runner.runResults[verifyRef("develop")] = GitResult(128, "", "fatal: not a git repository")
+    assertEquals("/repo/sub", assertFailsWith<DiffLoadException.NotARepository> { resolve(BaseSpec.Ref("develop")) }.path)
+  }
+
+  @Test
   fun defaultBaseIsEmptyTreeWithoutHead() = runTest {
+    runner.runResults[toplevel] = GitResult(0, "/repo\n", "")
     runner.runResults[verifyHead] = GitResult(128, "", "fatal")
     assertEquals(ResolvedBase.EmptyTree, resolve(BaseSpec.Default))
   }
@@ -281,6 +291,7 @@ class GitDiffSourceTest {
 
   @Test
   fun explicitRefWithoutHeadHasNoCommonAncestor() = runTest {
+    runner.runResults[toplevel] = GitResult(0, "/repo\n", "")
     runner.runResults[verifyHead] = GitResult(128, "", "fatal")
     runner.runResults[verifyRef("x")] = GitResult(0, "x1\n", "")
     assertEquals("x", assertFailsWith<DiffLoadException.NoCommonAncestor> { resolve(BaseSpec.Ref("x")) }.ref)
@@ -288,6 +299,7 @@ class GitDiffSourceTest {
 
   @Test
   fun unknownRefWithoutHeadIsUnknownBase() = runTest {
+    runner.runResults[toplevel] = GitResult(0, "/repo\n", "")
     runner.runResults[verifyHead] = GitResult(128, "", "fatal")
     runner.runResults[verifyRef("x")] = GitResult(1, "", "")
     assertEquals("x", assertFailsWith<DiffLoadException.UnknownBase> { resolve(BaseSpec.Ref("x")) }.ref)
