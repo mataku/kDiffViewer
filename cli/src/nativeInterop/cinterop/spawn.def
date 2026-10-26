@@ -1,0 +1,5 @@
+headers = spawn.h crt_externs.h
+package = io.github.mataku.kdiffviewer.cli.spawn
+---
+#include <crt_externs.h>
+static inline char **kdv_environ(void) { return *_NSGetEnviron(); }

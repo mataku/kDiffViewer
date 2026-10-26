@@ -14,7 +14,10 @@ Syntax highlighting covers Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScri
 
 ```sh
 ./gradlew :app:run --args=/absolute/path/to/repo
+./gradlew :app:run --args=..
 ```
+
+Gradle runs the app with `app/` as its working directory, so a relative path is resolved from there, not from where you ran `./gradlew`. Any directory inside a repository shows the whole repository's diff; `--args=..` opens this repository with its own name in the header, while `--args=./` shows the same diff under the name `app`.
 
 ## Build the app
 
@@ -24,9 +27,21 @@ Syntax highlighting covers Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScri
 
 The app is created at `app/build/compose/binaries/main/app/kDiffViewer.app`. Copy it to `/Applications`.
 
-## Install the `kdv` launcher
+## Install the `kdv` command
 
-Copy `scripts/kdv` onto your `PATH`, then run `kdv [path]` to open a repository (defaults to the current directory). Set `KDV_APP` to override the app location (default `/Applications/kDiffViewer.app`).
+The app bundles the `kdv` command. Link it onto your `PATH`:
+
+```sh
+ln -s /Applications/kDiffViewer.app/Contents/app/resources/kdv /usr/local/bin/kdv
+```
+
+If `/usr/local/bin` is not writable by your user, run the command with `sudo`, or link `kdv` into another directory on your `PATH` (for example `~/.local/bin`).
+
+`kdv ./repo` opens a repository in kDiffViewer, and `kdv` with no argument opens the current directory. Bare words are commands (`thread`, `reload`, `windows`, `agent-guide`), so write relative paths as `./repo`. Run `kdv --help` for the full list.
+
+## Coding agents
+
+Review comments left in the app can be read and answered from the terminal through `kdv thread`. Run `kdv agent-guide` for the instructions to give a coding agent.
 
 ## Development
 

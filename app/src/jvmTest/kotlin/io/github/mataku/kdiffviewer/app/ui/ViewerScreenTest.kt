@@ -4,28 +4,37 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.test.withKeyDown
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import io.github.mataku.compose.highlight.core.HighlightSpan
@@ -39,6 +48,11 @@ import io.github.mataku.kdiffviewer.app.flattenRows
 import io.github.mataku.kdiffviewer.app.highlight.FileHighlight
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.app.isCollapsed
+import io.github.mataku.kdiffviewer.app.review.DraftTarget
+import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
+import io.github.mataku.kdiffviewer.app.review.ReviewState
+import io.github.mataku.kdiffviewer.app.review.buildPlacements
+import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -48,10 +62,20 @@ import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.displayPath
+import io.github.mataku.kdiffviewer.core.review.Anchor
+import io.github.mataku.kdiffviewer.core.review.Author
+import io.github.mataku.kdiffviewer.core.review.Comment
+import io.github.mataku.kdiffviewer.core.review.LineLocation
+import io.github.mataku.kdiffviewer.core.review.Placement
+import io.github.mataku.kdiffviewer.core.review.ReviewThread
+import io.github.mataku.kdiffviewer.core.review.anchorOf
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 @OptIn(ExperimentalTestApi::class)
 class ViewerScreenTest {
@@ -568,6 +592,272 @@ class ViewerScreenTest {
     assertTrue(ui.isCollapsed(29))
     onNodeWithTag("file-header-29").assertIsDisplayed()
     onNodeWithTag("file-header-28").assertIsDisplayed()
+  }
+
+  private val at = Instant.fromEpochSeconds(0)
+
+  private fun reviewState(ui: ViewerUiState): ReviewState = ReviewState(CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined) { at }.also { it.onViewerState(ui) }
+
+  private fun staticThread(id: String = "t1", resolved: Boolean = false) = ReviewThread(id, Anchor.File("a.kt"), listOf(Comment("c$id", Author.User, "note $id", at)), resolved, false)
+
+  private fun snapshotOf(loadId: Long, placementsLoadId: Long, threads: List<ReviewThread>, placement: Placement?): ReviewSnapshot {
+    val byId = if (placement == null) emptyMap() else threads.associate { it.id to placement }
+    return ReviewSnapshot(threads, buildPlacements(placementsLoadId, threads, byId), null, loadId, false)
+  }
+
+  private val reviewUi get() = stateOf(listOf(modified("a.kt"))).copy(loadId = 1)
+
+  @Test
+  fun hoveringLineShowsAddCommentAndClickOpensComposerUnderIt() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithTag("add-comment").assertDoesNotExist()
+    onNodeWithText("TWO").performMouseInput { moveTo(center) }
+    waitForIdle()
+    onNodeWithTag("add-comment").assertIsDisplayed()
+    onNodeWithTag("add-comment").performClick()
+    waitForIdle()
+    val line = onNodeWithText("TWO").fetchSemanticsNode().boundsInRoot
+    val composer = onNodeWithTag("comment-composer").fetchSemanticsNode().boundsInRoot
+    assertTrue(composer.top >= line.bottom, "composer=$composer line=$line")
+  }
+
+  @Test
+  fun typingAndCommandEnterCreatesThreadCard() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithText("TWO").performMouseInput { moveTo(center) }
+    waitForIdle()
+    onNodeWithTag("add-comment").performClick()
+    waitForIdle()
+    onNodeWithTag("comment-composer").performTextInput("looks wrong")
+    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(Key.MetaLeft) { pressKey(Key.Enter) } }
+    waitForIdle()
+    onNodeWithTag("thread-t1").assertIsDisplayed()
+    onNodeWithText("looks wrong").assertIsDisplayed()
+    onNodeWithTag("comment-composer").assertDoesNotExist()
+  }
+
+  @Test
+  fun agentReplyAppearsInCard() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
+    review.updateDraft("mine")
+    review.submitDraft()
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithText("mine").assertIsDisplayed()
+    review.reply("t1", Author.Agent("claude"), "agent says")
+    waitForIdle()
+    onNodeWithText("agent says").assertIsDisplayed()
+  }
+
+  @Test
+  fun fileCommentButtonOpensComposerWithoutCollapsing() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    var toggled = 0
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot, onToggleFile = { toggled++ }) }
+    }
+    onNodeWithTag("file-comment-0", useUnmergedTree = true).performClick()
+    waitForIdle()
+    assertEquals(0, toggled)
+    onNodeWithText("TWO").assertIsDisplayed()
+    val header = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot
+    val composer = onNodeWithTag("comment-composer").fetchSemanticsNode().boundsInRoot
+    assertTrue(composer.top >= header.bottom, "composer=$composer header=$header")
+  }
+
+  @Test
+  fun orphanThreadRendersInTopSection() = runComposeUiTest {
+    val ui = reviewUi
+    setContent { ViewerScreen(ui, {}, review = snapshotOf(1, 1, listOf(staticThread()), null)) }
+    onNodeWithText("Comments on files no longer in the diff").assertIsDisplayed()
+    onNodeWithTag("thread-t1").assertIsDisplayed()
+    val orphan = onNodeWithTag("thread-t1").fetchSemanticsNode().boundsInRoot
+    val header = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot
+    assertTrue(orphan.bottom <= header.top + 1f, "orphan=$orphan header=$header")
+  }
+
+  @Test
+  fun orphanThreadsShowEvenWhenDiffIsEmpty() = runComposeUiTest {
+    val ui = stateOf(emptyList()).copy(loadId = 1)
+    setContent { ViewerScreen(ui, {}, review = snapshotOf(1, 1, listOf(staticThread()), null)) }
+    onNodeWithText("No changes").assertDoesNotExist()
+    onNodeWithTag("thread-t1").assertIsDisplayed()
+  }
+
+  @Test
+  fun threadsAreHiddenWhilePlacementsAreStale() = runComposeUiTest {
+    val ui = reviewUi
+    setContent { ViewerScreen(ui, {}, review = snapshotOf(1, 0, listOf(staticThread()), null)) }
+    onNodeWithTag("thread-t1").assertDoesNotExist()
+    onNodeWithText("Comments on files no longer in the diff").assertDoesNotExist()
+  }
+
+  @Test
+  fun fileLevelThreadShowsUnderHeaderAndHidesWhenCollapsed() = runComposeUiTest {
+    var ui by mutableStateOf(reviewUi)
+    val snapshot = snapshotOf(1, 1, listOf(staticThread()), Placement.OnFile(0))
+    setContent { ViewerScreen(ui, {}, review = snapshot) }
+    onNodeWithTag("thread-t1").assertIsDisplayed()
+    ui = ui.toggled(0)
+    waitForIdle()
+    onNodeWithTag("thread-t1").assertDoesNotExist()
+  }
+
+  @Test
+  fun typingInComposerDoesNotRecomposeDiffRows() = runComposeUiTest {
+    val base = stateOf(listOf(modified("a.kt", 20), modified("b.kt", 20))).copy(loadId = 1)
+    var rowReads = 0
+    val countedRows = object : AbstractList<DiffRow>() {
+      override val size: Int get() = base.rows.size
+
+      override fun get(index: Int): DiffRow {
+        rowReads++
+        return base.rows[index]
+      }
+    }
+    val ui = base.copy(rows = countedRows)
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithTag("file-comment-0", useUnmergedTree = true).performClick()
+    waitForIdle()
+    onNodeWithTag("comment-composer").performTextInput("a")
+    waitForIdle()
+    val before = rowReads
+    onNodeWithTag("comment-composer").performTextInput("b")
+    waitForIdle()
+    onNodeWithTag("comment-composer").performTextInput("c")
+    waitForIdle()
+    assertEquals(before, rowReads)
+    onNodeWithTag("comment-composer").assertTextEquals("abc")
+  }
+
+  @Test
+  fun draftOnFileThatLeftTheDiffStaysVisibleAndCancellable() = runComposeUiTest {
+    val first = stateOf(listOf(modified("a.kt"), modified("b.kt"))).copy(loadId = 1)
+    var ui by mutableStateOf(first)
+    val review = reviewState(first)
+    review.startDraft(DraftTarget.NewThread(anchorOf(first.files[1], 0, 1)!!, Placement.OnLine(LineLocation(1, 0, 1))))
+    review.updateDraft("still here")
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    val second = stateOf(listOf(modified("a.kt"))).copy(loadId = 2)
+    ui = second
+    review.onViewerState(second)
+    waitForIdle()
+    onNodeWithText("Comments on files no longer in the diff").assertIsDisplayed()
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+    onNodeWithTag("comment-composer").assertTextEquals("still here")
+    onNodeWithTag("comment-composer").performKeyInput { pressKey(Key.Escape) }
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertDoesNotExist()
+    onNodeWithText("Comments on files no longer in the diff").assertDoesNotExist()
+    onNodeWithText("TWO").performMouseInput { moveTo(center) }
+    waitForIdle()
+    onNodeWithTag("add-comment").performClick()
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+  }
+
+  @Test
+  fun orphanDraftShowsEvenWhenDiffIsEmpty() = runComposeUiTest {
+    val first = stateOf(listOf(modified("a.kt"))).copy(loadId = 1)
+    var ui by mutableStateOf(first)
+    val review = reviewState(first)
+    review.startDraft(DraftTarget.NewThread(Anchor.File("a.kt"), Placement.OnFile(0)))
+    review.updateDraft("note")
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    val second = stateOf(emptyList()).copy(loadId = 2)
+    ui = second
+    review.onViewerState(second)
+    waitForIdle()
+    onNodeWithText("No changes").assertDoesNotExist()
+    onNodeWithTag("comment-composer").assertTextEquals("note")
+  }
+
+  private fun manyFilesUi() = stateOf((0 until 30).map { modified("f${it.toString().padStart(2, '0')}.kt", 20) }).copy(loadId = 1)
+
+  @Test
+  fun addCommentWithPendingDraftRevealsAndFocusesItInCollapsedFile() = runComposeUiTest {
+    val initial = manyFilesUi()
+    var ui by mutableStateOf(initial)
+    val review = reviewState(initial)
+    review.startDraft(DraftTarget.NewThread(anchorOf(initial.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
+    review.updateDraft("keep")
+    ui = ui.toggled(0)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) {
+        ViewerScreen(ui, {}, review = snapshot, onExpandFile = { ui = ui.expanded(it) })
+      }
+    }
+    onNodeWithTag("diff-list").performScrollToIndex(600)
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertDoesNotExist()
+    onAllNodesWithText("TWO").onLast().performMouseInput { moveTo(center) }
+    waitForIdle()
+    onNodeWithTag("add-comment").performClick()
+    waitForIdle()
+    assertFalse(ui.isCollapsed(0))
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+    onNodeWithTag("comment-composer").assertTextEquals("keep")
+    onNodeWithTag("comment-composer").assertIsFocused()
+    assertEquals("keep", review.snapshot.value.draft?.text)
+  }
+
+  @Test
+  fun fileCommentWithPendingDraftRevealsAndFocusesIt() = runComposeUiTest {
+    val ui = manyFilesUi()
+    val review = reviewState(ui)
+    review.startDraft(DraftTarget.NewThread(Anchor.File("f00.kt"), Placement.OnFile(0)))
+    review.updateDraft("file draft")
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithTag("diff-list").performScrollToIndex(ui.rows.lastIndex)
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertIsNotDisplayed()
+    onNodeWithTag("file-comment-29", useUnmergedTree = true).performClick()
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+    onNodeWithTag("comment-composer").assertTextEquals("file draft")
+    onNodeWithTag("comment-composer").assertIsFocused()
+  }
+
+  @Test
+  fun noAddCommentButtonOnNoNewlineRow() = runComposeUiTest {
+    val body = listOf(DiffLine(LineKind.Added, "x", null, 1), DiffLine(LineKind.NoNewlineAtEof, "", null, null))
+    val file = FileDiff(null, "n.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", body))))
+    val ui = stateOf(listOf(file)).copy(loadId = 1)
+    val review = reviewState(ui)
+    setContent { CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = ReviewSnapshot.Empty) } }
+    onNodeWithText("No newline at end of file").performMouseInput { moveTo(center) }
+    waitForIdle()
+    onNodeWithTag("add-comment").assertDoesNotExist()
   }
 }
 

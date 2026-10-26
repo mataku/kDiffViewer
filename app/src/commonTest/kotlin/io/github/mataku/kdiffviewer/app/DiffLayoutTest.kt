@@ -90,4 +90,114 @@ class DiffLayoutTest {
     assertEquals(0, layout.visibleCount)
     assertEquals(0, layout.fileCount)
   }
+
+  @Test
+  fun notesItemFollowsItsHeaderAndShiftsLaterFiles() {
+    val layout = diffLayoutOf(state(listOf(a, b, c)), notesFiles = setOf(1))
+    assertEquals(listOf(0, 5, 18), (0 until 3).map(layout::headerVisibleIndex))
+    assertEquals(22, layout.visibleCount)
+    assertEquals(true, layout.hasNotes(1))
+    assertEquals(false, layout.hasNotes(0))
+    assertEquals(1, layout.fileIndexOfVisible(6))
+    assertEquals(layout.headerRowIndex(1), layout.rowIndexOf(6))
+    assertEquals(layout.headerRowIndex(1) + 1, layout.rowIndexOf(7))
+    assertEquals(7, layout.visibleIndexOf(layout.headerRowIndex(1) + 1))
+  }
+
+  @Test
+  fun collapsingRemovesTheNotesItem() {
+    val layout = diffLayoutOf(state(listOf(a, b, c), setOf(1)), notesFiles = setOf(1))
+    assertEquals(false, layout.hasNotes(1))
+    assertEquals(listOf(0, 5, 6), (0 until 3).map(layout::headerVisibleIndex))
+    assertEquals(10, layout.visibleCount)
+  }
+
+  @Test
+  fun orphanItemShiftsEveryIndexByOne() {
+    val plain = diffLayoutOf(state(listOf(a, b)))
+    val layout = diffLayoutOf(state(listOf(a, b)), hasOrphans = true)
+    assertEquals(true, layout.hasOrphanItem)
+    assertEquals(false, plain.hasOrphanItem)
+    assertEquals(plain.visibleCount + 1, layout.visibleCount)
+    for (fileIndex in 0 until 2) {
+      assertEquals(plain.headerVisibleIndex(fileIndex) + 1, layout.headerVisibleIndex(fileIndex))
+    }
+    assertEquals(0, layout.fileIndexOfVisible(0))
+    assertEquals(0, layout.rowIndexOf(0))
+    assertEquals(0, layout.rowIndexOf(1))
+  }
+
+  @Test
+  fun lineRowsRoundTripWithNotesAndOrphans() {
+    val ui = state(listOf(a, b, c), setOf(2))
+    val layout = diffLayoutOf(ui, notesFiles = setOf(0, 1, 2), hasOrphans = true)
+    for (row in ui.rows.indices) {
+      val file = layout.fileIndexOfVisible(layout.visibleIndexOf(row))
+      if (layout.isCollapsed(file) && row != layout.headerRowIndex(file)) continue
+      assertEquals(row, layout.rowIndexOf(layout.visibleIndexOf(row)))
+    }
+  }
+
+  @Test
+  fun scrollAnchorSurvivesNotesAndOrphans() {
+    val ui = state(listOf(a, b))
+    val layout = diffLayoutOf(ui, notesFiles = setOf(0, 1), hasOrphans = true)
+    val visible = layout.visibleIndexOf(layout.headerRowIndex(1) + 3)
+    assertEquals(ScrollAnchor("b.kt", 3), scrollAnchorOf(ui, layout, visible))
+    assertEquals(visible, restoreTargetOf(ScrollAnchor("b.kt", 3), ui, layout))
+    assertEquals(ScrollAnchor("a.kt", 0), scrollAnchorOf(ui, layout, 0))
+  }
+
+  @Test
+  fun zeroFilesWithOrphansNeverThrows() {
+    val ui = ViewerUiState()
+    val layout = diffLayoutOf(ui, hasOrphans = true)
+    assertEquals(1, layout.visibleCount)
+    assertEquals(-1, layout.fileIndexOfVisible(0))
+    assertEquals(-1, layout.rowIndexOf(0))
+    assertEquals(-1, layout.visibleIndexOf(0))
+    assertEquals(null, scrollAnchorOf(ui, layout, 0))
+    assertEquals(null, restoreTargetOf(ScrollAnchor("a.kt", 0), ui, layout))
+  }
+
+  @Test
+  fun orphansWithFirstFileCollapsed() {
+    val layout = diffLayoutOf(state(listOf(a, b), setOf(0)), notesFiles = setOf(0), hasOrphans = true)
+    assertEquals(1, layout.headerVisibleIndex(0))
+    assertEquals(2, layout.headerVisibleIndex(1))
+    assertEquals(false, layout.hasNotes(0))
+    assertEquals(0, layout.fileIndexOfVisible(0))
+    assertEquals(0, layout.rowIndexOf(0))
+    assertEquals(1, layout.visibleIndexOf(3))
+  }
+
+  @Test
+  fun lastFileWithNotes() {
+    val ui = state(listOf(a, b))
+    val layout = diffLayoutOf(ui, notesFiles = setOf(1))
+    assertEquals(18, layout.visibleCount)
+    val last = layout.visibleCount - 1
+    assertEquals(1, layout.fileIndexOfVisible(last))
+    assertEquals(ui.rows.size - 1, layout.rowIndexOf(last))
+    assertEquals(last, layout.visibleIndexOf(ui.rows.size - 1))
+  }
+
+  @Test
+  fun headerOnlyFileWithNotes() {
+    val empty = FileDiff("e", "e", ChangeType.Modified, false, DiffContent.Text(emptyList()))
+    val ui = state(listOf(empty, a))
+    val layout = diffLayoutOf(ui, notesFiles = setOf(0))
+    assertEquals(2, layout.headerVisibleIndex(1))
+    assertEquals(0, layout.fileIndexOfVisible(1))
+    assertEquals(0, layout.rowIndexOf(1))
+    assertEquals(0, layout.visibleIndexOf(0))
+    assertEquals(2, layout.visibleIndexOf(1))
+  }
+
+  @Test
+  fun fileIndexOfNotesItemIsItsFile() {
+    val layout = diffLayoutOf(state(listOf(a, b)), notesFiles = setOf(0, 1))
+    assertEquals(0, layout.fileIndexOfVisible(1))
+    assertEquals(1, layout.fileIndexOfVisible(layout.headerVisibleIndex(1) + 1))
+  }
 }

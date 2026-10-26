@@ -13,6 +13,8 @@ interface DiffSource {
   fun load(repo: RepoPath): Flow<FileDiff>
 
   suspend fun head(repo: RepoPath): HeadRef?
+
+  suspend fun root(repo: RepoPath): RepoPath? = null
 }
 
 sealed class DiffLoadException(message: String) : Exception(message) {
@@ -59,6 +61,12 @@ class GitDiffSource(
       if (path.isEmpty() || path.endsWith("/")) continue
       emit(synthesizeUntracked(path, reader.read(root, path, UNTRACKED_SIZE_LIMIT)))
     }
+  }
+
+  override suspend fun root(repo: RepoPath): RepoPath? {
+    val result = runner.run(repo.value, listOf("rev-parse", "--show-toplevel"))
+    val root = result.stdout.trimEnd('\n')
+    return if (result.exitCode == 0 && root.isNotEmpty()) RepoPath(root) else null
   }
 
   override suspend fun head(repo: RepoPath): HeadRef? {

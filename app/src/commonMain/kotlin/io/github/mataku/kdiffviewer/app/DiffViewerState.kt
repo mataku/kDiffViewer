@@ -64,6 +64,7 @@ data class ViewerUiState(
   val loadId: Long = 0,
   val highlights: List<HighlightSlot> = emptyList(),
   val head: HeadRef? = null,
+  val root: RepoPath? = null,
   val fingerprints: List<Long> = emptyList(),
   val collapsed: Set<CollapsedFile> = emptySet(),
 )
@@ -96,7 +97,7 @@ class DiffViewerState(
   @Volatile
   private var currentLoad: Any? = null
 
-  fun open(repo: RepoPath) {
+  fun open(repo: RepoPath): Long {
     loadJob?.cancel()
     loadJob = null
     highlightRun?.cancel()
@@ -107,7 +108,7 @@ class DiffViewerState(
     val diffSource = source
     if (diffSource == null) {
       mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(missingSourceError), loadId = loadId)
-      return
+      return loadId
     }
     val previous = mutableUiState.value
     val keepPrevious = previous.repo == repo && previous.status !is LoadStatus.Failed
@@ -119,8 +120,10 @@ class DiffViewerState(
         status = LoadStatus.Loading,
         loadId = loadId,
         head = previous.head.takeIf { previous.repo == repo },
+        root = previous.root.takeIf { previous.repo == repo },
       )
     }
+    val knownRoot = mutableUiState.value.root
     val accumulator = LoadAccumulator(loadId, holding = keepPrevious)
     val run = highlightPipeline?.start(scope, repo)
     highlightRun = run
@@ -133,6 +136,17 @@ class DiffViewerState(
           null
         }
         updateIfCurrent(token) { it.copy(head = head) }
+      }
+      if (knownRoot == null) {
+        launch {
+          val root = try {
+            diffSource.root(repo)
+          } catch (e: Exception) {
+            ensureActive()
+            null
+          }
+          if (root != null) updateIfCurrent(token) { it.copy(root = root) }
+        }
       }
       val holdJob = if (keepPrevious) {
         launch {
@@ -158,11 +172,12 @@ class DiffViewerState(
         }
       }
     }
+    return loadId
   }
 
-  fun reload() {
-    val repo = mutableUiState.value.repo ?: return
-    open(repo)
+  fun reload(): Long? {
+    val repo = mutableUiState.value.repo ?: return null
+    return open(repo)
   }
 
   fun setBackend(source: DiffSource?, highlightPipeline: HighlightPipeline<*>?, missingSourceError: ViewerError = ViewerError.GitNotFound) {

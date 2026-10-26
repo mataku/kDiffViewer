@@ -13,12 +13,12 @@ val ktlintOverrides = mapOf(
 
 spotless {
   kotlin {
-    target("core/src/**/*.kt", "app/src/**/*.kt")
+    target("core/src/**/*.kt", "app/src/**/*.kt", "protocol/src/**/*.kt", "cli/src/**/*.kt")
     targetExclude("**/build/**")
     ktlint().editorConfigOverride(ktlintOverrides)
   }
   kotlinGradle {
-    target("*.gradle.kts", "core/*.gradle.kts", "app/*.gradle.kts")
+    target("*.gradle.kts", "core/*.gradle.kts", "app/*.gradle.kts", "protocol/*.gradle.kts", "cli/*.gradle.kts")
     ktlint().editorConfigOverride(ktlintOverrides)
   }
 }
