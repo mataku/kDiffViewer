@@ -18,6 +18,11 @@ import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
+import io.github.mataku.kdiffviewer.app.review.ReviewIntegration
+import io.github.mataku.kdiffviewer.app.review.ReviewRequestHandler
+import io.github.mataku.kdiffviewer.app.review.ReviewState
+import io.github.mataku.kdiffviewer.app.review.SessionRegistry
+import io.github.mataku.kdiffviewer.app.review.processAlive
 import io.github.mataku.kdiffviewer.app.settings.FileSettingsStorage
 import io.github.mataku.kdiffviewer.app.settings.GitBackendController
 import io.github.mataku.kdiffviewer.app.settings.SettingsRepository
@@ -33,19 +38,28 @@ import io.github.mataku.kdiffviewer.app.ui.OpenRepositoryScreen
 import io.github.mataku.kdiffviewer.app.ui.TitleBarHeight
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
 import io.github.mataku.kdiffviewer.app.ui.resolveFontFamily
+import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.core.git.GitLocation
 import io.github.mataku.kdiffviewer.core.git.GitLocator
 import io.github.mataku.kdiffviewer.core.git.locateOnHost
 import io.github.mataku.kdiffviewer.core.git.probeGit
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.protocol.PROTOCOL_VERSION
+import io.github.mataku.kdiffviewer.protocol.RegistryPaths
+import io.github.mataku.kdiffviewer.protocol.WindowInfoResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import java.awt.Desktop
 import java.awt.GraphicsEnvironment
+import java.nio.file.Path
+import kotlin.time.Clock
 import androidx.compose.ui.window.WindowState as ComposeWindowState
 
 fun main(args: Array<String>) {
@@ -108,6 +122,48 @@ private fun runApplication(
       parseLaunchArgs(args, System.getProperty("user.dir"))?.let(viewerState::open)
     }
   }
+  val review = remember { ReviewState(scope, Dispatchers.Default, Clock.System::now) }
+  val reviewSnapshot by review.snapshot.collectAsState()
+  val integration = remember {
+    val registry = SessionRegistry(
+      Path.of(RegistryPaths.sessionsDir(System.getProperty("user.home"))),
+      ProcessHandle.current().pid(),
+      java.time.Instant::now,
+      ::processAlive,
+    )
+    val handler = ReviewRequestHandler(
+      review = review,
+      reload = { withContext(Dispatchers.Main) { state.reload() } },
+      info = {
+        WindowInfoResult(ProcessHandle.current().pid(), state.uiState.value.repo?.value, PROTOCOL_VERSION)
+      },
+    )
+    ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, handler::handle)
+  }
+  LaunchedEffect(Unit) { state.uiState.collect(review::onViewerState) }
+  LaunchedEffect(Unit) {
+    val started = try {
+      withContext(Dispatchers.IO) { integration.start() }
+    } catch (e: Exception) {
+      e.printStackTrace()
+      false
+    }
+    if (!started) return@LaunchedEffect
+    state.uiState.map { it.repo }.distinctUntilChanged().collect { repo ->
+      withContext(Dispatchers.IO) {
+        try {
+          integration.publish(repo?.let { Path.of(it.value) })
+        } catch (e: Exception) {
+          e.printStackTrace()
+        }
+      }
+    }
+  }
+  val shutdown: () -> Unit = {
+    integration.close()
+    exitApplication()
+  }
+  DisposableEffect(Unit) { onDispose { integration.close() } }
   val controller = remember {
     GitBackendController(
       initial = location,
@@ -144,12 +200,12 @@ private fun runApplication(
     val desktop = Desktop.getDesktop().takeIf { Desktop.isDesktopSupported() && it.isSupported(Desktop.Action.APP_QUIT_HANDLER) }
     desktop?.setQuitHandler { _, response ->
       response.cancelQuit()
-      exitApplication()
+      shutdown()
     }
     onDispose { desktop?.setQuitHandler(null) }
   }
 
-  Window(onCloseRequest = ::exitApplication, title = "kDiffViewer", state = windowState) {
+  Window(onCloseRequest = shutdown, title = "kDiffViewer", state = windowState) {
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     val titleBarRegions = remember { installCustomTitleBar(window, TitleBarHeight) }
     val titleBarInset = if (titleBarRegions != null) TitleBarHeight else 0.dp
@@ -165,7 +221,7 @@ private fun runApplication(
       }
     }
     val fontFamily = remember(settings.fontFamily) { resolveFontFamily(settings.fontFamily) }
-    CompositionLocalProvider(LocalTitleBarRegions provides titleBarRegions) {
+    CompositionLocalProvider(LocalTitleBarRegions provides titleBarRegions, LocalReviewActions provides review) {
       KdvTheme(
         darkTheme = settings.appearance.isDark(),
         fontFamily = fontFamily,
@@ -185,6 +241,7 @@ private fun runApplication(
             titleBarInset = titleBarInset,
             onToggleFile = state::toggleCollapsed,
             onExpandFile = state::expand,
+            review = reviewSnapshot,
           )
         }
       }

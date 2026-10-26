@@ -43,6 +43,8 @@ import io.github.mataku.kdiffviewer.app.ScrollRestorer
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.diffLayoutOf
 import io.github.mataku.kdiffviewer.app.gitStatus
+import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
+import io.github.mataku.kdiffviewer.app.review.notesFiles
 import io.github.mataku.kdiffviewer.app.visibleTree
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.HeadRef
@@ -55,12 +57,19 @@ fun ViewerScreen(
   titleBarInset: Dp = 0.dp,
   onToggleFile: (Int) -> Unit = {},
   onExpandFile: (Int) -> Unit = {},
+  review: ReviewSnapshot = ReviewSnapshot.Empty,
 ) {
   val colors = LocalDiffColors.current
   val listState = rememberLazyListState()
   val currentState by rememberUpdatedState(state)
   val restorer = remember { ScrollRestorer() }
-  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed) { diffLayoutOf(state) }
+  val shown = review.placements.loadId == state.loadId
+  val draftTarget = review.draft?.target
+  val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(review.draft) else emptySet() }
+  val hasOrphans = shown && review.placements.orphans.isNotEmpty()
+  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, notesFiles, hasOrphans) {
+    diffLayoutOf(state, notesFiles, hasOrphans)
+  }
   val currentLayout by rememberUpdatedState(layout)
   LaunchedEffect(listState) {
     snapshotFlow { Triple(currentState, currentLayout, listState.firstVisibleItemIndex) }.collect { (ui, uiLayout, firstVisible) ->
@@ -148,7 +157,7 @@ fun ViewerScreen(
       }
       Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
       Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-        if (state.status == LoadStatus.Done && state.files.isEmpty()) {
+        if (state.status == LoadStatus.Done && state.files.isEmpty() && !hasOrphans) {
           BasicText(
             text = "No changes",
             modifier = Modifier.align(Alignment.Center),
@@ -160,6 +169,9 @@ fun ViewerScreen(
             layout = layout,
             highlights = state.highlights,
             listState = listState,
+            files = state.files,
+            review = review,
+            loadId = state.loadId,
             onHeaderClick = { fileIndex ->
               val header = layout.headerVisibleIndex(fileIndex)
               val pinned = listState.firstVisibleItemIndex >= header

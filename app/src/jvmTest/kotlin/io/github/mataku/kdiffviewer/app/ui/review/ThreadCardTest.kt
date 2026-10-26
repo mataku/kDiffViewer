@@ -64,6 +64,28 @@ class ThreadCardTest {
   ) = ReviewThread("t1", anchor, comments, resolved, outdated)
 
   @Test
+  fun resolvedThreadWithReplyDraftIsShownExpanded() = runComposeUiTest {
+    setContent {
+      CompositionLocalProvider(LocalReviewActions provides FakeActions()) {
+        ThreadCard(thread(resolved = true), Draft(DraftTarget.Reply("t1"), "typing"))
+      }
+    }
+    onNodeWithTag("thread-t1-collapsed").assertDoesNotExist()
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+  }
+
+  @Test
+  fun resolvedThreadWithEditDraftIsShownExpanded() = runComposeUiTest {
+    setContent {
+      CompositionLocalProvider(LocalReviewActions provides FakeActions()) {
+        ThreadCard(thread(resolved = true), Draft(DraftTarget.Edit("c1"), "typing"))
+      }
+    }
+    onNodeWithTag("thread-t1-collapsed").assertDoesNotExist()
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+  }
+
+  @Test
   fun showsBodiesAndAgentBadge() = runComposeUiTest {
     setContent { CompositionLocalProvider(LocalReviewActions provides FakeActions()) { ThreadCard(thread(), null) } }
     onNodeWithText("user body").assertIsDisplayed()

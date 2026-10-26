@@ -1,11 +1,13 @@
 package io.github.mataku.kdiffviewer.app.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -20,15 +22,22 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,17 +47,33 @@ import io.github.mataku.compose.highlight.core.LocalSyntaxTheme
 import io.github.mataku.kdiffviewer.app.DiffLayout
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
+import io.github.mataku.kdiffviewer.app.review.DraftTarget
+import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
+import io.github.mataku.kdiffviewer.app.review.linePosition
+import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
+import io.github.mataku.kdiffviewer.app.ui.review.NoteStack
+import io.github.mataku.kdiffviewer.app.ui.review.OrphanSection
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.LineKind
+import io.github.mataku.kdiffviewer.core.review.Anchor
+import io.github.mataku.kdiffviewer.core.review.LineLocation
+import io.github.mataku.kdiffviewer.core.review.Placement
+import io.github.mataku.kdiffviewer.core.review.anchorOf
+import io.github.mataku.kdiffviewer.core.review.anchorPath
 
 private val FileHeaderTopMargin = 12.dp
 private val FileChevronSize = 12.dp
+private val FileCommentIconSize = 14.dp
+private val AddCommentSize = 16.dp
 
 private const val HEADER_CONTENT_TYPE = 0
 private const val HUNK_HEADER_CONTENT_TYPE = 1
 private const val LINE_CONTENT_TYPE = 2
 private const val PLACEHOLDER_CONTENT_TYPE = 3
+private const val NOTES_CONTENT_TYPE = 4
+private const val ORPHANS_CONTENT_TYPE = 5
+private const val ORPHANS_KEY = "orphans"
 
 private fun DiffRow.contentType(): Int = when (this) {
   is DiffRow.FileHeader -> HEADER_CONTENT_TYPE
@@ -57,6 +82,7 @@ private fun DiffRow.contentType(): Int = when (this) {
   is DiffRow.Placeholder -> PLACEHOLDER_CONTENT_TYPE
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun DiffView(
   rows: List<DiffRow>,
@@ -64,22 +90,74 @@ fun DiffView(
   highlights: List<HighlightSlot>,
   listState: LazyListState,
   onHeaderClick: (fileIndex: Int) -> Unit,
+  files: List<FileDiff>,
+  review: ReviewSnapshot,
+  loadId: Long,
   modifier: Modifier = Modifier,
 ) {
   val currentOnHeaderClick by rememberUpdatedState(onHeaderClick)
+  val actions = LocalReviewActions.current
+  val typography = LocalDiffTypography.current
+  val shown = review.placements.loadId == loadId
+  val placements = review.placements
+  val draft = if (shown) review.draft else null
+  val draftTarget = (draft?.target as? DraftTarget.NewThread)?.placement
+  val draftLinePos = remember(draftTarget) { (draftTarget as? Placement.OnLine)?.location?.let { linePosition(it.fileIndex, it.hunkIndex, it.lineIndex) } ?: -1L }
+  val draftFileIndex = remember(draftTarget) { (draftTarget as? Placement.OnFile)?.fileIndex ?: -1 }
+  val hasLineThreads = shown && placements.byLine.isNotEmpty()
+  val hoveredKey = remember { mutableStateOf<String?>(null) }
+  val onAddComment: ((DiffRow.Line) -> Unit)? = remember(files, actions) {
+    actions?.let { reviewActions ->
+      { row ->
+        anchorOf(files[row.fileIndex], row.hunkIndex, row.lineIndex)?.let { anchor ->
+          reviewActions.startDraft(DraftTarget.NewThread(anchor, Placement.OnLine(LineLocation(row.fileIndex, row.hunkIndex, row.lineIndex))))
+        }
+      }
+    }
+  }
+  val onFileComment: ((DiffRow.FileHeader) -> Unit)? = remember(actions) {
+    actions?.let { reviewActions ->
+      { header ->
+        reviewActions.startDraft(DraftTarget.NewThread(Anchor.File(header.file.anchorPath), Placement.OnFile(header.fileIndex)))
+      }
+    }
+  }
+  val noteIndent = typography.lineNumberWidth * 2 + 16.dp
+  val hoverModifier = if (onAddComment == null) {
+    Modifier
+  } else {
+    Modifier
+      .onPointerEvent(PointerEventType.Enter) { event -> hoveredKey.value = keyAt(listState, event.changes.first().position.y) }
+      .onPointerEvent(PointerEventType.Move) { event -> hoveredKey.value = keyAt(listState, event.changes.first().position.y) }
+      .onPointerEvent(PointerEventType.Exit) { hoveredKey.value = null }
+  }
   LazyColumn(
     state = listState,
-    modifier = modifier.testTag("diff-list"),
+    modifier = modifier.testTag("diff-list").then(hoverModifier),
     contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = FileHeaderTopMargin),
   ) {
+    if (layout.hasOrphanItem) {
+      item(key = ORPHANS_KEY, contentType = ORPHANS_CONTENT_TYPE) {
+        OrphanSection(placements.orphans, draft)
+      }
+    }
     for (fileIndex in 0 until layout.fileCount) {
       val headerRow = layout.headerRowIndex(fileIndex)
       val collapsed = layout.isCollapsed(fileIndex)
       val header = rows[headerRow] as DiffRow.FileHeader
       stickyHeader(key = header.key, contentType = HEADER_CONTENT_TYPE) {
-        FileHeaderRow(header, collapsed) { currentOnHeaderClick(header.fileIndex) }
+        FileHeaderRow(header, collapsed, onFileComment) { currentOnHeaderClick(header.fileIndex) }
       }
       if (!collapsed) {
+        if (layout.hasNotes(fileIndex)) {
+          item(key = "n$fileIndex", contentType = NOTES_CONTENT_TYPE) {
+            NoteStack(
+              threads = (if (shown) placements.byFile[fileIndex] else null).orEmpty(),
+              draft = draft,
+              composeNew = draftFileIndex == fileIndex,
+            )
+          }
+        }
         val bodyStart = headerRow + 1
         items(
           count = layout.bodyRowCount(fileIndex),
@@ -88,8 +166,24 @@ fun DiffView(
         ) { offset ->
           when (val row = rows[bodyStart + offset]) {
             is DiffRow.FileHeader -> Unit
+
             is DiffRow.HunkHeader -> HunkHeaderRow(row)
-            is DiffRow.Line -> LineRow(row, highlights.getOrNull(row.fileIndex))
+
+            is DiffRow.Line -> {
+              val slot = highlights.getOrNull(row.fileIndex)
+              val position = if (hasLineThreads || draftLinePos >= 0) linePosition(row.fileIndex, row.hunkIndex, row.lineIndex) else -1L
+              val threads = if (hasLineThreads) placements.byLine[position] else null
+              val composing = position >= 0 && position == draftLinePos
+              if (threads == null && !composing) {
+                LineRow(row, slot, hoveredKey, onAddComment)
+              } else {
+                Column {
+                  LineRow(row, slot, hoveredKey, onAddComment)
+                  NoteStack(threads.orEmpty(), draft, composing, Modifier.padding(start = noteIndent, end = 8.dp))
+                }
+              }
+            }
+
             is DiffRow.Placeholder -> PlaceholderRow(row.message)
           }
         }
@@ -97,6 +191,8 @@ fun DiffView(
     }
   }
 }
+
+private fun keyAt(listState: LazyListState, y: Float): String? = listState.layoutInfo.visibleItemsInfo.firstOrNull { y >= it.offset && y < it.offset + it.size }?.key as? String
 
 private fun FileDiff.headerTitle(): String = when {
   change == ChangeType.Renamed && oldPath != null && newPath != null -> "$oldPath → $newPath"
@@ -106,7 +202,7 @@ private fun FileDiff.headerTitle(): String = when {
 private fun FileDiff.badge(): String = if (isUntracked) "Untracked" else change.name
 
 @Composable
-private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onClick: () -> Unit) {
+private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment: ((DiffRow.FileHeader) -> Unit)?, onClick: () -> Unit) {
   val colors = LocalDiffColors.current
   val typography = LocalDiffTypography.current
   Row(
@@ -157,6 +253,17 @@ private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onClick: 
     if (statsText != null) {
       BasicText(text = statsText, modifier = Modifier.testTag("file-stats-${row.fileIndex}"))
     }
+    if (onComment != null) {
+      Image(
+        imageVector = KdvIcons.Comment,
+        contentDescription = "Comment on file",
+        modifier = Modifier
+          .testTag("file-comment-${row.fileIndex}")
+          .clickable(interactionSource = null, indication = null) { onComment(row) }
+          .size(FileCommentIconSize),
+        colorFilter = ColorFilter.tint(colors.mutedText),
+      )
+    }
   }
 }
 
@@ -185,7 +292,7 @@ private fun PlaceholderRow(message: String) {
 }
 
 @Composable
-private fun LineRow(row: DiffRow.Line, slot: HighlightSlot?) {
+private fun LineRow(row: DiffRow.Line, slot: HighlightSlot?, hoveredKey: State<String?>, onAddComment: ((DiffRow.Line) -> Unit)?) {
   val line = row.line
   val colors = LocalDiffColors.current
   val typography = LocalDiffTypography.current
@@ -202,9 +309,11 @@ private fun LineRow(row: DiffRow.Line, slot: HighlightSlot?) {
     LineKind.Removed -> Triple(colors.removedBackground, colors.removedLineNumberBackground, "-")
     else -> Triple(colors.background, colors.background, " ")
   }
+  val key = row.key
+  val hovered by remember(key) { derivedStateOf { hoveredKey.value == key } }
   Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-    LineNumberCell(line.oldLineNo, numberBackground, typography)
-    LineNumberCell(line.newLineNo, numberBackground, typography)
+    LineNumberCell(line.oldLineNo, numberBackground, typography, row, if (hovered) onAddComment else null)
+    LineNumberCell(line.newLineNo, numberBackground, typography, null, null)
     Box(modifier = Modifier.width(16.dp).fillMaxHeight().background(contentBackground)) {
       BasicText(
         text = marker,
@@ -226,12 +335,28 @@ private fun LineRow(row: DiffRow.Line, slot: HighlightSlot?) {
 }
 
 @Composable
-private fun LineNumberCell(number: Int?, background: Color, typography: DiffTypography) {
+private fun LineNumberCell(number: Int?, background: Color, typography: DiffTypography, row: DiffRow.Line?, onAdd: ((DiffRow.Line) -> Unit)?) {
   Box(modifier = Modifier.width(typography.lineNumberWidth).fillMaxHeight().background(background).padding(end = 6.dp)) {
     BasicText(
       text = number?.toString().orEmpty(),
       modifier = Modifier.fillMaxWidth(),
       style = typography.lineNumber,
     )
+    if (onAdd != null && row != null) {
+      val colors = LocalDiffColors.current
+      Box(
+        modifier = Modifier
+          .align(Alignment.CenterStart)
+          .padding(start = 2.dp)
+          .testTag("add-comment")
+          .size(AddCommentSize)
+          .clip(RoundedCornerShape(3.dp))
+          .background(colors.accent)
+          .clickable(interactionSource = null, indication = null) { onAdd(row) },
+        contentAlignment = Alignment.Center,
+      ) {
+        Image(imageVector = KdvIcons.Plus, contentDescription = "Add comment", modifier = Modifier.size(10.dp), colorFilter = ColorFilter.tint(Color.White))
+      }
+    }
   }
 }

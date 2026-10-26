@@ -54,7 +54,7 @@ fun ThreadCard(thread: ReviewThread, draft: Draft?) {
   val colors = LocalDiffColors.current
   val styles = remember(colors) { CardStyles(colors) }
   var expanded by remember(thread.id) { mutableStateOf(false) }
-  val collapsed = thread.resolved && !expanded
+  val collapsed = thread.resolved && !expanded && !draft.touches(thread)
   val cardModifier = Modifier
     .fillMaxWidth()
     .background(colors.threadBackground, CardShape)
@@ -109,6 +109,12 @@ fun ThreadCard(thread: ReviewThread, draft: Draft?) {
       }
     }
   }
+}
+
+internal fun Draft?.touches(thread: ReviewThread): Boolean = when (val target = this?.target) {
+  is DraftTarget.Reply -> target.threadId == thread.id
+  is DraftTarget.Edit -> thread.comments.any { it.id == target.commentId }
+  else -> false
 }
 
 @Composable
