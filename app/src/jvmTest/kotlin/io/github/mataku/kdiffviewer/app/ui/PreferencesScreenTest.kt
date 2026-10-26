@@ -4,8 +4,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -185,20 +188,51 @@ class PreferencesScreenTest {
   @Test
   fun rejectedStatusShowsError() = runComposeUiTest {
     show(Harness(), status = GitStatus.Rejected("/bad", null))
-    onNodeWithTag("git-status").assertTextEquals("✗ Not a usable git executable")
+    onNodeWithTag("git-status").assertTextEquals("Not a usable git executable")
   }
 
   @Test
   fun configuredUnavailableShowsError() = runComposeUiTest {
     show(Harness(), Settings(gitPath = "/gone"), status = GitStatus.Rejected("/gone", null))
     onNodeWithTag("git-path-field").assertTextEquals("/gone")
-    onNodeWithTag("git-status").assertTextEquals("✗ Not a usable git executable")
+    onNodeWithTag("git-status").assertTextEquals("Not a usable git executable")
+  }
+
+  @Test
+  fun autoDetectFailedShowsError() = runComposeUiTest {
+    show(Harness(), status = GitStatus.AutoDetectFailed(null))
+    onNodeWithTag("git-status").assertTextEquals("git was not found")
+    onNodeWithTag("git-status-icon-error", useUnmergedTree = true).assertExists()
+  }
+
+  @Test
+  fun rejectedFieldHasErrorSemantics() = runComposeUiTest {
+    show(Harness(), status = GitStatus.Rejected("/bad", null))
+    onNodeWithTag("git-path-field").assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Error))
+  }
+
+  @Test
+  fun readyFieldHasNoErrorSemantics() = runComposeUiTest {
+    show(Harness())
+    onNodeWithTag("git-path-field").assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Error))
+  }
+
+  @Test
+  fun readyShowsOkIcon() = runComposeUiTest {
+    show(Harness(), Settings(gitPath = "/opt/git"))
+    onNodeWithTag("git-status-icon-ok", useUnmergedTree = true).assertExists()
+  }
+
+  @Test
+  fun autoDetectedReadyHasNoIcon() = runComposeUiTest {
+    show(Harness())
+    onNodeWithTag("git-status-icon-ok", useUnmergedTree = true).assertDoesNotExist()
   }
 
   @Test
   fun configuredReadyShowsVersion() = runComposeUiTest {
     show(Harness(), Settings(gitPath = "/opt/git"))
-    onNodeWithTag("git-status").assertTextEquals("✓ git version 2.47.0")
+    onNodeWithTag("git-status").assertTextEquals("git version 2.47.0")
   }
 
   @Test

@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,9 +11,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -24,7 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -32,6 +37,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -41,6 +47,8 @@ import io.github.mataku.kdiffviewer.app.settings.Appearance
 import io.github.mataku.kdiffviewer.app.settings.GitStatus
 import io.github.mataku.kdiffviewer.app.settings.Settings
 
+private const val NOT_USABLE_MESSAGE = "Not a usable git executable"
+private const val NOT_FOUND_MESSAGE = "git was not found"
 private const val MIN_FONT_SIZE = 8
 private const val MAX_FONT_SIZE = 32
 private val TAB_WIDTHS = listOf(2, 4, 8)
@@ -218,6 +226,7 @@ private fun GitSection(
           modifier = Modifier
             .testTag("git-path-field")
             .fillMaxWidth()
+            .semantics { status.errorMessage()?.let { error(it) } }
             .onFocusChanged { state ->
               if (hadFocus && !state.isFocused) onCommit(text)
               hadFocus = state.isFocused
@@ -243,26 +252,61 @@ private fun GitSection(
           .padding(horizontal = 12.dp, vertical = 6.dp),
       )
     }
-    val (message, color) = statusLine(gitPath, status, colors)
-    BasicText(
-      text = message,
-      style = TextStyle(color = color, fontSize = 12.sp),
-      modifier = Modifier.testTag("git-status"),
-    )
+    val line = statusLine(gitPath, status, colors)
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(4.dp),
+      modifier = Modifier.testTag("git-status").semantics(mergeDescendants = true) {},
+    ) {
+      when (line.icon) {
+        StatusIcon.Ok -> StatusImage(KdvIcons.CheckCircle, "git-status-icon-ok", line.color)
+
+        StatusIcon.Error -> StatusImage(KdvIcons.XCircle, "git-status-icon-error", line.color)
+
+        StatusIcon.Progress -> CircularProgressIndicator(
+          modifier = Modifier.testTag("git-status-icon-progress").size(12.dp),
+          color = line.color,
+          strokeWidth = 1.5.dp,
+        )
+
+        null -> Unit
+      }
+      BasicText(text = line.message, style = TextStyle(color = line.color, fontSize = 12.sp))
+    }
   }
 }
 
-private fun statusLine(gitPath: String?, status: GitStatus, colors: DiffColors): Pair<String, Color> = when (status) {
-  GitStatus.Checking -> "Checking…" to colors.mutedText
+@Composable
+private fun StatusImage(icon: ImageVector, tag: String, color: Color) {
+  Image(
+    imageVector = icon,
+    contentDescription = null,
+    modifier = Modifier.testTag(tag).size(12.dp),
+    colorFilter = ColorFilter.tint(color),
+  )
+}
+
+private enum class StatusIcon { Ok, Error, Progress }
+
+private data class StatusLine(val icon: StatusIcon?, val message: String, val color: Color)
+
+private fun statusLine(gitPath: String?, status: GitStatus, colors: DiffColors): StatusLine = when (status) {
+  GitStatus.Checking -> StatusLine(StatusIcon.Progress, "Checking…", colors.mutedText)
 
   is GitStatus.Ready ->
     if (gitPath == null) {
-      "Auto-detected: ${status.info.path}" to colors.mutedText
+      StatusLine(null, "Auto-detected: ${status.info.path}", colors.mutedText)
     } else {
-      "✓ ${status.info.version}" to colors.addedText
+      StatusLine(StatusIcon.Ok, status.info.version, colors.addedText)
     }
 
-  is GitStatus.Rejected -> "✗ Not a usable git executable" to colors.removedText
+  is GitStatus.Rejected -> StatusLine(StatusIcon.Error, NOT_USABLE_MESSAGE, colors.removedText)
 
-  GitStatus.NotFound -> "git was not found" to colors.removedText
+  is GitStatus.AutoDetectFailed, GitStatus.NotFound -> StatusLine(StatusIcon.Error, NOT_FOUND_MESSAGE, colors.removedText)
+}
+
+private fun GitStatus.errorMessage(): String? = when (this) {
+  is GitStatus.Rejected -> NOT_USABLE_MESSAGE
+  is GitStatus.AutoDetectFailed, GitStatus.NotFound -> NOT_FOUND_MESSAGE
+  else -> null
 }

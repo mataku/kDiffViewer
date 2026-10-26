@@ -51,6 +51,21 @@ object KdvIcons {
     lineTo(6.2f, 4.4f)
   }
 
+  val CheckCircle: ImageVector = outlineIcon("CheckCircle") {
+    circle(8f, 8f, 6.5f)
+    moveTo(5f, 8.2f)
+    lineTo(7.1f, 10.3f)
+    lineTo(11f, 5.8f)
+  }
+
+  val XCircle: ImageVector = outlineIcon("XCircle") {
+    circle(8f, 8f, 6.5f)
+    moveTo(5.5f, 5.5f)
+    lineTo(10.5f, 10.5f)
+    moveTo(10.5f, 5.5f)
+    lineTo(5.5f, 10.5f)
+  }
+
   val File: ImageVector = outlineIcon("File") {
     moveTo(3.5f, 1.5f)
     lineTo(9.5f, 1.5f)

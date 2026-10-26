@@ -181,13 +181,25 @@ class GitBackendControllerTest {
   }
 
   @Test
-  fun emptyInputWithNothingFoundClearsBackend() = runTest(StandardTestDispatcher()) {
-    val h = Harness(this, located = GitLocation.NotFound, initialGitPath = "/g")
+  fun emptyInputWithNothingFoundKeepsCurrentGit() = runTest(StandardTestDispatcher()) {
+    val h = Harness(this, initial = GitLocation.Found(info("/g")), located = GitLocation.NotFound, initialGitPath = "/g")
     h.controller.commit("")
     advanceUntilIdle()
 
-    assertEquals(listOf<GitBackend?>(null), h.installed)
-    assertEquals(GitStatus.NotFound, h.controller.status.value)
+    assertEquals("/g", h.settings.settings.value.gitPath)
+    assertEquals(emptyList(), h.installed)
+    assertEquals(GitStatus.AutoDetectFailed(info("/g")), h.controller.status.value)
+  }
+
+  @Test
+  fun emptyInputWithNothingFoundAndNoBackend() = runTest(StandardTestDispatcher()) {
+    val h = Harness(this, initial = GitLocation.NotFound, located = GitLocation.NotFound)
+    h.controller.commit("")
+    advanceUntilIdle()
+
+    assertEquals(GitStatus.AutoDetectFailed(null), h.controller.status.value)
+    assertNull(h.settings.settings.value.gitPath)
+    assertEquals(emptyList(), h.installed)
   }
 
   @Test

@@ -26,6 +26,8 @@ sealed interface GitStatus {
 
   data class Rejected(val path: String, val active: GitInfo?) : GitStatus
 
+  data class AutoDetectFailed(val active: GitInfo?) : GitStatus
+
   data object NotFound : GitStatus
 }
 
@@ -61,15 +63,19 @@ class GitBackendController(
       try {
         if (path.isEmpty()) {
           val location = runInterruptible(ioDispatcher) { locate(null) }
-          settings.update { it.copy(gitPath = null) }
-          install(location)
+          if (location is GitLocation.Found) {
+            settings.update { it.copy(gitPath = null) }
+            install(location.info)
+          } else {
+            state.value = GitStatus.AutoDetectFailed(active)
+          }
         } else {
           val info = runInterruptible(ioDispatcher) { probe(path) }
           if (info == null) {
             state.value = GitStatus.Rejected(path, active)
           } else {
             settings.update { it.copy(gitPath = path) }
-            install(GitLocation.Found(info))
+            install(info)
           }
         }
       } catch (e: CancellationException) {
@@ -80,27 +86,10 @@ class GitBackendController(
     }
   }
 
-  private fun install(location: GitLocation) {
-    when (location) {
-      is GitLocation.Found -> {
-        val backend = createBackend(location.info)
-        active = location.info
-        onBackend(backend)
-        state.value = GitStatus.Ready(location.info)
-      }
-
-      GitLocation.NotFound -> {
-        active = null
-        onBackend(null)
-        state.value = GitStatus.NotFound
-      }
-
-      is GitLocation.ConfiguredUnavailable -> {
-        val previous = active
-        active = null
-        onBackend(null)
-        state.value = GitStatus.Rejected(location.path, previous)
-      }
-    }
+  private fun install(info: GitInfo) {
+    val backend = createBackend(info)
+    active = info
+    onBackend(backend)
+    state.value = GitStatus.Ready(info)
   }
 }
