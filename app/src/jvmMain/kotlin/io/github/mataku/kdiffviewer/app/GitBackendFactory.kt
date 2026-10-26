@@ -1,7 +1,9 @@
 package io.github.mataku.kdiffviewer.app
 
 import io.github.mataku.compose.highlight.api.Language
+import io.github.mataku.compose.highlight.core.highlight
 import io.github.mataku.compose.highlight.core.highlightLines
+import io.github.mataku.kdiffviewer.app.highlight.CodeHighlighter
 import io.github.mataku.kdiffviewer.app.highlight.HighlightPipeline
 import io.github.mataku.kdiffviewer.app.highlight.LanguageResolver
 import io.github.mataku.kdiffviewer.app.highlight.LineHighlighter
@@ -18,6 +20,9 @@ import kotlinx.coroutines.Dispatchers
 class GitBackendFactory(private val highlightEnabled: Boolean) {
   private val languages = LanguageResolver(defaultLanguageAccessors)
   private val highlighter = LineHighlighter(::highlightLines)
+
+  val codeHighlighter: CodeHighlighter<Language>? =
+    if (highlightEnabled) CodeHighlighter(languages, ::highlight, Dispatchers.Default) else null
 
   fun create(info: GitInfo): GitBackend {
     val runner = ProcessGitCommandRunner(info.path)
