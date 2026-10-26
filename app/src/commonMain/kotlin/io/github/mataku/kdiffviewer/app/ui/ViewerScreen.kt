@@ -2,8 +2,6 @@ package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,7 +77,7 @@ fun ViewerScreen(
         modifier = Modifier
           .testTag("repo-header")
           .fillMaxWidth()
-          .heightIn(min = 52.dp)
+          .heightIn(min = TitleBarHeight)
           .background(colors.fileHeaderBackground)
           .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -113,14 +111,14 @@ fun ViewerScreen(
             }
           }
         }
-        BasicText(
-          text = "Reload",
+        GlassIconButton(
+          icon = KdvIcons.Reload,
+          contentDescription = "Reload",
+          tooltip = "Reload (⌘R)",
+          onClick = onReload,
           modifier = Modifier
             .testTag("reload-button")
-            .border(1.dp, colors.border)
-            .clickable(onClick = onReload)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-          style = TextStyle(color = colors.text, fontSize = 13.sp),
+            .titleBarClientRegion("reload-button"),
         )
       }
       Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))

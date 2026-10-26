@@ -43,6 +43,14 @@ object KdvIcons {
     lineTo(15f, 8f)
   }
 
+  val Reload: ImageVector = outlineIcon("Reload") {
+    moveTo(12.76f, 5.25f)
+    arcTo(5.5f, 5.5f, 0f, true, true, 8f, 2.5f)
+    moveTo(6.2f, 0.6f)
+    lineTo(8.6f, 2.5f)
+    lineTo(6.2f, 4.4f)
+  }
+
   val File: ImageVector = outlineIcon("File") {
     moveTo(3.5f, 1.5f)
     lineTo(9.5f, 1.5f)

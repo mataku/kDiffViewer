@@ -42,7 +42,7 @@ fun FileTreePanel(
       .fillMaxHeight()
       .background(colors.fileHeaderBackground)
       .testTag("file-tree"),
-    contentPadding = PaddingValues(top = topInset),
+    contentPadding = PaddingValues(start = ContentHorizontalMargin, top = topInset, end = ContentHorizontalMargin),
   ) {
     itemsIndexed(entries, key = { index, _ -> index }) { index, entry ->
       val row = entry.row
@@ -56,7 +56,7 @@ fun FileTreePanel(
       Row(
         rowModifier
           .fillMaxWidth()
-          .padding(start = (8 + 12 * row.depth).dp, end = 12.dp, top = 3.dp, bottom = 3.dp),
+          .padding(start = (12 * row.depth).dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
         val iconTint = ColorFilter.tint(colors.mutedText)

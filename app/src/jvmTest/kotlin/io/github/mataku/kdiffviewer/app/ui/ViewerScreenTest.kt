@@ -3,20 +3,25 @@ package io.github.mataku.kdiffviewer.app.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -40,6 +45,7 @@ import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
@@ -221,6 +227,84 @@ class ViewerScreenTest {
     ui = stateOf(listOf(modified("src/a.kt"))).copy(repo = RepoPath("/other"))
     waitForIdle()
     onNodeWithTag("tree-file-0").assertIsDisplayed()
+  }
+
+  @Test
+  fun reloadButtonRegistersTitleBarClientRegion() = runComposeUiTest {
+    val regions = TitleBarRegions()
+    setContent {
+      CompositionLocalProvider(LocalTitleBarRegions provides regions) {
+        ViewerScreen(stateOf(emptyList()), {})
+      }
+    }
+    val reload = onNodeWithTag("reload-button").fetchSemanticsNode().boundsInRoot
+    assertTrue(regions.isClientArea(reload.center))
+    assertFalse(regions.isClientArea(Offset(reload.left - 1f, reload.center.y)))
+  }
+
+  @Test
+  fun reloadButtonRegionIsRemovedWhenScreenLeaves() = runComposeUiTest {
+    val regions = TitleBarRegions()
+    var show by mutableStateOf(true)
+    setContent {
+      CompositionLocalProvider(LocalTitleBarRegions provides regions) {
+        if (show) ViewerScreen(stateOf(emptyList()), {})
+      }
+    }
+    val reload = onNodeWithTag("reload-button").fetchSemanticsNode().boundsInRoot
+    show = false
+    waitForIdle()
+    assertFalse(regions.isClientArea(reload.center))
+  }
+
+  @Test
+  fun treeRowsKeepHorizontalMargin() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) }
+    val tree = onNodeWithTag("file-tree").fetchSemanticsNode().boundsInRoot
+    val row = onNodeWithTag("tree-file-0").fetchSemanticsNode().boundsInRoot
+    val margin = with(density) { ContentHorizontalMargin.toPx() }
+    assertTrue(row.left - tree.left >= margin, "row=$row tree=$tree")
+    assertTrue(tree.right - row.right >= margin, "row=$row tree=$tree")
+  }
+
+  @Test
+  fun diffRowsKeepHorizontalMargin() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) }
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val header = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot
+    val margin = with(density) { ContentHorizontalMargin.toPx() }
+    assertTrue(header.left - list.left >= margin, "header=$header list=$list")
+    assertTrue(list.right - header.right >= margin, "header=$header list=$list")
+  }
+
+  @Test
+  fun lastDiffRowKeepsBottomMargin() = runComposeUiTest {
+    val state = stateOf(List(5) { modified("f$it.kt", 20) })
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(state, {})
+      }
+    }
+    onNodeWithTag("diff-list").performScrollToIndex(state.rows.lastIndex)
+    waitForIdle()
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val lastBottom = onAllNodesWithText("ctx17").fetchSemanticsNodes().maxOf { it.boundsInRoot.bottom }
+    val margin = with(density) { 12.dp.toPx() }
+    assertTrue(list.bottom - lastBottom >= margin, "lastBottom=$lastBottom list=$list")
+  }
+
+  @Test
+  fun reloadButtonIsAnIconWithAccessibleLabel() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()), {}) }
+    onNodeWithContentDescription("Reload").assertIsDisplayed()
+    onNodeWithText("Reload").assertDoesNotExist()
+  }
+
+  @Test
+  fun hoveringReloadShowsShortcutTooltip() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()), {}) }
+    onNodeWithTag("reload-button").performMouseInput { moveTo(center) }
+    waitUntil(timeoutMillis = 3_000) { onAllNodesWithText("Reload (⌘R)").fetchSemanticsNodes().isNotEmpty() }
   }
 
   @Test
