@@ -15,6 +15,7 @@ import org.intellij.markdown.parser.MarkdownParser
 import kotlin.coroutines.cancellation.CancellationException
 
 private const val MAX_NESTING = 8
+private const val MAX_INLINE_DEPTH = 32
 
 private val gfmParser = MarkdownParser(GFMFlavourDescriptor(), true, CancellationToken.NonCancellable)
 
@@ -140,8 +141,19 @@ class MarkdownBodyParser(
         return MdInline(out.toString(), spans)
       }
 
+      private var depth = 0
+
       fun children(nodes: List<ASTNode>) {
-        nodes.forEach { visit(it) }
+        if (depth >= MAX_INLINE_DEPTH) {
+          nodes.forEach { out.append(text(it)) }
+          return
+        }
+        depth++
+        try {
+          nodes.forEach { visit(it) }
+        } finally {
+          depth--
+        }
       }
 
       private fun atLineStart() = out.isEmpty() || out.last() == '\n'

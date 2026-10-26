@@ -149,4 +149,28 @@ class MarkdownInlinesTest {
       parseMarkdown("# a *b*"),
     )
   }
+
+  @Test
+  fun deeplyNestedEmphasisDoesNotThrow() {
+    val src = "*_".repeat(200_000) + "x"
+    val blocks = parseMarkdown(src)
+    assertEquals(true, blocks.isNotEmpty())
+    assertEquals(true, blocks.joinToString { it.toString() }.contains("x"))
+  }
+
+  @Test
+  fun deeplyNestedBracketsDoNotThrow() {
+    val src = "[".repeat(200_000) + "x" + "]".repeat(200_000)
+    val blocks = parseMarkdown(src)
+    assertEquals(true, blocks.joinToString { it.toString() }.contains("x"))
+  }
+
+  @Test
+  fun nestingPastInlineCapKeepsTextWithoutSpans() {
+    val depth = 100
+    val src = "*a ".repeat(depth) + "x" + "*".repeat(depth)
+    val result = inline(src)
+    assertEquals(true, result.text.contains("x"))
+    assertEquals(true, result.spans.size <= 33)
+  }
 }
