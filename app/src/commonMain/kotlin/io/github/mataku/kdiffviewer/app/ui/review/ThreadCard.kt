@@ -11,12 +11,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -25,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.review.Draft
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
+import io.github.mataku.kdiffviewer.app.ui.DiffColors
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffTypography
 import io.github.mataku.kdiffviewer.app.ui.MacPushButton
@@ -35,9 +38,21 @@ import io.github.mataku.kdiffviewer.core.review.ReviewThread
 
 private val CardShape = RoundedCornerShape(6.dp)
 
+@Immutable
+private class CardStyles(colors: DiffColors) {
+  val collapsed = TextStyle(color = colors.mutedText, fontSize = 12.sp)
+  val author = TextStyle(color = colors.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+  val body = TextStyle(color = colors.text, fontSize = 13.sp)
+  val link = TextStyle(color = colors.accent, fontSize = 12.sp)
+  fun badge(color: Color) = TextStyle(color = color, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+  val agentBadge = badge(colors.agentBadge)
+  val outdatedBadge = badge(colors.outdatedBadge)
+}
+
 @Composable
 fun ThreadCard(thread: ReviewThread, draft: Draft?) {
   val colors = LocalDiffColors.current
+  val styles = remember(colors) { CardStyles(colors) }
   var expanded by remember(thread.id) { mutableStateOf(false) }
   val collapsed = thread.resolved && !expanded
   val cardModifier = Modifier
@@ -50,7 +65,7 @@ fun ThreadCard(thread: ReviewThread, draft: Draft?) {
       text = "Resolved · $firstLine",
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
-      style = TextStyle(color = colors.mutedText, fontSize = 12.sp),
+      style = styles.collapsed,
       modifier = cardModifier
         .testTag("thread-${thread.id}-collapsed")
         .clickable { expanded = true }
@@ -65,16 +80,17 @@ fun ThreadCard(thread: ReviewThread, draft: Draft?) {
   ) {
     if (thread.outdated) {
       Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Badge("Outdated", colors.outdatedBadge)
+        Badge("Outdated", colors.outdatedBadge, styles.outdatedBadge)
         val snapshot = (thread.anchor as? Anchor.Lines)?.snapshot.orEmpty()
         val code = LocalDiffTypography.current.code
         snapshot.forEach { line -> BasicText(text = line, style = code) }
       }
     }
-    thread.comments.forEach { comment ->
-      CommentView(comment, actions)
-    }
     val draftTarget = draft?.target
+    thread.comments.forEach { comment ->
+      val editDraft = if (draftTarget is DraftTarget.Edit && draftTarget.commentId == comment.id) draft else null
+      CommentView(comment, editDraft, actions, styles, colors)
+    }
     if (draftTarget is DraftTarget.Reply && draftTarget.threadId == thread.id && actions != null) {
       CommentComposer(
         text = draft.text,
@@ -96,38 +112,47 @@ fun ThreadCard(thread: ReviewThread, draft: Draft?) {
 }
 
 @Composable
-private fun CommentView(comment: Comment, actions: ReviewActions?) {
-  val colors = LocalDiffColors.current
-  val editing = (comment.author == Author.User)
+private fun CommentView(comment: Comment, editDraft: Draft?, actions: ReviewActions?, styles: CardStyles, colors: DiffColors) {
+  val isOwn = comment.author == Author.User
   Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
       when (val author = comment.author) {
-        Author.User -> BasicText("You", style = TextStyle(color = colors.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
+        Author.User -> BasicText("You", style = styles.author)
 
         is Author.Agent -> {
-          BasicText(author.name, style = TextStyle(color = colors.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
-          Badge("Agent", colors.agentBadge)
+          BasicText(author.name, style = styles.author)
+          Badge("Agent", colors.agentBadge, styles.agentBadge)
         }
       }
-      if (editing) {
-        LinkText("Edit", colors.accent) { actions?.startDraft(DraftTarget.Edit(comment.id)) }
-        LinkText("Delete", colors.accent) { actions?.delete(comment.id) }
+      if (isOwn) {
+        LinkText("Edit", styles.link) { actions?.startDraft(DraftTarget.Edit(comment.id)) }
+        LinkText("Delete", styles.link) { actions?.delete(comment.id) }
       }
     }
-    BasicText(comment.body, style = TextStyle(color = colors.text, fontSize = 13.sp))
+    if (editDraft != null && actions != null) {
+      CommentComposer(
+        text = editDraft.text,
+        submitLabel = "Save",
+        onTextChange = actions::updateDraft,
+        onSubmit = actions::submitDraft,
+        onCancel = actions::cancelDraft,
+      )
+    } else {
+      BasicText(comment.body, style = styles.body)
+    }
   }
 }
 
 @Composable
-private fun LinkText(text: String, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
-  BasicText(text, style = TextStyle(color = color, fontSize = 12.sp), modifier = Modifier.clickable(onClick = onClick))
+private fun LinkText(text: String, style: TextStyle, onClick: () -> Unit) {
+  BasicText(text, style = style, modifier = Modifier.clickable(onClick = onClick))
 }
 
 @Composable
-private fun Badge(text: String, color: androidx.compose.ui.graphics.Color) {
+private fun Badge(text: String, color: Color, style: TextStyle) {
   BasicText(
     text = text,
-    style = TextStyle(color = color, fontSize = 11.sp, fontWeight = FontWeight.Medium),
+    style = style,
     modifier = Modifier
       .border(0.5.dp, color, RoundedCornerShape(10.dp))
       .padding(horizontal = 6.dp, vertical = 1.dp),

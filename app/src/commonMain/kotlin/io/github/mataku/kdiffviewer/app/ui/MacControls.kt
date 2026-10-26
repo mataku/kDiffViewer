@@ -237,6 +237,7 @@ fun MacTextArea(
   val colors = LocalDiffColors.current
   var focused by remember { mutableStateOf(false) }
   val ringColor = colors.accent.copy(alpha = 0.5f)
+  val textStyle = remember(colors) { TextStyle(color = colors.text, fontSize = 13.sp) }
   Box(
     modifier = Modifier
       .drawBehind {
@@ -259,7 +260,7 @@ fun MacTextArea(
       value = value,
       onValueChange = onValueChange,
       minLines = minLines,
-      textStyle = TextStyle(color = colors.text, fontSize = 13.sp),
+      textStyle = textStyle,
       cursorBrush = SolidColor(colors.text),
       modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
     )

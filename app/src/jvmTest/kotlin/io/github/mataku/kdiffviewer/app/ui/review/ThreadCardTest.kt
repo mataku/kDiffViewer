@@ -157,4 +157,32 @@ class ThreadCardTest {
     setContent { CommentComposer("x", "Comment", onTextChange = {}, onSubmit = {}, onCancel = {}) }
     onNode(hasText("Comment")).assertIsEnabled()
   }
+
+  @Test
+  fun unresolveCallsActions() = runComposeUiTest {
+    val actions = FakeActions()
+    setContent { CompositionLocalProvider(LocalReviewActions provides actions) { ThreadCard(thread(resolved = true), null) } }
+    onNodeWithTag("thread-t1-collapsed").performClick()
+    onNodeWithText("Unresolve").performClick()
+    assertEquals(listOf("resolved:t1:false"), actions.calls)
+  }
+
+  @Test
+  fun editDraftShowsComposerInPlaceOfBody() = runComposeUiTest {
+    val actions = FakeActions()
+    setContent {
+      CompositionLocalProvider(LocalReviewActions provides actions) {
+        ThreadCard(thread(), Draft(DraftTarget.Edit("c1"), "edited text"))
+      }
+    }
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+    onNodeWithText("edited text").assertIsDisplayed()
+    onAllNodesWithText("user body").assertCountEquals(0)
+    onNodeWithText("agent body").assertIsDisplayed()
+    onNodeWithText("Save").assertIsEnabled()
+    onNodeWithTag("comment-composer").performKeyInput {
+      withKeyDown(Key.MetaLeft) { pressKey(Key.Enter) }
+    }
+    assertEquals(listOf("submit"), actions.calls)
+  }
 }
