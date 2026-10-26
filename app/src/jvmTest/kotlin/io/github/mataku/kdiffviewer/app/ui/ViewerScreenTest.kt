@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -10,9 +11,11 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
@@ -31,6 +34,7 @@ import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.FileDiff
+import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
@@ -143,6 +147,98 @@ class ViewerScreenTest {
     setContent { ViewerScreen(stateOf(emptyList()), { count++ }) }
     onNodeWithTag("reload-button").performClick()
     assertEquals(1, count)
+  }
+
+  @Test
+  fun headerShowsRepoName() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()).copy(repo = RepoPath("/work/my-repo")), {}) }
+    onNodeWithTag("repo-name").assertTextEquals("my-repo")
+  }
+
+  @Test
+  fun branchSitsBelowRepoNameWithBranchIcon() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()).copy(head = HeadRef.Branch("feature/x")), {}) }
+    onNodeWithTag("head-label", useUnmergedTree = true).assertTextEquals("feature/x")
+    val name = onNodeWithTag("repo-name", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val label = onNodeWithTag("head-label", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val icon = onNodeWithTag("head-branch-icon", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    assertTrue(label.top >= name.bottom, "label=$label name=$name")
+    assertTrue(icon.right <= label.left, "icon=$icon label=$label")
+    onNodeWithTag("head-commit-icon", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun detachedHeadShowsHashWithCommitIcon() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()).copy(head = HeadRef.Detached("abc1234")), {}) }
+    onNodeWithTag("head-label", useUnmergedTree = true).assertTextEquals("abc1234")
+    onNodeWithTag("head-commit-icon", useUnmergedTree = true).assertIsDisplayed()
+    onNodeWithTag("head-branch-icon", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun titleBarInsetPushesTreeRowsDown() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, titleBarInset = 28.dp) }
+    val row = onNodeWithTag("tree-file-0").fetchSemanticsNode().boundsInRoot
+    assertTrue(row.top >= with(density) { 28.dp.toPx() }, "row=$row")
+  }
+
+  @Test
+  fun headerLeavesRoomAroundItsContent() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()).copy(head = HeadRef.Branch("main")), {}) }
+    val header = onNodeWithTag("repo-header").fetchSemanticsNode().boundsInRoot
+    val reload = onNodeWithTag("reload-button").fetchSemanticsNode().boundsInRoot
+    val minHeight = with(density) { 52.dp.toPx() }
+    val margin = with(density) { 16.dp.toPx() }
+    assertTrue(header.height >= minHeight, "header=$header")
+    assertTrue(header.right - reload.right >= margin, "reload=$reload header=$header")
+  }
+
+  @Test
+  fun clickingDirectoryCollapsesAndExpandsIt() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("src/a.kt"))), {}) }
+    onNodeWithTag("tree-dir-0").performClick()
+    onNodeWithTag("tree-file-0").assertDoesNotExist()
+    onNodeWithTag("tree-dir-0").performClick()
+    onNodeWithTag("tree-file-0").assertIsDisplayed()
+  }
+
+  @Test
+  fun collapsedDirectoryStaysCollapsedAfterReload() = runComposeUiTest {
+    var ui by mutableStateOf(stateOf(listOf(modified("src/a.kt"))).copy(loadId = 1))
+    setContent { ViewerScreen(ui, {}) }
+    onNodeWithTag("tree-dir-0").performClick()
+    ui = stateOf(listOf(modified("src/a.kt"), modified("src/b.kt"))).copy(loadId = 2)
+    waitForIdle()
+    onNodeWithTag("tree-file-0").assertDoesNotExist()
+    onNodeWithTag("tree-file-1").assertDoesNotExist()
+  }
+
+  @Test
+  fun openingAnotherRepoExpandsEverything() = runComposeUiTest {
+    var ui by mutableStateOf(stateOf(listOf(modified("src/a.kt"))))
+    setContent { ViewerScreen(ui, {}) }
+    onNodeWithTag("tree-dir-0").performClick()
+    ui = stateOf(listOf(modified("src/a.kt"))).copy(repo = RepoPath("/other"))
+    waitForIdle()
+    onNodeWithTag("tree-file-0").assertIsDisplayed()
+  }
+
+  @Test
+  fun treeSpansFullHeightAndHeaderSitsRightOfIt() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
+      }
+    }
+    val tree = onNodeWithTag("file-tree").fetchSemanticsNode().boundsInRoot
+    val header = onNodeWithTag("repo-header").fetchSemanticsNode().boundsInRoot
+    val reload = onNodeWithTag("reload-button").fetchSemanticsNode().boundsInRoot
+    val root = onRoot().fetchSemanticsNode().boundsInRoot
+    assertEquals(root.top, tree.top)
+    assertEquals(root.bottom, tree.bottom)
+    assertTrue(header.left >= tree.right, "header=$header tree=$tree")
+    assertTrue(reload.left >= tree.right, "reload=$reload tree=$tree")
+    assertEquals(root.top, header.top)
   }
 
   private fun keywordFile(): FileDiff {

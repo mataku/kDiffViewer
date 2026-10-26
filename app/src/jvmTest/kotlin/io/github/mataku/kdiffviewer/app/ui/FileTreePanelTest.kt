@@ -1,0 +1,43 @@
+package io.github.mataku.kdiffviewer.app.ui
+
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.v2.runComposeUiTest
+import io.github.mataku.kdiffviewer.app.TreeEntry
+import io.github.mataku.kdiffviewer.app.TreeRow
+import kotlin.test.Test
+import kotlin.test.assertEquals
+
+@OptIn(ExperimentalTestApi::class)
+class FileTreePanelTest {
+  private val entries = listOf(
+    TreeEntry(TreeRow(0, "src", null), "src", false),
+    TreeEntry(TreeRow(1, "a.kt", 0), null, false),
+  )
+
+  @Test
+  fun directoryRowShowsChevronAndFolderIcon() = runComposeUiTest {
+    setContent { FileTreePanel(entries, {}, {}) }
+    onNodeWithTag("tree-chevron-0", useUnmergedTree = true).assertIsDisplayed()
+    onNodeWithTag("tree-folder-icon-0", useUnmergedTree = true).assertIsDisplayed()
+    onNodeWithTag("tree-file-icon-0", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun fileRowShowsFileIconWithoutChevron() = runComposeUiTest {
+    setContent { FileTreePanel(entries, {}, {}) }
+    onNodeWithTag("tree-file-icon-1", useUnmergedTree = true).assertIsDisplayed()
+    onNodeWithTag("tree-folder-icon-1", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithTag("tree-chevron-1", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun clickingDirectoryTogglesItsPath() = runComposeUiTest {
+    val toggled = mutableListOf<String>()
+    setContent { FileTreePanel(entries, {}, { toggled += it }) }
+    onNodeWithTag("tree-dir-0").performClick()
+    assertEquals(listOf("src"), toggled)
+  }
+}

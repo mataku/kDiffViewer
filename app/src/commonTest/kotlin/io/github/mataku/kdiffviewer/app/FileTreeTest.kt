@@ -45,4 +45,44 @@ class FileTreeTest {
       tree,
     )
   }
+
+  private val nested = buildFileTree(listOf(file("a/b/c.kt"), file("a/f.kt"), file("g.kt")))
+
+  @Test
+  fun visibleTreeShowsEverythingWhenNothingIsCollapsed() {
+    assertEquals(
+      listOf(
+        TreeEntry(TreeRow(0, "a", null), "a", false),
+        TreeEntry(TreeRow(1, "b", null), "a/b", false),
+        TreeEntry(TreeRow(2, "c.kt", 0), null, false),
+        TreeEntry(TreeRow(1, "f.kt", 1), null, false),
+        TreeEntry(TreeRow(0, "g.kt", 2), null, false),
+      ),
+      visibleTree(nested, emptySet()),
+    )
+  }
+
+  @Test
+  fun visibleTreeHidesDescendantsOfCollapsedDirectory() {
+    assertEquals(
+      listOf(
+        TreeEntry(TreeRow(0, "a", null), "a", false),
+        TreeEntry(TreeRow(1, "b", null), "a/b", true),
+        TreeEntry(TreeRow(1, "f.kt", 1), null, false),
+        TreeEntry(TreeRow(0, "g.kt", 2), null, false),
+      ),
+      visibleTree(nested, setOf("a/b")),
+    )
+  }
+
+  @Test
+  fun collapsedAncestorHidesNestedDirectories() {
+    assertEquals(
+      listOf(
+        TreeEntry(TreeRow(0, "a", null), "a", true),
+        TreeEntry(TreeRow(0, "g.kt", 2), null, false),
+      ),
+      visibleTree(nested, setOf("a", "a/b")),
+    )
+  }
 }
