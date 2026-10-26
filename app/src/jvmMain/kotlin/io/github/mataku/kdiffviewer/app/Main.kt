@@ -26,6 +26,7 @@ import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
 import io.github.mataku.kdiffviewer.core.git.FileSystemWorkingTreeReader
 import io.github.mataku.kdiffviewer.core.git.GitContentSource
 import io.github.mataku.kdiffviewer.core.git.GitDiffSource
+import io.github.mataku.kdiffviewer.core.git.GitLocation
 import io.github.mataku.kdiffviewer.core.git.GitLocator
 import io.github.mataku.kdiffviewer.core.git.ProcessGitBlobReader
 import io.github.mataku.kdiffviewer.core.git.ProcessGitCommandRunner
@@ -44,7 +45,7 @@ private fun runApplication(args: Array<String>) = application {
   val scope = remember { MainScope() }
   DisposableEffect(Unit) { onDispose { scope.cancel() } }
   val state = remember {
-    val runner = GitLocator.locateOnHost()?.let(::ProcessGitCommandRunner)
+    val runner = (GitLocator.locateOnHost(null) as? GitLocation.Found)?.info?.path?.let(::ProcessGitCommandRunner)
     DiffViewerState(
       source = runner?.let { GitDiffSource(it, FileSystemWorkingTreeReader()) },
       scope = scope,

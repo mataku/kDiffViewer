@@ -2,43 +2,75 @@ package io.github.mataku.kdiffviewer.core.git
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 class GitLocatorTest {
+  private class FakeProbe(private val accepted: Set<String>) : (String) -> GitInfo? {
+    val calls = mutableListOf<String>()
+
+    override fun invoke(path: String): GitInfo? {
+      calls += path
+      return if (path in accepted) GitInfo(path, "git version 2") else null
+    }
+  }
+
   @Test
-  fun firstExecutableInPathOrderWins() {
-    assertEquals("/b/git", GitLocator.locate("/a:/b") { it == "/b/git" })
-    assertEquals("/a/git", GitLocator.locate("/a:/b") { true })
+  fun configuredPathIsTriedFirst() {
+    val probe = FakeProbe(setOf("/c/git", "/a/git"))
+
+    val result = GitLocator.locate("/c/git", "/a", probe)
+
+    assertEquals(GitLocation.Found(GitInfo("/c/git", "git version 2"), configuredRejected = false), result)
+    assertEquals(listOf("/c/git"), probe.calls)
+  }
+
+  @Test
+  fun rejectedConfiguredFallsBackAndFlags() {
+    val probe = FakeProbe(setOf("/a/git"))
+
+    val result = GitLocator.locate("/c/git", "/a", probe)
+
+    assertEquals(GitLocation.Found(GitInfo("/a/git", "git version 2"), configuredRejected = true), result)
+  }
+
+  @Test
+  fun usrBinOnPathIsTriedLast() {
+    val probe = FakeProbe(emptySet())
+
+    GitLocator.locate(null, "/usr/bin:/a", probe)
+
+    assertEquals(listOf("/a/git", "/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git"), probe.calls)
+  }
+
+  @Test
+  fun usrBinWithTrailingSlashIsAlsoSkipped() {
+    val probe = FakeProbe(emptySet())
+
+    GitLocator.locate(null, "/usr/bin/:/a", probe)
+
+    assertEquals(listOf("/a/git", "/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git"), probe.calls)
+  }
+
+  @Test
+  fun duplicatesAreProbedOnce() {
+    val probe = FakeProbe(emptySet())
+
+    GitLocator.locate("/a/git", "/opt/homebrew/bin:/a:/a", probe)
+
+    assertEquals(probe.calls.distinct(), probe.calls)
+    assertEquals(listOf("/a/git", "/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git"), probe.calls)
   }
 
   @Test
   fun emptySegmentsAreIgnored() {
-    val checked = mutableListOf<String>()
-    GitLocator.locate(":/a::") {
-      checked += it
-      false
-    }
-    assertEquals(listOf("/a/git") + GitLocator.FALLBACK_PATHS, checked)
+    val probe = FakeProbe(emptySet())
+
+    GitLocator.locate(null, ":/a::", probe)
+
+    assertEquals(listOf("/a/git") + GitLocator.FALLBACK_PATHS, probe.calls)
   }
 
   @Test
-  fun trailingSlashDoesNotDoubleSlash() {
-    assertEquals("/a/git", GitLocator.locate("/a/") { it == "/a/git" })
-  }
-
-  @Test
-  fun nullPathFallsBackInOrder() {
-    assertEquals(
-      listOf("/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git"),
-      GitLocator.FALLBACK_PATHS,
-    )
-    assertEquals("/opt/homebrew/bin/git", GitLocator.locate(null) { true })
-    assertEquals("/usr/local/bin/git", GitLocator.locate(null) { it != "/opt/homebrew/bin/git" })
-    assertEquals("/usr/bin/git", GitLocator.locate(null) { it == "/usr/bin/git" })
-  }
-
-  @Test
-  fun returnsNullWhenNothingIsExecutable() {
-    assertNull(GitLocator.locate("/a", { false }))
+  fun notFoundWhenNothingAccepted() {
+    assertEquals(GitLocation.NotFound, GitLocator.locate(null, "/a", FakeProbe(emptySet())))
   }
 }
