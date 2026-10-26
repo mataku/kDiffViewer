@@ -3,10 +3,12 @@ package io.github.mataku.kdiffviewer.app.settings
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 interface SettingsStorage {
   fun read(): String?
@@ -33,6 +35,7 @@ class SettingsRepository(
   private val pending = Channel<Settings>(Channel.CONFLATED)
   private var needsBackup: Boolean
   private var lastWritten: String? = null
+  private val consumer: Job
 
   init {
     var readFailed = false
@@ -51,7 +54,7 @@ class SettingsRepository(
     needsBackup = load == SettingsLoad.PartiallyReset
     state = MutableStateFlow((result as? DecodeResult.Decoded)?.settings ?: Settings())
     settings = state
-    scope.launch(ioDispatcher) {
+    consumer = scope.launch(ioDispatcher) {
       for (value in pending) {
         persist(value)
       }
@@ -68,6 +71,11 @@ class SettingsRepository(
         return
       }
     }
+  }
+
+  suspend fun flush(timeoutMillis: Long = 1000) {
+    pending.close()
+    withTimeoutOrNull(timeoutMillis) { consumer.join() }
   }
 
   private fun persist(value: Settings) {

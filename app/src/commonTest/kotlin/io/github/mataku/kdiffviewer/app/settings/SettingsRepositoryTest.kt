@@ -161,4 +161,27 @@ class SettingsRepositoryTest {
     assertEquals(16, decodeSettings(storage.writes.single())?.fontSize)
     assertEquals(1, failures.size)
   }
+
+  @Test
+  fun flushWritesPendingValue() = runTest(StandardTestDispatcher()) {
+    val storage = FakeSettingsStorage()
+    val repository = repository(storage)
+
+    repository.update { it.copy(fontSize = 14) }
+    assertTrue(storage.writes.isEmpty())
+    repository.flush()
+
+    assertEquals(1, storage.writes.size)
+    assertEquals(14, decodeSettings(storage.writes.single())?.fontSize)
+  }
+
+  @Test
+  fun flushWithNothingPendingReturns() = runTest(StandardTestDispatcher()) {
+    val storage = FakeSettingsStorage()
+    val repository = repository(storage)
+
+    repository.flush()
+
+    assertTrue(storage.writes.isEmpty())
+  }
 }
