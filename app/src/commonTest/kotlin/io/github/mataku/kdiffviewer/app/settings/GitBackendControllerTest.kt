@@ -24,7 +24,7 @@ import kotlin.test.assertTrue
 
 private object NoopDiffSource : DiffSource {
   override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase = ResolvedBase.EmptyTree
-  override fun load(repo: RepoPath): Flow<FileDiff> = emptyFlow()
+  override fun load(repo: RepoPath, base: ResolvedBase): Flow<FileDiff> = emptyFlow()
 
   override suspend fun head(repo: RepoPath): HeadRef? = null
 }

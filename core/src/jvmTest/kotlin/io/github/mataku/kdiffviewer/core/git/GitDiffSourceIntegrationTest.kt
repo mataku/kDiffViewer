@@ -37,7 +37,10 @@ class GitDiffSourceIntegrationTest {
     runGit(repo, "commit", "-m", message)
   }
 
-  private fun load(path: String = repo.path): List<FileDiff> = runBlocking { source.load(RepoPath(path)).toList() }
+  private fun load(path: String = repo.path): List<FileDiff> = runBlocking {
+    val target = RepoPath(path)
+    source.load(target, source.resolveBase(target, BaseSpec.Default)).toList()
+  }
 
   private fun List<FileDiff>.byPath(path: String) = single { it.displayPath == path }
 
@@ -215,6 +218,18 @@ class GitDiffSourceIntegrationTest {
     val branchPoint = branchOffOriginMain()
     val short = runGit(repo, "rev-parse", "--short", branchPoint).trim()
     assertEquals(ResolvedBase.Commit("origin/main", branchPoint, short), resolve(BaseSpec.Default))
+  }
+
+  @Test
+  fun branchDiffExcludesLaterUpstreamCommits() {
+    branchOffOriginMain()
+    write("a.txt", "2\n")
+    write("loose.txt", "l\n")
+
+    val files = load()
+
+    assertEquals(listOf("a.txt", "feature.txt", "loose.txt"), files.map { it.displayPath })
+    assertTrue(files.byPath("loose.txt").isUntracked)
   }
 
   @Test

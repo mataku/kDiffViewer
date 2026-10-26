@@ -50,7 +50,9 @@ class GitDiffSourceTest {
     runner.streams[diffArgs("HEAD")] = FakeGitCommandRunner.Stream(diff)
   }
 
-  private suspend fun load(path: String = "/repo/sub"): List<FileDiff> = source.load(RepoPath(path)).toList()
+  private val headBase = ResolvedBase.Commit("HEAD", "HEAD", "HEAD")
+
+  private suspend fun load(path: String = "/repo/sub", base: ResolvedBase = headBase): List<FileDiff> = source.load(RepoPath(path), base).toList()
 
   @Test
   fun loadsTrackedThenUntrackedAgainstHead() = runTest {
@@ -70,11 +72,20 @@ class GitDiffSourceTest {
   }
 
   @Test
-  fun usesEmptyTreeWhenHeadIsMissing() = runTest {
+  fun loadDiffsAgainstGivenCommit() = runTest {
     repoSetup()
-    runner.runResults[verifyHead] = GitResult(128, "", "fatal")
+    runner.streams[diffArgs("m1")] = FakeGitCommandRunner.Stream(modifiedDiff)
+    val result = load(base = ResolvedBase.Commit("origin/develop", "m1", "m1"))
+    assertEquals(1, result.size)
+    assertEquals(diffArgs("m1"), runner.streamCalls.single().args)
+    assertTrue(runner.runCalls.none { it.args == verifyHead })
+  }
+
+  @Test
+  fun emptyTreeBaseUsesEmptyTreeId() = runTest {
+    repoSetup()
     runner.streams[diffArgs("4b825dc642cb6eb9a060e54bf8d69288fbee4904")] = FakeGitCommandRunner.Stream(modifiedDiff)
-    val result = load()
+    val result = load(base = ResolvedBase.EmptyTree)
     assertEquals(1, result.size)
     assertTrue("4b825dc642cb6eb9a060e54bf8d69288fbee4904" in runner.streamCalls.single().args)
     assertTrue("HEAD" !in runner.streamCalls.single().args)

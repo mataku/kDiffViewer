@@ -48,7 +48,7 @@ import kotlin.test.assertTrue
 class HighlightEndToEndTest {
   private class InMemoryDiffSource(var files: List<FileDiff>) : DiffSource {
     override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase = ResolvedBase.EmptyTree
-    override fun load(repo: RepoPath): Flow<FileDiff> = files.asFlow()
+    override fun load(repo: RepoPath, base: ResolvedBase): Flow<FileDiff> = files.asFlow()
 
     override suspend fun head(repo: RepoPath): HeadRef? = null
   }
@@ -61,7 +61,7 @@ class HighlightEndToEndTest {
     private val opens = AtomicInteger()
     val reads = ConcurrentLinkedQueue<String>()
 
-    override suspend fun open(repo: RepoPath): ContentSession {
+    override suspend fun open(repo: RepoPath, base: ResolvedBase): ContentSession {
       val session = opens.incrementAndGet()
       return object : ContentSession {
         override suspend fun read(file: FileDiff, side: Side, maxBytes: Long): String? {

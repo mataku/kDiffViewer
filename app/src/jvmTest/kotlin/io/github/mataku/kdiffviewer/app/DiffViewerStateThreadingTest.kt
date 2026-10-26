@@ -28,7 +28,7 @@ class DiffViewerStateThreadingTest {
 
   private val source = object : DiffSource {
     override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase = ResolvedBase.EmptyTree
-    override fun load(repo: RepoPath): Flow<FileDiff> = flow {
+    override fun load(repo: RepoPath, base: ResolvedBase): Flow<FileDiff> = flow {
       repeat(fileCount) { index ->
         emit(FileDiff("f$index", "f$index", ChangeType.Modified, false, DiffContent.Text(emptyList())))
         if (index % 7 == 0) yield()

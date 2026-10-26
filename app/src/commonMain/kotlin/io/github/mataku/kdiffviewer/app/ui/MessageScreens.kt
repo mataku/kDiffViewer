@@ -38,6 +38,8 @@ fun ErrorScreen(error: ViewerError, onOpenAnother: () -> Unit, onOpenSettings: (
       ViewerError.GitNotFound -> "git was not found. Choose a git executable in Settings."
       is ViewerError.GitUnavailable -> "The configured git (${error.path}) cannot be run."
       is ViewerError.NotARepository -> "${error.path} is not a git repository."
+      is ViewerError.UnknownBase -> "Unknown base revision '${error.ref}'"
+      is ViewerError.NoCommonAncestor -> "No common ancestor between '${error.ref}' and HEAD"
       is ViewerError.GitFailed -> "git failed."
     }
     BasicText(text = message, style = TextStyle(color = colors.removedText, fontSize = 15.sp))

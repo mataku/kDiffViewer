@@ -15,6 +15,7 @@ import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.Side
 import io.github.mataku.kdiffviewer.core.model.highlightRanges
 import kotlinx.coroutines.CoroutineDispatcher
@@ -53,14 +54,14 @@ class HighlightPipeline<L>(
   private val workers: Int = max(1, availableProcessors / 2),
   private val onFailure: (Throwable) -> Unit = { it.printStackTrace() },
 ) {
-  fun start(scope: CoroutineScope, repo: RepoPath): HighlightRun {
+  fun start(scope: CoroutineScope, repo: RepoPath, base: ResolvedBase): HighlightRun {
     val entries = Channel<HighlightEntry>(Channel.UNLIMITED)
     val runJob = SupervisorJob(scope.coroutineContext[Job])
     val handler = CoroutineExceptionHandler { _, throwable ->
       runJob.cancel()
       onFailure(throwable)
     }
-    val sessions = SessionHolder(contentSource, repo)
+    val sessions = SessionHolder(contentSource, repo, base)
     CoroutineScope(scope.coroutineContext + runJob + dispatcher + handler).launch {
       try {
         coroutineScope {
@@ -126,12 +127,12 @@ class HighlightPipeline<L>(
   }
 }
 
-private class SessionHolder(private val contentSource: ContentSource, private val repo: RepoPath) {
+private class SessionHolder(private val contentSource: ContentSource, private val repo: RepoPath, private val base: ResolvedBase) {
   private val mutex = Mutex()
   private var session: ContentSession? = null
 
   suspend fun get(): ContentSession = mutex.withLock {
-    session ?: contentSource.open(repo).also { session = it }
+    session ?: contentSource.open(repo, base).also { session = it }
   }
 
   fun close() {

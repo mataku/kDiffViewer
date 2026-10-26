@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.flow
 interface DiffSource {
   suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase
 
-  fun load(repo: RepoPath): Flow<FileDiff>
+  fun load(repo: RepoPath, base: ResolvedBase): Flow<FileDiff>
 
   suspend fun head(repo: RepoPath): HeadRef?
 
@@ -41,16 +41,17 @@ class GitDiffSource(
   private val runner: GitCommandRunner,
   private val reader: WorkingTreeReader,
 ) : DiffSource {
-  override fun load(repo: RepoPath): Flow<FileDiff> = flow {
+  override fun load(repo: RepoPath, base: ResolvedBase): Flow<FileDiff> = flow {
     val rootResult = runner.run(repo.value, listOf("rev-parse", "--show-toplevel"))
     val root = rootResult.stdout.trimEnd('\n')
     if (rootResult.exitCode != 0 || root.isEmpty()) throw DiffLoadException.NotARepository(repo.value)
 
-    val head = runner.run(root, listOf("rev-parse", "--verify", "HEAD"))
-    val base = if (head.exitCode == 0) "HEAD" else EMPTY_TREE
-
+    val baseId = when (base) {
+      is ResolvedBase.Commit -> base.id
+      ResolvedBase.EmptyTree -> EMPTY_TREE
+    }
     val diffArgs = listOf(
-      "-c", "core.quotePath=false", "diff", base,
+      "-c", "core.quotePath=false", "diff", baseId,
       "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "-M", "--submodule=short",
     )
     emitAll(
