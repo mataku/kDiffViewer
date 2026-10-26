@@ -45,6 +45,8 @@ class GitBackendControllerTest {
       scope = CoroutineScope(Job()),
       ioDispatcher = StandardTestDispatcher(scope.testScheduler),
     )
+    var onProbe: (String) -> Unit = {}
+    var onLocate: () -> Unit = {}
     val probed = mutableListOf<String>()
     val locateCalls = mutableListOf<String?>()
     val installed = mutableListOf<GitBackend?>()
@@ -55,10 +57,12 @@ class GitBackendControllerTest {
       ioDispatcher = StandardTestDispatcher(scope.testScheduler),
       probe = { path ->
         probed += path
+        onProbe(path)
         if (path in accepted) info(path) else null
       },
       locate = { configured ->
         locateCalls += configured
+        onLocate()
         located
       },
       createBackend = { GitBackend(it, NoopDiffSource, null) },
@@ -188,5 +192,44 @@ class GitBackendControllerTest {
 
     assertEquals(GitStatus.Checking, h.controller.status.value)
     advanceUntilIdle()
+  }
+
+  @Test
+  fun inFlightProbeCancelledNeitherSavesNorInstalls() = runTest(StandardTestDispatcher()) {
+    val h = Harness(this)
+    var triggered = false
+    h.onProbe = { path ->
+      if (path == "/a" && !triggered) {
+        triggered = true
+        h.controller.commit("/b")
+      }
+    }
+    h.controller.commit("/a")
+    advanceUntilIdle()
+
+    assertEquals("/b", h.settings.settings.value.gitPath)
+    assertEquals(listOf("/b"), h.installed.map { it?.info?.path })
+  }
+
+  @Test
+  fun inFlightEmptyCommitCancelledDoesNotSaveNull() = runTest(StandardTestDispatcher()) {
+    val h = Harness(
+      this,
+      initial = GitLocation.Found(info("/g"), configuredRejected = false),
+      initialGitPath = "/g",
+    )
+    var triggered = false
+    h.onLocate = {
+      if (!triggered) {
+        triggered = true
+        h.controller.commit("/bad")
+      }
+    }
+    h.controller.commit("")
+    advanceUntilIdle()
+
+    assertEquals("/g", h.settings.settings.value.gitPath)
+    assertTrue(h.installed.isEmpty())
+    assertEquals(GitStatus.Rejected("/bad", info("/g")), h.controller.status.value)
   }
 }

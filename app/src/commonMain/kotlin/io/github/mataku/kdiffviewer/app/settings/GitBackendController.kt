@@ -61,8 +61,8 @@ class GitBackendController(
     state.value = GitStatus.Checking
     job = scope.launch {
       if (path.isEmpty()) {
-        settings.update { it.copy(gitPath = null) }
         val location = runInterruptible(ioDispatcher) { locate(null) }
+        settings.update { it.copy(gitPath = null) }
         install(location)
       } else {
         val info = runInterruptible(ioDispatcher) { probe(path) }
