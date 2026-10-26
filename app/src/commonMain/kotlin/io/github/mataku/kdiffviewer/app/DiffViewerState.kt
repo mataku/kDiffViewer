@@ -7,6 +7,7 @@ import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.core.git.DiffLoadException
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.model.FileDiff
+import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -44,6 +45,7 @@ data class ViewerUiState(
   val tree: List<TreeRow> = emptyList(),
   val loadId: Long = 0,
   val highlights: List<HighlightSlot> = emptyList(),
+  val head: HeadRef? = null,
 )
 
 class DiffViewerState(
@@ -75,11 +77,26 @@ class DiffViewerState(
       mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(ViewerError.GitNotFound), loadId = loadId)
       return
     }
-    mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Loading, loadId = loadId)
+    val previous = mutableUiState.value
+    mutableUiState.value = ViewerUiState(
+      repo = repo,
+      status = LoadStatus.Loading,
+      loadId = loadId,
+      head = previous.head.takeIf { previous.repo == repo },
+    )
     val accumulator = LoadAccumulator()
     val run = highlightPipeline?.start(scope, repo)
     highlightRun = run
     loadJob = scope.launch {
+      launch {
+        val head = try {
+          diffSource.head(repo)
+        } catch (e: Exception) {
+          ensureActive()
+          null
+        }
+        updateIfCurrent(token) { it.copy(head = head) }
+      }
       try {
         load(diffSource, repo, token, accumulator, run)
         updateIfCurrent(token) { it.copy(status = LoadStatus.Done, tree = accumulator.tree.rows()) }

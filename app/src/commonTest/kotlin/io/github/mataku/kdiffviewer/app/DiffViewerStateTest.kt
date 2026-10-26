@@ -12,6 +12,7 @@ import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.FileDiff
+import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
@@ -63,9 +64,14 @@ class DiffViewerStateTest {
     ),
   )
 
-  private class FakeSource(private val block: (Int) -> Flow<FileDiff>) : DiffSource {
+  private class FakeSource(
+    private val heads: List<HeadRef?> = emptyList(),
+    private val block: (Int) -> Flow<FileDiff>,
+  ) : DiffSource {
     var calls = 0
+    private var headCalls = 0
     override fun load(repo: RepoPath): Flow<FileDiff> = block(calls++)
+    override suspend fun head(repo: RepoPath): HeadRef? = heads.getOrNull(headCalls++)
   }
 
   private fun TestScope.stateFor(source: DiffSource?) = DiffViewerState(source, this, 16)
@@ -90,6 +96,56 @@ class DiffViewerStateTest {
     assertEquals(files, ui.files)
     assertEquals(flattenRows(files), ui.rows)
     assertEquals(buildFileTree(files), ui.tree)
+  }
+
+  @Test
+  fun openPublishesHead() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource(listOf(HeadRef.Branch("main"))) { flow {} })
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(HeadRef.Branch("main"), state.uiState.value.head)
+  }
+
+  @Test
+  fun reloadRefreshesHead() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource(listOf(HeadRef.Branch("main"), HeadRef.Branch("feature/x"))) { flow {} })
+    state.open(repo)
+    advanceUntilIdle()
+    state.reload()
+    advanceUntilIdle()
+    assertEquals(HeadRef.Branch("feature/x"), state.uiState.value.head)
+  }
+
+  @Test
+  fun reloadKeepsHeadWhileLoading() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource(listOf(HeadRef.Branch("main"), HeadRef.Branch("main"))) { flow {} })
+    state.open(repo)
+    advanceUntilIdle()
+    state.reload()
+    assertEquals(LoadStatus.Loading, state.uiState.value.status)
+    assertEquals(HeadRef.Branch("main"), state.uiState.value.head)
+  }
+
+  @Test
+  fun openingAnotherRepoClearsHead() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource(listOf(HeadRef.Branch("main"))) { flow {} })
+    state.open(repo)
+    advanceUntilIdle()
+    state.open(RepoPath("/other"))
+    assertNull(state.uiState.value.head)
+  }
+
+  @Test
+  fun headFailureDoesNotFailTheLoad() = runTest(StandardTestDispatcher()) {
+    val source = object : DiffSource {
+      override fun load(repo: RepoPath): Flow<FileDiff> = flow { emit(file("a")) }
+      override suspend fun head(repo: RepoPath): HeadRef? = throw IllegalStateException("boom")
+    }
+    val state = stateFor(source)
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(LoadStatus.Done, state.uiState.value.status)
+    assertNull(state.uiState.value.head)
   }
 
   @Test

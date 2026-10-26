@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.core.git
 
 import io.github.mataku.kdiffviewer.core.model.FileDiff
+import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.parse.UnifiedDiffParser
 import kotlinx.coroutines.flow.Flow
@@ -10,6 +11,8 @@ import kotlinx.coroutines.flow.flow
 
 interface DiffSource {
   fun load(repo: RepoPath): Flow<FileDiff>
+
+  suspend fun head(repo: RepoPath): HeadRef?
 }
 
 sealed class DiffLoadException(message: String) : Exception(message) {
@@ -56,5 +59,12 @@ class GitDiffSource(
       if (path.isEmpty() || path.endsWith("/")) continue
       emit(synthesizeUntracked(path, reader.read(root, path, UNTRACKED_SIZE_LIMIT)))
     }
+  }
+
+  override suspend fun head(repo: RepoPath): HeadRef? {
+    val branch = runner.run(repo.value, listOf("symbolic-ref", "--quiet", "--short", "HEAD"))
+    if (branch.exitCode == 0) return HeadRef.Branch(branch.stdout.trimEnd('\n'))
+    val hash = runner.run(repo.value, listOf("rev-parse", "--short", "HEAD"))
+    return if (hash.exitCode == 0) HeadRef.Detached(hash.stdout.trimEnd('\n')) else null
   }
 }
