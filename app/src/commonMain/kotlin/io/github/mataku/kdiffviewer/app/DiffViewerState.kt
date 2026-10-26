@@ -59,10 +59,10 @@ data class ViewerUiState(
 )
 
 class DiffViewerState(
-  private val source: DiffSource?,
+  private var source: DiffSource?,
   private val scope: CoroutineScope,
   private val batchWindowMillis: Long = 16,
-  private val highlightPipeline: HighlightPipeline<*>? = null,
+  private var highlightPipeline: HighlightPipeline<*>? = null,
   private val reloadHoldMillis: Long = 300,
 ) {
   private val mutableUiState = MutableStateFlow(ViewerUiState())
@@ -139,6 +139,12 @@ class DiffViewerState(
   fun reload() {
     val repo = mutableUiState.value.repo ?: return
     open(repo)
+  }
+
+  fun setBackend(source: DiffSource?, highlightPipeline: HighlightPipeline<*>?) {
+    this.source = source
+    this.highlightPipeline = highlightPipeline
+    reload()
   }
 
   private suspend fun load(diffSource: DiffSource, repo: RepoPath, token: Any, accumulator: LoadAccumulator, run: HighlightRun?) = coroutineScope {

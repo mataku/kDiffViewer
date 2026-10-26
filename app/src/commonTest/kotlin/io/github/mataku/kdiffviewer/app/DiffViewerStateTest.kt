@@ -563,6 +563,66 @@ class DiffViewerStateTest {
   }
 
   @Test
+  fun setBackendReloadsOpenRepositoryWithNewSource() = runTest(StandardTestDispatcher()) {
+    val a = FakeSource { flow { emit(file("a")) } }
+    val b = FakeSource { flow { emit(file("b")) } }
+    val state = stateFor(a)
+    state.open(repo)
+    advanceUntilIdle()
+    state.setBackend(b, null)
+    advanceUntilIdle()
+    assertEquals(1, a.calls)
+    assertEquals(1, b.calls)
+    assertEquals(LoadStatus.Done, state.uiState.value.status)
+    assertEquals(listOf(file("b")), state.uiState.value.files)
+  }
+
+  @Test
+  fun setBackendCancelsInFlightLoad() = runTest(StandardTestDispatcher()) {
+    var aCancelled = false
+    val a = FakeSource {
+      flow {
+        try {
+          awaitCancellation()
+        } catch (e: CancellationException) {
+          aCancelled = true
+          throw e
+        }
+      }
+    }
+    val b = FakeSource { flow { emit(file("b")) } }
+    val state = stateFor(a)
+    state.open(repo)
+    advanceTimeBy(20)
+    runCurrent()
+    state.setBackend(b, null)
+    advanceUntilIdle()
+    assertTrue(aCancelled)
+    assertEquals(LoadStatus.Done, state.uiState.value.status)
+    assertEquals(listOf(file("b")), state.uiState.value.files)
+  }
+
+  @Test
+  fun setBackendWithoutRepositoryDoesNotLoad() = runTest(StandardTestDispatcher()) {
+    val b = FakeSource { flow { emit(file("b")) } }
+    val state = stateFor(null)
+    state.setBackend(b, null)
+    advanceUntilIdle()
+    assertEquals(0, b.calls)
+    assertEquals(LoadStatus.Idle, state.uiState.value.status)
+  }
+
+  @Test
+  fun setBackendToNullShowsGitNotFound() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource { flow { emit(file("a")) } })
+    state.open(repo)
+    advanceUntilIdle()
+    state.setBackend(null, null)
+    advanceUntilIdle()
+    assertEquals(LoadStatus.Failed(ViewerError.GitNotFound), state.uiState.value.status)
+  }
+
+  @Test
   fun noPipelineMeansNoHighlighting() = runTest(StandardTestDispatcher()) {
     val state = DiffViewerState(FakeSource { flow { ktFiles.forEach { emit(it) } } }, this, 16, null)
     state.open(repo)
