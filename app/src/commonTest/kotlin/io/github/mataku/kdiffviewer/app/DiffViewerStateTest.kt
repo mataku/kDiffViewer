@@ -1044,4 +1044,74 @@ class DiffViewerStateTest {
     assertTrue(state.uiState.value.isCollapsed(0))
     assertTrue(state.uiState.value.isCollapsed(1))
   }
+
+  private fun TestScope.loadedTwoFiles(): DiffViewerState {
+    val state = stateFor(FakeSource { flow { listOf(fileWithLines("a", 2), fileWithLines("b", 3)).forEach { emit(it) } } })
+    state.open(repo)
+    advanceUntilIdle()
+    return state
+  }
+
+  @Test
+  fun clickLineNumberSelectsAndExtendsWithinFile() = runTest(StandardTestDispatcher()) {
+    val state = loadedTwoFiles()
+    state.clickLineNumber(6, extend = false)
+    state.clickLineNumber(8, extend = true)
+    assertEquals(LineSelection(6, 6, 8), state.selection.value)
+    assertEquals("line 1\nline 2\nline 3", state.copiedText())
+  }
+
+  @Test
+  fun copiedTextIsNullWithoutSelection() = runTest(StandardTestDispatcher()) {
+    val state = loadedTwoFiles()
+    assertNull(state.copiedText())
+  }
+
+  @Test
+  fun clearSelectionEmptiesSelection() = runTest(StandardTestDispatcher()) {
+    val state = loadedTwoFiles()
+    state.clickLineNumber(2, extend = false)
+    state.clearSelection()
+    assertNull(state.selection.value)
+  }
+
+  @Test
+  fun reloadClearsSelection() = runTest(StandardTestDispatcher()) {
+    val state = loadedTwoFiles()
+    state.clickLineNumber(2, extend = false)
+    state.reload()
+    assertNull(state.selection.value)
+  }
+
+  @Test
+  fun openWithAnotherBaseClearsSelection() = runTest(StandardTestDispatcher()) {
+    val state = loadedTwoFiles()
+    state.clickLineNumber(2, extend = false)
+    state.open(repo, BaseSpec.Ref("develop"))
+    assertNull(state.selection.value)
+  }
+
+  @Test
+  fun failClearsSelection() = runTest(StandardTestDispatcher()) {
+    val state = loadedTwoFiles()
+    state.clickLineNumber(2, extend = false)
+    state.fail(repo, ViewerError.InvalidLaunchArgs("m"))
+    assertNull(state.selection.value)
+  }
+
+  @Test
+  fun collapsingTheSelectedFileClearsSelection() = runTest(StandardTestDispatcher()) {
+    val state = loadedTwoFiles()
+    state.clickLineNumber(6, extend = false)
+    state.toggleCollapsed(1)
+    assertNull(state.selection.value)
+  }
+
+  @Test
+  fun collapsingAnotherFileKeepsSelection() = runTest(StandardTestDispatcher()) {
+    val state = loadedTwoFiles()
+    state.clickLineNumber(6, extend = false)
+    state.toggleCollapsed(0)
+    assertEquals(LineSelection(6, 6, 6), state.selection.value)
+  }
 }

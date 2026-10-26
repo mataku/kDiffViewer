@@ -103,6 +103,9 @@ class DiffViewerState(
   private val mutableUiState = MutableStateFlow(ViewerUiState())
   val uiState: StateFlow<ViewerUiState> = mutableUiState.asStateFlow()
 
+  private val mutableSelection = MutableStateFlow<LineSelection?>(null)
+  val selection: StateFlow<LineSelection?> = mutableSelection.asStateFlow()
+
   private var loadJob: Job? = null
   private var highlightRun: HighlightRun? = null
   private var nextLoadId = 0L
@@ -117,6 +120,7 @@ class DiffViewerState(
     highlightRun = null
     val token = Any()
     currentLoad = token
+    mutableSelection.value = null
     val loadId = ++nextLoadId
     val diffSource = source
     if (diffSource == null) {
@@ -199,6 +203,7 @@ class DiffViewerState(
     highlightRun?.cancel()
     highlightRun = null
     currentLoad = null
+    mutableSelection.value = null
     mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(error), loadId = ++nextLoadId)
   }
 
@@ -221,7 +226,19 @@ class DiffViewerState(
       val entry = CollapsedFile(file.displayPath, fingerprint)
       current.copy(collapsed = if (entry in current.collapsed) current.collapsed - entry else current.collapsed + entry)
     }
+    val state = mutableUiState.value
+    if (state.isCollapsed(fileIndex) && mutableSelection.value?.fileIndex(state.rows) == fileIndex) mutableSelection.value = null
   }
+
+  fun clickLineNumber(rowIndex: Int, extend: Boolean) {
+    mutableSelection.update { it.afterLineNumberClick(mutableUiState.value.rows, rowIndex, extend) }
+  }
+
+  fun clearSelection() {
+    mutableSelection.value = null
+  }
+
+  fun copiedText(): String? = mutableSelection.value?.copiedText(mutableUiState.value.rows)
 
   fun expand(fileIndex: Int) {
     mutableUiState.update { current ->
