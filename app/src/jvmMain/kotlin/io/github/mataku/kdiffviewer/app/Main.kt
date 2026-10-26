@@ -220,7 +220,8 @@ private fun runApplication(
       }
     }
     val fontFamily = remember(settings.fontFamily) { resolveFontFamily(settings.fontFamily) }
-    val safeUriHandler = SafeUriHandler(LocalUriHandler.current)
+    val platformUriHandler = LocalUriHandler.current
+    val safeUriHandler = remember(platformUriHandler) { SafeUriHandler(platformUriHandler) }
     CompositionLocalProvider(
       LocalTitleBarRegions provides titleBarRegions,
       LocalReviewActions provides review,
