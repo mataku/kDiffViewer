@@ -9,8 +9,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.AnnotatedString
@@ -25,9 +28,11 @@ fun CodeBlockView(info: String?, code: String, modifier: Modifier = Modifier) {
   val styles = LocalMarkdownStyles.current
   val highlighter = LocalCodeHighlighter.current
   val theme = LocalSyntaxTheme.current
-  val highlighted by produceState<AnnotatedString?>(null, code, info, theme, highlighter) {
-    value = highlighter?.highlight(code, info, theme)
+  var highlighted by remember(code, info, theme, highlighter) { mutableStateOf<AnnotatedString?>(null) }
+  LaunchedEffect(code, info, theme, highlighter) {
+    highlighted = highlighter?.highlight(code, info, theme)
   }
+  val plain = remember(code) { AnnotatedString(code) }
   Box(
     modifier
       .fillMaxWidth()
@@ -36,6 +41,6 @@ fun CodeBlockView(info: String?, code: String, modifier: Modifier = Modifier) {
       .horizontalScroll(rememberScrollState())
       .padding(8.dp),
   ) {
-    BasicText(text = highlighted ?: AnnotatedString(code), style = styles.code, softWrap = false)
+    BasicText(text = highlighted ?: plain, style = styles.code, softWrap = false)
   }
 }

@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
@@ -29,7 +32,9 @@ import io.github.mataku.kdiffviewer.app.highlight.LanguageId
 import io.github.mataku.kdiffviewer.app.highlight.LanguageResolver
 import io.github.mataku.kdiffviewer.app.highlight.LocalCodeHighlighter
 import io.github.mataku.kdiffviewer.app.ui.KdvTheme
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -119,5 +124,25 @@ class MarkdownBodyTest {
   fun softBreaksRenderAsLines() = runComposeUiTest {
     setContent { Themed { MarkdownBody("one\ntwo") } }
     onNodeWithText("one\ntwo").assertIsDisplayed()
+  }
+
+  private val neverRuns = object : CoroutineDispatcher() {
+    override fun dispatch(context: CoroutineContext, block: Runnable) {}
+  }
+
+  @Test
+  fun codeBlockShowsNewPlainCodeWhileNewHighlightIsPending() = runComposeUiTest {
+    var code by mutableStateOf("val a = 1")
+    var current by mutableStateOf(highlighter())
+    setContent {
+      Themed { CompositionLocalProvider(LocalCodeHighlighter provides current) { CodeBlockView("kt", code) } }
+    }
+    waitUntil { onAllNodes(hasText("val a = 1")).fetchSemanticsNodes().any { n -> n.config.getOrNull(SemanticsProperties.Text)?.single()?.spanStyles?.any { it.item == marker } == true } }
+    code = "val b = 2"
+    current = CodeHighlighter(LanguageResolver(LanguageId.entries.associateWith { id -> { id.name } }), { c, _, _ -> AnnotatedString(c) }, neverRuns)
+    waitForIdle()
+    val shown = onNodeWithText("val b = 2").annotatedText()
+    assertEquals("val b = 2", shown.text)
+    assertTrue(shown.spanStyles.isEmpty())
   }
 }
