@@ -22,6 +22,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.awt.Dimension
 import java.awt.FileDialog
 import java.awt.Frame
 import java.awt.GraphicsEnvironment
@@ -39,9 +40,10 @@ fun PreferencesWindow(
   Window(
     onCloseRequest = onClose,
     title = "Settings",
-    resizable = false,
+    resizable = true,
     state = rememberWindowState(size = DpSize(640.dp, 760.dp)),
   ) {
+    LaunchedEffect(window) { window.minimumSize = Dimension(520, 480) }
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     LaunchedEffect(focusRequests) { window.toFront() }
     val fontFamilies by produceState<List<String>?>(null) {
