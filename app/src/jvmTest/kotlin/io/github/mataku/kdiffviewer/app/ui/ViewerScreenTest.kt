@@ -717,6 +717,37 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun typingInComposerDoesNotRecomposeDiffRows() = runComposeUiTest {
+    val base = stateOf(listOf(modified("a.kt", 20), modified("b.kt", 20))).copy(loadId = 1)
+    var rowReads = 0
+    val countedRows = object : AbstractList<DiffRow>() {
+      override val size: Int get() = base.rows.size
+
+      override fun get(index: Int): DiffRow {
+        rowReads++
+        return base.rows[index]
+      }
+    }
+    val ui = base.copy(rows = countedRows)
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithTag("file-comment-0", useUnmergedTree = true).performClick()
+    waitForIdle()
+    onNodeWithTag("comment-composer").performTextInput("a")
+    waitForIdle()
+    val before = rowReads
+    onNodeWithTag("comment-composer").performTextInput("b")
+    waitForIdle()
+    onNodeWithTag("comment-composer").performTextInput("c")
+    waitForIdle()
+    assertEquals(before, rowReads)
+    onNodeWithTag("comment-composer").assertTextEquals("abc")
+  }
+
+  @Test
   fun noAddCommentButtonOnNoNewlineRow() = runComposeUiTest {
     val body = listOf(DiffLine(LineKind.Added, "x", null, 1), DiffLine(LineKind.NoNewlineAtEof, "", null, null))
     val file = FileDiff(null, "n.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", body))))

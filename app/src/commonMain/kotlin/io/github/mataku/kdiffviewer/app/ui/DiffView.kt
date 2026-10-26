@@ -48,7 +48,7 @@ import io.github.mataku.kdiffviewer.app.DiffLayout
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
-import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
+import io.github.mataku.kdiffviewer.app.review.ReviewPlacements
 import io.github.mataku.kdiffviewer.app.review.linePosition
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.NoteStack
@@ -91,19 +91,19 @@ fun DiffView(
   listState: LazyListState,
   onHeaderClick: (fileIndex: Int) -> Unit,
   files: List<FileDiff>,
-  review: ReviewSnapshot,
+  placements: ReviewPlacements,
+  draftTarget: DraftTarget?,
   loadId: Long,
   modifier: Modifier = Modifier,
 ) {
   val currentOnHeaderClick by rememberUpdatedState(onHeaderClick)
   val actions = LocalReviewActions.current
   val typography = LocalDiffTypography.current
-  val shown = review.placements.loadId == loadId
-  val placements = review.placements
-  val draft = if (shown) review.draft else null
-  val draftTarget = (draft?.target as? DraftTarget.NewThread)?.placement
-  val draftLinePos = remember(draftTarget) { (draftTarget as? Placement.OnLine)?.location?.let { linePosition(it.fileIndex, it.hunkIndex, it.lineIndex) } ?: -1L }
-  val draftFileIndex = remember(draftTarget) { (draftTarget as? Placement.OnFile)?.fileIndex ?: -1 }
+  val shown = placements.loadId == loadId
+  val draft = if (shown) draftTarget else null
+  val draftPlacement = (draft as? DraftTarget.NewThread)?.placement
+  val draftLinePos = remember(draftPlacement) { (draftPlacement as? Placement.OnLine)?.location?.let { linePosition(it.fileIndex, it.hunkIndex, it.lineIndex) } ?: -1L }
+  val draftFileIndex = remember(draftPlacement) { (draftPlacement as? Placement.OnFile)?.fileIndex ?: -1 }
   val hasLineThreads = shown && placements.byLine.isNotEmpty()
   val hoveredKey = remember { mutableStateOf<String?>(null) }
   val onAddComment: ((DiffRow.Line) -> Unit)? = remember(files, actions) {
@@ -153,7 +153,7 @@ fun DiffView(
           item(key = "n$fileIndex", contentType = NOTES_CONTENT_TYPE) {
             NoteStack(
               threads = (if (shown) placements.byFile[fileIndex] else null).orEmpty(),
-              draft = draft,
+              draftTarget = draft,
               composeNew = draftFileIndex == fileIndex,
             )
           }

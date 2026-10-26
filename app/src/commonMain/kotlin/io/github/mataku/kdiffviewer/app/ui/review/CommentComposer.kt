@@ -27,14 +27,13 @@ import io.github.mataku.kdiffviewer.app.ui.MacTextArea
 
 @Composable
 fun CommentComposer(
-  text: String,
   submitLabel: String,
   onTextChange: (String) -> Unit,
   onSubmit: () -> Unit,
   onCancel: () -> Unit,
 ) {
   val focusRequester = remember { FocusRequester() }
-  val latestText by rememberUpdatedState(text)
+  val draftText = LocalDraftText.current
   val latestSubmit by rememberUpdatedState(onSubmit)
   val latestCancel by rememberUpdatedState(onCancel)
   LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -50,7 +49,7 @@ fun CommentComposer(
           }
 
           event.isMetaPressed && (event.key == Key.Enter || event.key == Key.NumPadEnter) -> {
-            if (latestText.isNotBlank()) latestSubmit()
+            if (draftText.value.isNotBlank()) latestSubmit()
             true
           }
 
@@ -59,6 +58,7 @@ fun CommentComposer(
       },
     verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
+    val text = draftText.value
     MacTextArea(
       value = text,
       onValueChange = onTextChange,

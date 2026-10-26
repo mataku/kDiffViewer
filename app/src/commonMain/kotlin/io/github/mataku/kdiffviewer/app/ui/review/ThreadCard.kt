@@ -25,7 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.mataku.kdiffviewer.app.review.Draft
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.ui.DiffColors
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
@@ -50,11 +49,11 @@ private class CardStyles(colors: DiffColors) {
 }
 
 @Composable
-fun ThreadCard(thread: ReviewThread, draft: Draft?) {
+fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
   val colors = LocalDiffColors.current
   val styles = remember(colors) { CardStyles(colors) }
   var expanded by remember(thread.id) { mutableStateOf(false) }
-  val collapsed = thread.resolved && !expanded && !draft.touches(thread)
+  val collapsed = thread.resolved && !expanded && !draftTarget.touches(thread)
   val cardModifier = Modifier
     .fillMaxWidth()
     .background(colors.threadBackground, CardShape)
@@ -86,14 +85,12 @@ fun ThreadCard(thread: ReviewThread, draft: Draft?) {
         snapshot.forEach { line -> BasicText(text = line, style = code) }
       }
     }
-    val draftTarget = draft?.target
     thread.comments.forEach { comment ->
-      val editDraft = if (draftTarget is DraftTarget.Edit && draftTarget.commentId == comment.id) draft else null
-      CommentView(comment, editDraft, actions, styles, colors)
+      val editing = draftTarget is DraftTarget.Edit && draftTarget.commentId == comment.id
+      CommentView(comment, editing, actions, styles, colors)
     }
     if (draftTarget is DraftTarget.Reply && draftTarget.threadId == thread.id && actions != null) {
       CommentComposer(
-        text = draft.text,
         submitLabel = "Reply",
         onTextChange = actions::updateDraft,
         onSubmit = actions::submitDraft,
@@ -111,14 +108,14 @@ fun ThreadCard(thread: ReviewThread, draft: Draft?) {
   }
 }
 
-internal fun Draft?.touches(thread: ReviewThread): Boolean = when (val target = this?.target) {
+internal fun DraftTarget?.touches(thread: ReviewThread): Boolean = when (val target = this) {
   is DraftTarget.Reply -> target.threadId == thread.id
   is DraftTarget.Edit -> thread.comments.any { it.id == target.commentId }
   else -> false
 }
 
 @Composable
-private fun CommentView(comment: Comment, editDraft: Draft?, actions: ReviewActions?, styles: CardStyles, colors: DiffColors) {
+private fun CommentView(comment: Comment, editing: Boolean, actions: ReviewActions?, styles: CardStyles, colors: DiffColors) {
   val isOwn = comment.author == Author.User
   Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -135,9 +132,8 @@ private fun CommentView(comment: Comment, editDraft: Draft?, actions: ReviewActi
         LinkText("Delete", styles.link) { actions?.delete(comment.id) }
       }
     }
-    if (editDraft != null && actions != null) {
+    if (editing && actions != null) {
       CommentComposer(
-        text = editDraft.text,
         submitLabel = "Save",
         onTextChange = actions::updateDraft,
         onSubmit = actions::submitDraft,

@@ -95,6 +95,20 @@ class ReviewStateTest {
   }
 
   @Test
+  fun typingKeepsPlacementsAndTarget() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 0)
+    val target = DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1)))
+    state.startDraft(target)
+    val before = state.snapshot.value
+    state.updateDraft("abc")
+    val after = state.snapshot.value
+    assertTrue(before.placements === after.placements)
+    assertEquals(target, after.draft?.target)
+    assertEquals("abc", after.draft?.text)
+  }
+
+  @Test
   fun blankDraftIsReplaced() = runTest(StandardTestDispatcher()) {
     val state = newState()
     state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))

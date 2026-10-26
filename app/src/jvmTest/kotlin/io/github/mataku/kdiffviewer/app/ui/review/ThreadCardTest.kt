@@ -1,6 +1,8 @@
 package io.github.mataku.kdiffviewer.app.ui.review
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
@@ -16,7 +18,6 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.withKeyDown
-import io.github.mataku.kdiffviewer.app.review.Draft
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Author
@@ -66,8 +67,8 @@ class ThreadCardTest {
   @Test
   fun resolvedThreadWithReplyDraftIsShownExpanded() = runComposeUiTest {
     setContent {
-      CompositionLocalProvider(LocalReviewActions provides FakeActions()) {
-        ThreadCard(thread(resolved = true), Draft(DraftTarget.Reply("t1"), "typing"))
+      CompositionLocalProvider(LocalReviewActions provides FakeActions(), LocalDraftText provides mutableStateOf("typing")) {
+        ThreadCard(thread(resolved = true), DraftTarget.Reply("t1"))
       }
     }
     onNodeWithTag("thread-t1-collapsed").assertDoesNotExist()
@@ -77,8 +78,8 @@ class ThreadCardTest {
   @Test
   fun resolvedThreadWithEditDraftIsShownExpanded() = runComposeUiTest {
     setContent {
-      CompositionLocalProvider(LocalReviewActions provides FakeActions()) {
-        ThreadCard(thread(resolved = true), Draft(DraftTarget.Edit("c1"), "typing"))
+      CompositionLocalProvider(LocalReviewActions provides FakeActions(), LocalDraftText provides mutableStateOf("typing")) {
+        ThreadCard(thread(resolved = true), DraftTarget.Edit("c1"))
       }
     }
     onNodeWithTag("thread-t1-collapsed").assertDoesNotExist()
@@ -114,8 +115,8 @@ class ThreadCardTest {
   @Test
   fun replyDraftShowsComposerInsideCard() = runComposeUiTest {
     setContent {
-      CompositionLocalProvider(LocalReviewActions provides FakeActions()) {
-        ThreadCard(thread(), Draft(DraftTarget.Reply("t1"), "hi"))
+      CompositionLocalProvider(LocalReviewActions provides FakeActions(), LocalDraftText provides mutableStateOf("hi")) {
+        ThreadCard(thread(), DraftTarget.Reply("t1"))
       }
     }
     onNodeWithTag("comment-composer").assertIsDisplayed()
@@ -155,7 +156,7 @@ class ThreadCardTest {
     var submits = 0
     var cancels = 0
     setContent {
-      CommentComposer("hello", "Comment", onTextChange = {}, onSubmit = { submits++ }, onCancel = { cancels++ })
+      Composer("hello", onTextChange = {}, onSubmit = { submits++ }, onCancel = { cancels++ })
     }
     onNodeWithTag("comment-composer").performKeyInput {
       withKeyDown(Key.MetaLeft) { pressKey(Key.Enter) }
@@ -169,15 +170,22 @@ class ThreadCardTest {
   fun submitDisabledWhenBlank() = runComposeUiTest {
     var text = "  "
     setContent {
-      CommentComposer(text, "Comment", onTextChange = { text = it }, onSubmit = {}, onCancel = {})
+      Composer(text, onTextChange = { text = it }, onSubmit = {}, onCancel = {})
     }
     onNode(hasText("Comment")).assertIsNotEnabled()
   }
 
   @Test
   fun submitEnabledWhenNotBlank() = runComposeUiTest {
-    setContent { CommentComposer("x", "Comment", onTextChange = {}, onSubmit = {}, onCancel = {}) }
+    setContent { Composer("x", onTextChange = {}, onSubmit = {}, onCancel = {}) }
     onNode(hasText("Comment")).assertIsEnabled()
+  }
+
+  @Composable
+  private fun Composer(text: String, onTextChange: (String) -> Unit, onSubmit: () -> Unit, onCancel: () -> Unit) {
+    CompositionLocalProvider(LocalDraftText provides mutableStateOf(text)) {
+      CommentComposer("Comment", onTextChange = onTextChange, onSubmit = onSubmit, onCancel = onCancel)
+    }
   }
 
   @Test
@@ -193,8 +201,8 @@ class ThreadCardTest {
   fun editDraftShowsComposerInPlaceOfBody() = runComposeUiTest {
     val actions = FakeActions()
     setContent {
-      CompositionLocalProvider(LocalReviewActions provides actions) {
-        ThreadCard(thread(), Draft(DraftTarget.Edit("c1"), "edited text"))
+      CompositionLocalProvider(LocalReviewActions provides actions, LocalDraftText provides mutableStateOf("edited text")) {
+        ThreadCard(thread(), DraftTarget.Edit("c1"))
       }
     }
     onNodeWithTag("comment-composer").assertIsDisplayed()

@@ -29,8 +29,7 @@ sealed interface DraftTarget {
 
 data class Draft(val target: DraftTarget, val text: String)
 
-fun ReviewPlacements.notesFiles(draft: Draft?): Set<Int> {
-  val target = draft?.target
+fun ReviewPlacements.notesFiles(target: DraftTarget?): Set<Int> {
   val draftFile = if (target is DraftTarget.NewThread) (target.placement as? Placement.OnFile)?.fileIndex else null
   if (draftFile == null) return byFile.keys
   return byFile.keys + draftFile

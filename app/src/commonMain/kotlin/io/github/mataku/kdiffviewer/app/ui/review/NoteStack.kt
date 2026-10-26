@@ -13,23 +13,22 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.mataku.kdiffviewer.app.review.Draft
+import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
 import io.github.mataku.kdiffviewer.core.review.ReviewThread
 
 @Composable
-fun NoteStack(threads: List<ReviewThread>, draft: Draft?, composeNew: Boolean, modifier: Modifier = Modifier) {
+fun NoteStack(threads: List<ReviewThread>, draftTarget: DraftTarget?, composeNew: Boolean, modifier: Modifier = Modifier) {
   val actions = LocalReviewActions.current
   Column(
     modifier = modifier.fillMaxWidth().padding(vertical = 6.dp),
     verticalArrangement = Arrangement.spacedBy(6.dp),
   ) {
     threads.forEach { thread ->
-      key(thread.id) { ThreadCard(thread, if (draft.touches(thread)) draft else null) }
+      key(thread.id) { ThreadCard(thread, if (draftTarget.touches(thread)) draftTarget else null) }
     }
-    if (composeNew && draft != null && actions != null) {
+    if (composeNew && draftTarget != null && actions != null) {
       CommentComposer(
-        text = draft.text,
         submitLabel = "Comment",
         onTextChange = actions::updateDraft,
         onSubmit = actions::submitDraft,
@@ -40,11 +39,11 @@ fun NoteStack(threads: List<ReviewThread>, draft: Draft?, composeNew: Boolean, m
 }
 
 @Composable
-fun OrphanSection(threads: List<ReviewThread>, draft: Draft?, modifier: Modifier = Modifier) {
+fun OrphanSection(threads: List<ReviewThread>, draftTarget: DraftTarget?, modifier: Modifier = Modifier) {
   val colors = LocalDiffColors.current
   val style = remember(colors) { TextStyle(color = colors.mutedText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
   Column(modifier = modifier.fillMaxWidth().padding(top = 12.dp)) {
     BasicText(text = "Comments on files no longer in the diff", style = style)
-    NoteStack(threads, draft, composeNew = false)
+    NoteStack(threads, draftTarget, composeNew = false)
   }
 }

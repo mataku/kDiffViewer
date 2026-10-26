@@ -22,11 +22,11 @@ class ReviewPlacementsTest {
   fun notesFilesCombinesFileThreadsAndFileDraft() {
     val thread = ReviewThread("t", Anchor.File("a"), emptyList(), false, false)
     val placements = ReviewPlacements(1L, emptyMap(), mapOf(2 to listOf(thread)), emptyList())
-    val fileDraft = Draft(DraftTarget.NewThread(Anchor.File("b"), Placement.OnFile(5)), "x")
-    val orphanDraft = Draft(DraftTarget.NewThread(Anchor.File("b"), Placement.Orphan), "x")
+    val fileDraft = DraftTarget.NewThread(Anchor.File("b"), Placement.OnFile(5))
+    val orphanDraft = DraftTarget.NewThread(Anchor.File("b"), Placement.Orphan)
     assertEquals(setOf(2), placements.notesFiles(null))
     assertEquals(setOf(2, 5), placements.notesFiles(fileDraft))
     assertEquals(setOf(2), placements.notesFiles(orphanDraft))
-    assertEquals(setOf(2), placements.notesFiles(Draft(DraftTarget.Reply("t"), "x")))
+    assertEquals(setOf(2), placements.notesFiles(DraftTarget.Reply("t")))
   }
 }

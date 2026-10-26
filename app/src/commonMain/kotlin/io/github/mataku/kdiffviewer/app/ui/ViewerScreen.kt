@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +46,7 @@ import io.github.mataku.kdiffviewer.app.diffLayoutOf
 import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.notesFiles
+import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftText
 import io.github.mataku.kdiffviewer.app.visibleTree
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.HeadRef
@@ -65,7 +67,8 @@ fun ViewerScreen(
   val restorer = remember { ScrollRestorer() }
   val shown = review.placements.loadId == state.loadId
   val draftTarget = review.draft?.target
-  val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(review.draft) else emptySet() }
+  val draftText = rememberUpdatedState(review.draft?.text.orEmpty())
+  val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(draftTarget) else emptySet() }
   val hasOrphans = shown && review.placements.orphans.isNotEmpty()
   val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, notesFiles, hasOrphans) {
     diffLayoutOf(state, notesFiles, hasOrphans)
@@ -164,21 +167,24 @@ fun ViewerScreen(
             style = TextStyle(color = colors.mutedText, fontSize = 14.sp),
           )
         } else {
-          DiffView(
-            rows = state.rows,
-            layout = layout,
-            highlights = state.highlights,
-            listState = listState,
-            files = state.files,
-            review = review,
-            loadId = state.loadId,
-            onHeaderClick = { fileIndex ->
-              val header = layout.headerVisibleIndex(fileIndex)
-              val pinned = listState.firstVisibleItemIndex >= header
-              onToggleFile(fileIndex)
-              if (pinned) listState.requestScrollToItem(header)
-            },
-          )
+          CompositionLocalProvider(LocalDraftText provides draftText) {
+            DiffView(
+              rows = state.rows,
+              layout = layout,
+              highlights = state.highlights,
+              listState = listState,
+              files = state.files,
+              placements = review.placements,
+              draftTarget = draftTarget,
+              loadId = state.loadId,
+              onHeaderClick = { fileIndex ->
+                val header = layout.headerVisibleIndex(fileIndex)
+                val pinned = listState.firstVisibleItemIndex >= header
+                onToggleFile(fileIndex)
+                if (pinned) listState.requestScrollToItem(header)
+              },
+            )
+          }
         }
         if (state.status == LoadStatus.Loading) {
           LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))

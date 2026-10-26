@@ -1,5 +1,7 @@
 package io.github.mataku.kdiffviewer.app.ui.review
 
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 
@@ -18,3 +20,7 @@ interface ReviewActions {
 }
 
 val LocalReviewActions = staticCompositionLocalOf<ReviewActions?> { null }
+
+private val NoDraftText: State<String> = mutableStateOf("")
+
+val LocalDraftText = staticCompositionLocalOf { NoDraftText }
