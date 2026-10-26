@@ -128,8 +128,15 @@ private fun CommentView(comment: Comment, editing: Boolean, actions: ReviewActio
         }
       }
       if (isOwn) {
-        LinkText("Edit", styles.link) { actions?.startDraft(DraftTarget.Edit(comment.id)) }
-        LinkText("Delete", styles.link) { actions?.delete(comment.id) }
+        var confirmingDelete by remember(comment.id) { mutableStateOf(false) }
+        if (confirmingDelete) {
+          BasicText("Delete?", style = styles.collapsed)
+          LinkText("Delete", styles.link) { actions?.delete(comment.id) }
+          LinkText("Cancel", styles.link) { confirmingDelete = false }
+        } else {
+          LinkText("Edit", styles.link) { actions?.startDraft(DraftTarget.Edit(comment.id)) }
+          LinkText("Delete", styles.link) { confirmingDelete = true }
+        }
       }
     }
     if (editing && actions != null) {
