@@ -32,6 +32,8 @@ The app bundles the `kdv` command. Link it onto your `PATH`:
 ln -s /Applications/kDiffViewer.app/Contents/app/resources/kdv /usr/local/bin/kdv
 ```
 
+If `/usr/local/bin` is not writable by your user, run the command with `sudo`, or link `kdv` into another directory on your `PATH` (for example `~/.local/bin`).
+
 `kdv ./repo` opens a repository in kDiffViewer, and `kdv` with no argument opens the current directory. Bare words are commands (`thread`, `reload`, `windows`, `agent-guide`), so write relative paths as `./repo`. Run `kdv --help` for the full list.
 
 ## Coding agents
