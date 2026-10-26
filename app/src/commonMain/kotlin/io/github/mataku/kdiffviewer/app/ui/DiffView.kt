@@ -153,10 +153,9 @@ private fun LineRow(row: DiffRow.Line, slot: HighlightSlot?) {
     LineKind.Removed -> Triple(colors.removedBackground, colors.removedLineNumberBackground, "-")
     else -> Triple(colors.background, colors.background, " ")
   }
-  val tag = "line-number-${row.fileIndex}-${row.hunkIndex}-${row.lineIndex}"
   Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-    LineNumberCell(line.oldLineNo, numberBackground, typography, "$tag-old")
-    LineNumberCell(line.newLineNo, numberBackground, typography, "$tag-new")
+    LineNumberCell(line.oldLineNo, numberBackground, typography)
+    LineNumberCell(line.newLineNo, numberBackground, typography)
     Box(modifier = Modifier.width(16.dp).fillMaxHeight().background(contentBackground)) {
       BasicText(
         text = marker,
@@ -178,8 +177,8 @@ private fun LineRow(row: DiffRow.Line, slot: HighlightSlot?) {
 }
 
 @Composable
-private fun LineNumberCell(number: Int?, background: Color, typography: DiffTypography, tag: String) {
-  Box(modifier = Modifier.width(typography.lineNumberWidth).testTag(tag).fillMaxHeight().background(background).padding(end = 6.dp)) {
+private fun LineNumberCell(number: Int?, background: Color, typography: DiffTypography) {
+  Box(modifier = Modifier.width(typography.lineNumberWidth).fillMaxHeight().background(background).padding(end = 6.dp)) {
     BasicText(
       text = number?.toString().orEmpty(),
       modifier = Modifier.fillMaxWidth(),

@@ -422,8 +422,12 @@ class ViewerScreenTest {
 
   @Test
   fun lineNumberColumnWidensWithFontSize() = runComposeUiTest {
-    setContent { KdvTheme(darkTheme = false, fontSize = 24) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }
-    onNodeWithTag("line-number-0-0-0-old", useUnmergedTree = true).assertWidthIsEqualTo(96.dp)
+    var fontSize by mutableStateOf(24)
+    setContent { KdvTheme(darkTheme = false, fontSize = fontSize) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }
+    onAllNodesWithText("1", useUnmergedTree = true)[0].assertWidthIsEqualTo(90.dp)
+    fontSize = 12
+    waitForIdle()
+    onAllNodesWithText("1", useUnmergedTree = true)[0].assertWidthIsEqualTo(42.dp)
   }
 }
 
