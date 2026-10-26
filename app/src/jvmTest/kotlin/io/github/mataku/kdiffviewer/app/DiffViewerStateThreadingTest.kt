@@ -7,6 +7,7 @@ import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
@@ -48,6 +49,28 @@ class DiffViewerStateThreadingTest {
         }
         assertEquals(LoadStatus.Done, ui.status, "attempt $attempt")
         assertEquals(fileCount, ui.files.size, "attempt $attempt")
+      }
+    } finally {
+      scope.cancel()
+      dispatcher.close()
+    }
+  }
+
+  @Test
+  fun parsingOnDefaultDispatcherPublishesEveryFingerprint() {
+    val executor = Executors.newSingleThreadExecutor()
+    val dispatcher = executor.asCoroutineDispatcher()
+    val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    try {
+      repeat(20) { attempt ->
+        val state = DiffViewerState(source, scope, 1, loadContext = Dispatchers.Default)
+        runBlocking(dispatcher) { state.open(RepoPath("/repo")) }
+        val ui = runBlocking {
+          withTimeout(30_000) { state.uiState.first { it.status != LoadStatus.Loading } }
+        }
+        assertEquals(LoadStatus.Done, ui.status, "attempt $attempt")
+        assertEquals(fileCount, ui.files.size, "attempt $attempt")
+        assertEquals(ui.files.map { it.fingerprint() }, ui.fingerprints, "attempt $attempt")
       }
     } finally {
       scope.cancel()
