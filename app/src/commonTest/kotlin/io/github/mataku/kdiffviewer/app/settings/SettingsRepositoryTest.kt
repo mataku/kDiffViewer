@@ -44,6 +44,20 @@ class SettingsRepositoryTest {
   }
 
   @Test
+  fun throwingReadGivesDefaultsAndError() = runTest(StandardTestDispatcher()) {
+    val storage = FakeSettingsStorage(failOnRead = true)
+    val repository = repository(storage)
+
+    assertEquals(Settings(), repository.settings.value)
+    assertTrue(repository.loadError)
+
+    repository.update { it.copy(fontSize = 14) }
+    advanceUntilIdle()
+
+    assertEquals(listOf("backup", "write"), storage.events)
+  }
+
+  @Test
   fun updateAppliesImmediatelyAndWritesInBackground() = runTest(StandardTestDispatcher()) {
     val storage = FakeSettingsStorage()
     val repository = repository(storage)

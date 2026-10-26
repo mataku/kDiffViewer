@@ -29,9 +29,15 @@ class SettingsRepository(
   private var lastWritten: String? = null
 
   init {
-    val text = storage.read()
+    var readFailed = false
+    val text = try {
+      storage.read()
+    } catch (e: Exception) {
+      readFailed = true
+      null
+    }
     val decoded = text?.let(SettingsCodec::decode)
-    loadError = text != null && decoded == null
+    loadError = readFailed || (text != null && decoded == null)
     needsBackup = loadError
     state = MutableStateFlow(decoded ?: Settings())
     settings = state

@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.app.settings
 
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
@@ -11,7 +12,11 @@ import kotlin.io.path.readText
 import kotlin.io.path.writeText
 
 class FileSettingsStorage(private val file: Path) : SettingsStorage {
-  override fun read(): String? = if (file.exists()) file.readText() else null
+  override fun read(): String? = try {
+    file.readText()
+  } catch (e: NoSuchFileException) {
+    null
+  }
 
   override fun write(text: String) {
     val dir = file.toAbsolutePath().parent
