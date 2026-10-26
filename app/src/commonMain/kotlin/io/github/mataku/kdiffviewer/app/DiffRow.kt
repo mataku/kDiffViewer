@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app
 
+import androidx.compose.runtime.Immutable
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.DiffStats
@@ -7,21 +8,26 @@ import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.stats
 
+@Immutable
 sealed interface DiffRow {
   val key: String
 
+  @Immutable
   data class FileHeader(val fileIndex: Int, val file: FileDiff, val stats: DiffStats) : DiffRow {
     override val key: String get() = "f$fileIndex"
   }
 
+  @Immutable
   data class HunkHeader(val fileIndex: Int, val hunkIndex: Int, val hunk: Hunk) : DiffRow {
     override val key: String get() = "h$fileIndex-$hunkIndex"
   }
 
+  @Immutable
   data class Line(val fileIndex: Int, val hunkIndex: Int, val lineIndex: Int, val line: DiffLine) : DiffRow {
     override val key: String get() = "l$fileIndex-$hunkIndex-$lineIndex"
   }
 
+  @Immutable
   data class Placeholder(val fileIndex: Int, val message: String) : DiffRow {
     override val key: String get() = "p$fileIndex"
   }

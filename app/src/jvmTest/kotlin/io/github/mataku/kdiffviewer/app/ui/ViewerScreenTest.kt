@@ -308,6 +308,17 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun loadingIndicatorDoesNotShiftTheDiffList() = runComposeUiTest {
+    var ui by mutableStateOf(stateOf(listOf(modified("a.kt"))))
+    setContent { ViewerScreen(ui, {}) }
+    val doneTop = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot.top
+    ui = ui.copy(status = LoadStatus.Loading)
+    waitForIdle()
+    val loadingTop = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot.top
+    assertEquals(doneTop, loadingTop)
+  }
+
+  @Test
   fun treeSpansFullHeightAndHeaderSitsRightOfIt() = runComposeUiTest {
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {

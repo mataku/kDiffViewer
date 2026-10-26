@@ -122,9 +122,6 @@ fun ViewerScreen(
         )
       }
       Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-      if (state.status == LoadStatus.Loading) {
-        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-      }
       Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
         if (state.status == LoadStatus.Done && state.files.isEmpty()) {
           BasicText(
@@ -134,6 +131,9 @@ fun ViewerScreen(
           )
         } else {
           DiffView(rows = state.rows, highlights = state.highlights, listState = listState)
+        }
+        if (state.status == LoadStatus.Loading) {
+          LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
         }
       }
     }

@@ -1,8 +1,10 @@
 package io.github.mataku.kdiffviewer.app
 
+import androidx.compose.runtime.Immutable
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.displayPath
 
+@Immutable
 data class TreeRow(val depth: Int, val name: String, val fileIndex: Int?)
 
 private class TreeNode {
@@ -74,6 +76,7 @@ class FileTreeBuilder {
 
 fun buildFileTree(files: List<FileDiff>): List<TreeRow> = FileTreeBuilder().apply { add(files) }.rows()
 
+@Immutable
 data class TreeEntry(val row: TreeRow, val directoryPath: String?, val collapsed: Boolean)
 
 fun visibleTree(rows: List<TreeRow>, collapsed: Set<String>): List<TreeEntry> {

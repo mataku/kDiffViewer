@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app
 
+import androidx.compose.runtime.Immutable
 import io.github.mataku.kdiffviewer.app.highlight.HighlightEntry
 import io.github.mataku.kdiffviewer.app.highlight.HighlightPipeline
 import io.github.mataku.kdiffviewer.app.highlight.HighlightRun
@@ -23,19 +24,28 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.concurrent.Volatile
 
+@Immutable
 sealed interface LoadStatus {
   data object Idle : LoadStatus
   data object Loading : LoadStatus
   data object Done : LoadStatus
+
+  @Immutable
   data class Failed(val error: ViewerError) : LoadStatus
 }
 
+@Immutable
 sealed interface ViewerError {
   data object GitNotFound : ViewerError
+
+  @Immutable
   data class NotARepository(val path: String) : ViewerError
+
+  @Immutable
   data class GitFailed(val stderr: String, val exitCode: Int? = null) : ViewerError
 }
 
+@Immutable
 data class ViewerUiState(
   val repo: RepoPath? = null,
   val status: LoadStatus = LoadStatus.Idle,
@@ -53,6 +63,7 @@ class DiffViewerState(
   private val scope: CoroutineScope,
   private val batchWindowMillis: Long = 16,
   private val highlightPipeline: HighlightPipeline<*>? = null,
+  private val reloadHoldMillis: Long = 300,
 ) {
   private val mutableUiState = MutableStateFlow(ViewerUiState())
   val uiState: StateFlow<ViewerUiState> = mutableUiState.asStateFlow()
@@ -78,13 +89,18 @@ class DiffViewerState(
       return
     }
     val previous = mutableUiState.value
-    mutableUiState.value = ViewerUiState(
-      repo = repo,
-      status = LoadStatus.Loading,
-      loadId = loadId,
-      head = previous.head.takeIf { previous.repo == repo },
-    )
-    val accumulator = LoadAccumulator()
+    val keepPrevious = previous.repo == repo && previous.status !is LoadStatus.Failed
+    mutableUiState.value = if (keepPrevious) {
+      previous.copy(status = LoadStatus.Loading)
+    } else {
+      ViewerUiState(
+        repo = repo,
+        status = LoadStatus.Loading,
+        loadId = loadId,
+        head = previous.head.takeIf { previous.repo == repo },
+      )
+    }
+    val accumulator = LoadAccumulator(loadId, holding = keepPrevious)
     val run = highlightPipeline?.start(scope, repo)
     highlightRun = run
     loadJob = scope.launch {
@@ -97,12 +113,25 @@ class DiffViewerState(
         }
         updateIfCurrent(token) { it.copy(head = head) }
       }
+      val holdJob = if (keepPrevious) {
+        launch {
+          delay(reloadHoldMillis)
+          accumulator.holding = false
+          updateIfCurrent(token) { it.withContentOf(accumulator, accumulator.tree.rowsIfDue()) }
+        }
+      } else {
+        null
+      }
       try {
         load(diffSource, repo, token, accumulator, run)
-        updateIfCurrent(token) { it.copy(status = LoadStatus.Done, tree = accumulator.tree.rows()) }
+        holdJob?.cancel()
+        updateIfCurrent(token) { it.withContentOf(accumulator, accumulator.tree.rows()).copy(status = LoadStatus.Done) }
       } catch (e: Throwable) {
         ensureActive()
-        updateIfCurrent(token) { it.copy(status = LoadStatus.Failed(e.toViewerError()), tree = accumulator.tree.rows()) }
+        holdJob?.cancel()
+        updateIfCurrent(token) {
+          it.withContentOf(accumulator, accumulator.tree.rows()).copy(status = LoadStatus.Failed(e.toViewerError()))
+        }
       }
     }
   }
@@ -165,17 +194,20 @@ class DiffViewerState(
   private fun publish(batch: List<FileDiff>, token: Any, accumulator: LoadAccumulator, run: HighlightRun?) {
     val entries = accumulator.append(batch)
     run?.submit(entries)
-    val highlights = accumulator.highlights.snapshot()
-    val files = accumulator.files.snapshot()
-    val rows = accumulator.rows.snapshot()
-    val headerIndex = accumulator.fileHeaderRowIndex.snapshot()
-    val tree = accumulator.tree.rowsIfDue()
-    updateIfCurrent(token) { current ->
-      current.copy(files = files, rows = rows, fileHeaderRowIndex = headerIndex, tree = tree, highlights = highlights)
-    }
+    if (accumulator.holding) return
+    updateIfCurrent(token) { it.withContentOf(accumulator, accumulator.tree.rowsIfDue()) }
   }
 
-  private class LoadAccumulator {
+  private fun ViewerUiState.withContentOf(accumulator: LoadAccumulator, tree: List<TreeRow>): ViewerUiState = copy(
+    files = accumulator.files.snapshot(),
+    rows = accumulator.rows.snapshot(),
+    fileHeaderRowIndex = accumulator.fileHeaderRowIndex.snapshot(),
+    tree = tree,
+    highlights = accumulator.highlights.snapshot(),
+    loadId = accumulator.loadId,
+  )
+
+  private class LoadAccumulator(val loadId: Long, var holding: Boolean) {
     val files = AppendBuffer<FileDiff>()
     val rows = AppendBuffer<DiffRow>()
     val fileHeaderRowIndex = AppendBuffer<Int>()
