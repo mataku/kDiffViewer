@@ -103,6 +103,7 @@ private fun runApplication(
       scope = scope,
       highlightPipeline = backend?.highlightPipeline,
       missingSourceError = missingSourceError,
+      loadContext = Dispatchers.Default,
     ).also { viewerState ->
       parseLaunchArgs(args, System.getProperty("user.dir"))?.let(viewerState::open)
     }
@@ -175,8 +176,16 @@ private fun runApplication(
         val status = uiState.status
         when {
           uiState.repo == null -> OpenRepositoryScreen(onOpen = openFolder)
+
           status is LoadStatus.Failed -> ErrorScreen(status.error, onOpenAnother = openFolder, onOpenSettings = { openSettings() })
-          else -> ViewerScreen(uiState, onReload = state::reload, titleBarInset = titleBarInset)
+
+          else -> ViewerScreen(
+            uiState,
+            onReload = state::reload,
+            titleBarInset = titleBarInset,
+            onToggleFile = state::toggleCollapsed,
+            onExpandFile = state::expand,
+          )
         }
       }
     }

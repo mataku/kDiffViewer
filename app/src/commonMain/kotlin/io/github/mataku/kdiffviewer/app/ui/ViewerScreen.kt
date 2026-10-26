@@ -22,7 +22,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -42,11 +41,11 @@ import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ScrollRestorer
 import io.github.mataku.kdiffviewer.app.ViewerUiState
+import io.github.mataku.kdiffviewer.app.diffLayoutOf
 import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.visibleTree
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.HeadRef
-import kotlinx.coroutines.launch
 
 @Composable
 fun ViewerScreen(
@@ -54,15 +53,18 @@ fun ViewerScreen(
   onReload: () -> Unit,
   modifier: Modifier = Modifier,
   titleBarInset: Dp = 0.dp,
+  onToggleFile: (Int) -> Unit = {},
+  onExpandFile: (Int) -> Unit = {},
 ) {
   val colors = LocalDiffColors.current
   val listState = rememberLazyListState()
-  val scope = rememberCoroutineScope()
   val currentState by rememberUpdatedState(state)
   val restorer = remember { ScrollRestorer() }
+  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed) { diffLayoutOf(state) }
+  val currentLayout by rememberUpdatedState(layout)
   LaunchedEffect(listState) {
-    snapshotFlow { currentState to listState.firstVisibleItemIndex }.collect { (ui, firstVisible) ->
-      restorer.next(ui, firstVisible)?.let { listState.scrollToItem(it) }
+    snapshotFlow { Triple(currentState, currentLayout, listState.firstVisibleItemIndex) }.collect { (ui, uiLayout, firstVisible) ->
+      restorer.next(ui, uiLayout, firstVisible)?.let { listState.scrollToItem(it) }
     }
   }
   var collapsed by remember(state.repo) { mutableStateOf(emptySet<String>()) }
@@ -82,7 +84,8 @@ fun ViewerScreen(
       entries = treeEntries,
       topInset = titleBarInset + 12.dp,
       onFileClick = { fileIndex ->
-        scope.launch { listState.scrollToItem(state.fileHeaderRowIndex[fileIndex]) }
+        onExpandFile(fileIndex)
+        listState.requestScrollToItem(layout.headerVisibleIndex(fileIndex))
       },
       onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
       statsOf = statsOf,
@@ -152,7 +155,18 @@ fun ViewerScreen(
             style = TextStyle(color = colors.mutedText, fontSize = 14.sp),
           )
         } else {
-          DiffView(rows = state.rows, highlights = state.highlights, listState = listState)
+          DiffView(
+            rows = state.rows,
+            layout = layout,
+            highlights = state.highlights,
+            listState = listState,
+            onHeaderClick = { fileIndex ->
+              val header = layout.headerVisibleIndex(fileIndex)
+              val pinned = listState.firstVisibleItemIndex >= header
+              onToggleFile(fileIndex)
+              if (pinned) listState.requestScrollToItem(header)
+            },
+          )
         }
         if (state.status == LoadStatus.Loading) {
           LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))

@@ -29,13 +29,16 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import io.github.mataku.compose.highlight.core.HighlightSpan
+import io.github.mataku.kdiffviewer.app.CollapsedFile
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.buildFileTree
+import io.github.mataku.kdiffviewer.app.fingerprint
 import io.github.mataku.kdiffviewer.app.flattenRows
 import io.github.mataku.kdiffviewer.app.highlight.FileHighlight
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
+import io.github.mataku.kdiffviewer.app.isCollapsed
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -44,6 +47,7 @@ import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.displayPath
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -54,8 +58,15 @@ class ViewerScreenTest {
   private fun stateOf(files: List<FileDiff>, status: LoadStatus = LoadStatus.Done): ViewerUiState {
     val rows = flattenRows(files)
     val headers = rows.mapIndexedNotNull { i, r -> if (r is DiffRow.FileHeader) i else null }
-    return ViewerUiState(RepoPath("/repo"), status, files, rows, headers, buildFileTree(files))
+    return ViewerUiState(RepoPath("/repo"), status, files, rows, headers, buildFileTree(files), fingerprints = files.map { it.fingerprint() })
   }
+
+  private fun ViewerUiState.toggled(fileIndex: Int): ViewerUiState {
+    val entry = CollapsedFile(files[fileIndex].displayPath, fingerprints[fileIndex])
+    return copy(collapsed = if (entry in collapsed) collapsed - entry else collapsed + entry)
+  }
+
+  private fun ViewerUiState.expanded(fileIndex: Int): ViewerUiState = if (isCollapsed(fileIndex)) toggled(fileIndex) else this
 
   private fun modified(path: String, lines: Int = 2): FileDiff {
     val body = buildList {
@@ -112,7 +123,8 @@ class ViewerScreenTest {
     val badge = onNodeWithTag("file-badge-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
     val stats = onNodeWithTag("file-stats-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
     assertTrue(stats.left >= badge.right, "stats=$stats badge=$badge")
-    assertTrue(kotlin.math.abs(header.right - stats.right) <= 1f, "stats=$stats header=$header")
+    val padding = with(density) { 12.dp.toPx() }
+    assertTrue(kotlin.math.abs(header.right - padding - stats.right) <= 1f, "stats=$stats header=$header")
   }
 
   @Test
@@ -473,6 +485,96 @@ class ViewerScreenTest {
     waitForIdle()
     onAllNodesWithText("1", useUnmergedTree = true)[0].assertWidthIsEqualTo(42.dp)
   }
+
+  @Test
+  fun clickingHeaderCollapsesAndExpandsFile() = runComposeUiTest {
+    var ui by mutableStateOf(stateOf(listOf(modified("a.kt"), modified("b.kt"))))
+    setContent { ViewerScreen(ui, {}, onToggleFile = { ui = ui.toggled(it) }) }
+    assertEquals(2, onAllNodesWithText("ONE").fetchSemanticsNodes().size)
+    onNodeWithTag("file-header-0").performClick()
+    waitForIdle()
+    assertEquals(1, onAllNodesWithText("ONE").fetchSemanticsNodes().size)
+    onNodeWithTag("file-header-1").assertIsDisplayed()
+    onNodeWithTag("file-header-0").performClick()
+    waitForIdle()
+    assertEquals(2, onAllNodesWithText("ONE").fetchSemanticsNodes().size)
+  }
+
+  @Test
+  fun chevronClickTogglesFile() = runComposeUiTest {
+    val toggled = mutableListOf<Int>()
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, onToggleFile = { toggled += it }) }
+    onNodeWithTag("file-chevron-0", useUnmergedTree = true).assertIsDisplayed()
+    onNodeWithTag("file-chevron-0", useUnmergedTree = true).performClick()
+    assertEquals(listOf(0), toggled)
+  }
+
+  @Test
+  fun clickingCollapsedFileInTreeExpandsAndShowsIt() = runComposeUiTest {
+    val files = (0 until 30).map { modified("f${it.toString().padStart(2, '0')}.kt", 20) }
+    var ui by mutableStateOf(stateOf(files).let { it.toggled(25) })
+    setContent { ViewerScreen(ui, {}, onExpandFile = { ui = ui.expanded(it) }) }
+    onNodeWithTag("file-tree").performScrollToNode(hasTestTag("tree-file-25"))
+    onNodeWithTag("tree-file-25").performClick()
+    waitForIdle()
+    assertFalse(ui.isCollapsed(25))
+    onNodeWithTag("file-header-25").assertIsDisplayed()
+    onNodeWithTag("file-header-0").assertDoesNotExist()
+  }
+
+  @Test
+  fun headerStaysPinnedWhileScrollingThroughFile() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("long.kt", 200), modified("next.kt"))), {}) }
+    onNodeWithTag("diff-list").performScrollToIndex(100)
+    waitForIdle()
+    onNodeWithTag("file-header-0").assertIsDisplayed()
+  }
+
+  @Test
+  fun nextHeaderStaysPinnedAfterCollapsingFirstFile() = runComposeUiTest {
+    var ui by mutableStateOf(stateOf(listOf(modified("a.kt", 5), modified("long.kt", 200), modified("next.kt"))))
+    setContent { ViewerScreen(ui, {}, onToggleFile = { ui = ui.toggled(it) }) }
+    onNodeWithTag("file-header-0").performClick()
+    waitForIdle()
+    repeat(30) {
+      onNodeWithTag("diff-list").performMouseInput { scroll(1f) }
+      waitForIdle()
+    }
+    onNodeWithTag("file-header-1").assertIsDisplayed()
+    assertPinnedAtTop("file-header-1")
+  }
+
+  @Test
+  fun collapsingPinnedHeaderKeepsItAtTop() = runComposeUiTest {
+    var ui by mutableStateOf(stateOf(listOf(modified("long.kt", 200), modified("next.kt"))))
+    setContent { ViewerScreen(ui, {}, onToggleFile = { ui = ui.toggled(it) }) }
+    onNodeWithTag("diff-list").performScrollToIndex(100)
+    waitForIdle()
+    onNodeWithTag("file-header-0").performClick()
+    waitForIdle()
+    assertPinnedAtTop("file-header-0")
+    onNodeWithTag("file-header-1").assertIsDisplayed()
+  }
+
+  @Test
+  fun collapsingLastFileAtBottomShowsContent() = runComposeUiTest {
+    val files = (0 until 30).map { modified("f${it.toString().padStart(2, '0')}.kt", 20) }
+    var ui by mutableStateOf(stateOf(files))
+    setContent { ViewerScreen(ui, {}, onToggleFile = { ui = ui.toggled(it) }) }
+    onNodeWithTag("diff-list").performScrollToIndex(ui.rows.lastIndex)
+    waitForIdle()
+    onNodeWithTag("file-header-29").performClick()
+    waitForIdle()
+    assertTrue(ui.isCollapsed(29))
+    onNodeWithTag("file-header-29").assertIsDisplayed()
+    onNodeWithTag("file-header-28").assertIsDisplayed()
+  }
+}
+
+private fun SemanticsNodeInteractionsProvider.assertPinnedAtTop(tag: String) {
+  val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+  val header = onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+  assertTrue(header.top - list.top in 0f..30f, "header=$header list=$list")
 }
 
 fun SemanticsNodeInteractionsProvider.lineText(text: String): AnnotatedString = onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode().config[SemanticsProperties.Text].single()
