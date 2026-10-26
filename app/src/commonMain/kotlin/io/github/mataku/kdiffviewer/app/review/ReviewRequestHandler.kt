@@ -18,6 +18,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonElement
 
+private const val DEFAULT_AGENT = "agent"
+
 class ReviewRequestHandler(
   private val review: ReviewState,
   private val reload: suspend () -> Long?,
@@ -51,9 +53,13 @@ class ReviewRequestHandler(
 
     Methods.THREAD_REPLY -> {
       val params = Codec.params<ThreadReplyParams>(request)
-      when (val result = review.reply(params.threadId, Author.Agent(params.author), params.body)) {
-        is ReviewResult.Ok -> ok(Codec.json.encodeToJsonElement(CommentDto.serializer(), result.value.toDto()))
-        is ReviewResult.Err -> reviewFailure(result.error)
+      if (params.body.isBlank()) {
+        Codec.failure(ErrorCodes.BAD_REQUEST, "Reply body is blank")
+      } else {
+        when (val result = review.reply(params.threadId, Author.Agent(params.author.ifBlank { DEFAULT_AGENT }), params.body)) {
+          is ReviewResult.Ok -> ok(Codec.json.encodeToJsonElement(CommentDto.serializer(), result.value.toDto()))
+          is ReviewResult.Err -> reviewFailure(result.error)
+        }
       }
     }
 

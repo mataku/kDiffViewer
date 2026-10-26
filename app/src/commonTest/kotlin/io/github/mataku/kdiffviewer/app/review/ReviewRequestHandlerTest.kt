@@ -150,6 +150,25 @@ class ReviewRequestHandlerTest {
   }
 
   @Test
+  fun threadReplyRejectsBlankBody() = runTest(StandardTestDispatcher()) {
+    val f = fixture()
+    f.addThread(0)
+    val response = Codec.decodeResponse(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to " \n")))
+    assertFalse(response.ok)
+    assertEquals(ErrorCodes.BAD_REQUEST, response.error?.code)
+    assertEquals("Reply body is blank", response.error?.message)
+    assertEquals(1, f.review.threads(true).single().comments.size)
+  }
+
+  @Test
+  fun threadReplyMapsBlankAuthorToAgent() = runTest(StandardTestDispatcher()) {
+    val f = fixture()
+    f.addThread(0)
+    val comment = resultOf<CommentDto>(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "done", "author" to " ")))
+    assertEquals(AuthorDto("agent", "agent"), comment.author)
+  }
+
+  @Test
   fun threadReplyUnknownThread() = runTest {
     val f = fixture()
     val response = Codec.decodeResponse(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t9", "body" to "x")))
