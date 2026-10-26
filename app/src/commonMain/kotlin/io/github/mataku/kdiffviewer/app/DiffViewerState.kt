@@ -96,7 +96,7 @@ class DiffViewerState(
   @Volatile
   private var currentLoad: Any? = null
 
-  fun open(repo: RepoPath) {
+  fun open(repo: RepoPath): Long {
     loadJob?.cancel()
     loadJob = null
     highlightRun?.cancel()
@@ -107,7 +107,7 @@ class DiffViewerState(
     val diffSource = source
     if (diffSource == null) {
       mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(missingSourceError), loadId = loadId)
-      return
+      return loadId
     }
     val previous = mutableUiState.value
     val keepPrevious = previous.repo == repo && previous.status !is LoadStatus.Failed
@@ -158,11 +158,12 @@ class DiffViewerState(
         }
       }
     }
+    return loadId
   }
 
-  fun reload() {
-    val repo = mutableUiState.value.repo ?: return
-    open(repo)
+  fun reload(): Long? {
+    val repo = mutableUiState.value.repo ?: return null
+    return open(repo)
   }
 
   fun setBackend(source: DiffSource?, highlightPipeline: HighlightPipeline<*>?, missingSourceError: ViewerError = ViewerError.GitNotFound) {

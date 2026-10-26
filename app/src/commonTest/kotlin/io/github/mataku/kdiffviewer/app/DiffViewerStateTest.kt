@@ -501,6 +501,23 @@ class DiffViewerStateTest {
   }
 
   @Test
+  fun reloadReturnsNewLoadId() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource { flow { } })
+    val opened = state.open(repo)
+    advanceUntilIdle()
+    val reloaded = state.reload()
+    assertTrue(reloaded != null && reloaded > opened)
+    advanceUntilIdle()
+    assertEquals(reloaded, state.uiState.value.loadId)
+  }
+
+  @Test
+  fun reloadWithoutRepoReturnsNull() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource { flow { } })
+    assertNull(state.reload())
+  }
+
+  @Test
   fun noChangesIsDoneWithEmptyFiles() = runTest(StandardTestDispatcher()) {
     val state = stateFor(FakeSource { flow { } })
     state.open(repo)
