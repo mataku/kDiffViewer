@@ -1,0 +1,204 @@
+package io.github.mataku.kdiffviewer.app.ui
+
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.v2.runComposeUiTest
+import io.github.mataku.kdiffviewer.app.settings.Appearance
+import io.github.mataku.kdiffviewer.app.settings.GitStatus
+import io.github.mataku.kdiffviewer.app.settings.Settings
+import io.github.mataku.kdiffviewer.core.git.GitInfo
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+
+@OptIn(ExperimentalTestApi::class)
+class PreferencesScreenTest {
+  private val ready = GitStatus.Ready(GitInfo("/opt/git", "git version 2.47.0"))
+
+  private class Harness {
+    val transforms = mutableListOf<(Settings) -> Settings>()
+    val commits = mutableListOf<String>()
+    var chooseCount = 0
+    fun last(base: Settings = Settings()) = transforms.last()(base)
+  }
+
+  private fun ComposeUiTest.show(
+    harness: Harness,
+    settings: Settings = Settings(),
+    loadError: Boolean = false,
+    status: GitStatus = ready,
+    families: List<String>? = listOf("Menlo", "Monaco", "Arial"),
+  ) {
+    setContent {
+      KdvTheme(darkTheme = false) {
+        PreferencesScreen(
+          settings = settings,
+          loadError = loadError,
+          gitStatus = status,
+          fontFamilies = families,
+          onUpdate = { harness.transforms += it },
+          onCommitGitPath = { harness.commits += it },
+          onChooseGit = { harness.chooseCount++ },
+        )
+      }
+    }
+  }
+
+  @Test
+  fun appearanceSelectionUpdatesSettings() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    onNodeWithTag("appearance-Dark").performClick()
+    assertEquals(Appearance.Dark, h.last().appearance)
+  }
+
+  @Test
+  fun fontSizeStepperStopsAtBounds() = runComposeUiTest {
+    val h = Harness()
+    show(h, Settings(fontSize = 32))
+    onNodeWithTag("font-size-increase").assertIsNotEnabled()
+    onNodeWithTag("font-size-decrease").assertIsEnabled()
+  }
+
+  @Test
+  fun fontSizeStepperLowerBound() = runComposeUiTest {
+    val h = Harness()
+    show(h, Settings(fontSize = 8))
+    onNodeWithTag("font-size-decrease").assertIsNotEnabled()
+    onNodeWithTag("font-size-increase").performClick()
+    assertEquals(9, h.last(Settings(fontSize = 8)).fontSize)
+  }
+
+  @Test
+  fun tabWidthSelection() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    onNodeWithTag("tab-width-4").performClick()
+    assertEquals(4, h.last().tabWidth)
+  }
+
+  @Test
+  fun enterInGitFieldCommits() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    onNodeWithTag("git-path-field").performTextInput("/bad")
+    onNodeWithTag("git-path-field").performKeyInput { pressKey(Key.Enter) }
+    assertEquals(listOf("/bad"), h.commits)
+  }
+
+  @Test
+  fun focusLossCommitsGitField() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    onNodeWithTag("git-path-field").performClick()
+    onNodeWithTag("git-path-field").performTextInput("/bad")
+    onNodeWithTag("git-choose").performClick()
+    waitForIdle()
+    assertEquals(listOf("/bad"), h.commits)
+  }
+
+  @Test
+  fun rejectedStatusShowsError() = runComposeUiTest {
+    show(Harness(), status = GitStatus.Rejected("/bad", null))
+    onNodeWithTag("git-status").assertTextEquals("✗ Not a usable git executable")
+  }
+
+  @Test
+  fun configuredUnavailableShowsError() = runComposeUiTest {
+    show(Harness(), Settings(gitPath = "/gone"), status = GitStatus.Rejected("/gone", null))
+    onNodeWithTag("git-path-field").assertTextEquals("/gone")
+    onNodeWithTag("git-status").assertTextEquals("✗ Not a usable git executable")
+  }
+
+  @Test
+  fun configuredReadyShowsVersion() = runComposeUiTest {
+    show(Harness(), Settings(gitPath = "/opt/git"))
+    onNodeWithTag("git-status").assertTextEquals("✓ git version 2.47.0")
+  }
+
+  @Test
+  fun notFoundAndCheckingStatus() = runComposeUiTest {
+    show(Harness(), status = GitStatus.NotFound)
+    onNodeWithTag("git-status").assertTextEquals("git was not found")
+  }
+
+  @Test
+  fun checkingStatus() = runComposeUiTest {
+    show(Harness(), status = GitStatus.Checking)
+    onNodeWithTag("git-status").assertTextEquals("Checking…")
+  }
+
+  @Test
+  fun emptyFieldShowsAutoDetectedPath() = runComposeUiTest {
+    show(Harness())
+    onNodeWithText("Auto-detected: /opt/git").assertIsDisplayed()
+  }
+
+  @Test
+  fun loadErrorShowsBanner() = runComposeUiTest {
+    show(Harness(), loadError = true)
+    onNodeWithTag("settings-load-error").assertTextEquals("Could not read settings file; using defaults")
+  }
+
+  @Test
+  fun noBannerWithoutLoadError() = runComposeUiTest {
+    show(Harness())
+    onNodeWithTag("settings-load-error").assertDoesNotExist()
+  }
+
+  @Test
+  fun fontFilterNarrowsList() = runComposeUiTest {
+    show(Harness())
+    onNodeWithTag("font-picker").performClick()
+    onNodeWithTag("font-filter").performTextInput("N")
+    onNodeWithTag("font-item-Menlo").assertIsDisplayed()
+    onNodeWithTag("font-item-Monaco").assertIsDisplayed()
+    onNodeWithTag("font-item-Arial").assertDoesNotExist()
+  }
+
+  @Test
+  fun choosingFontUpdatesFamily() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    onNodeWithTag("font-picker").performClick()
+    onNodeWithTag("font-item-Monaco").performClick()
+    assertEquals("Monaco", h.last().fontFamily)
+    onNodeWithTag("font-filter").assertDoesNotExist()
+  }
+
+  @Test
+  fun choosingSystemMonospaceClearsFamily() = runComposeUiTest {
+    val h = Harness()
+    show(h, Settings(fontFamily = "Menlo"))
+    onNodeWithTag("font-picker").performClick()
+    onNodeWithTag("font-item-System monospace").performClick()
+    assertNull(h.last(Settings(fontFamily = "Menlo")).fontFamily)
+  }
+
+  @Test
+  fun fontListUnavailableShowsOnlySystemMonospace() = runComposeUiTest {
+    show(Harness(), families = null)
+    onNodeWithTag("font-picker").performClick()
+    onNodeWithTag("font-item-System monospace").assertIsDisplayed()
+    onNodeWithTag("font-item-Menlo").assertDoesNotExist()
+  }
+
+  @Test
+  fun chooseButtonInvokesCallback() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    onNodeWithTag("git-choose").performClick()
+    assertEquals(1, h.chooseCount)
+  }
+}
