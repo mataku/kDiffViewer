@@ -3,22 +3,29 @@ package io.github.mataku.kdiffviewer.app.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.down
+import androidx.compose.ui.test.moveTo
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.up
 import androidx.compose.ui.test.v2.runComposeUiTest
 import io.github.mataku.kdiffviewer.app.settings.Appearance
 import io.github.mataku.kdiffviewer.app.settings.GitStatus
@@ -86,20 +93,92 @@ class PreferencesScreenTest {
   }
 
   @Test
-  fun fontSizeStepperStopsAtBounds() = runComposeUiTest {
-    val h = Harness()
-    show(h, Settings(fontSize = 32))
-    onNodeWithTag("font-size-increase").assertIsNotEnabled()
-    onNodeWithTag("font-size-decrease").assertIsEnabled()
+  fun sliderShowsCurrentValue() = runComposeUiTest {
+    show(Harness(), Settings(fontSize = 14))
+    onNodeWithTag("font-size-value").assertTextEquals("14")
   }
 
   @Test
-  fun fontSizeStepperLowerBound() = runComposeUiTest {
+  fun sliderKeyboardChangesSize() = runComposeUiTest {
+    val h = Harness()
+    show(h, Settings(fontSize = 14))
+    onNodeWithTag("font-size-slider").performSemanticsAction(SemanticsActions.RequestFocus)
+    onNodeWithTag("font-size-slider").performKeyInput { pressKey(Key.DirectionRight) }
+    assertEquals(15, h.last(Settings(fontSize = 14)).fontSize)
+    onNodeWithTag("font-size-slider").performKeyInput { pressKey(Key.DirectionUp) }
+    assertEquals(15, h.last(Settings(fontSize = 14)).fontSize)
+    assertEquals(2, h.transforms.size)
+    onNodeWithTag("font-size-slider").performKeyInput { pressKey(Key.DirectionLeft) }
+    assertEquals(13, h.last(Settings(fontSize = 14)).fontSize)
+    onNodeWithTag("font-size-slider").performKeyInput { pressKey(Key.DirectionDown) }
+    assertEquals(13, h.last(Settings(fontSize = 14)).fontSize)
+    assertEquals(4, h.transforms.size)
+  }
+
+  @Test
+  fun sliderKeyboardStopsAtLowerBound() = runComposeUiTest {
     val h = Harness()
     show(h, Settings(fontSize = 8))
-    onNodeWithTag("font-size-decrease").assertIsNotEnabled()
-    onNodeWithTag("font-size-increase").performClick()
-    assertEquals(9, h.last(Settings(fontSize = 8)).fontSize)
+    onNodeWithTag("font-size-slider").performSemanticsAction(SemanticsActions.RequestFocus)
+    onNodeWithTag("font-size-slider").performKeyInput { pressKey(Key.DirectionLeft) }
+    assertEquals(0, h.transforms.size)
+  }
+
+  @Test
+  fun sliderKeyboardStopsAtUpperBound() = runComposeUiTest {
+    val h = Harness()
+    show(h, Settings(fontSize = 32))
+    onNodeWithTag("font-size-slider").performSemanticsAction(SemanticsActions.RequestFocus)
+    onNodeWithTag("font-size-slider").performKeyInput { pressKey(Key.DirectionRight) }
+    assertEquals(0, h.transforms.size)
+  }
+
+  @Test
+  fun sliderSetProgressSemantics() = runComposeUiTest {
+    val h = Harness()
+    show(h, Settings(fontSize = 12))
+    onNodeWithTag("font-size-slider").performSemanticsAction(SemanticsActions.SetProgress) { it(20f) }
+    assertEquals(20, h.last().fontSize)
+  }
+
+  @Test
+  fun sliderSetProgressIsClampedAndDeduplicated() = runComposeUiTest {
+    val h = Harness()
+    show(h, Settings(fontSize = 12))
+    onNodeWithTag("font-size-slider").performSemanticsAction(SemanticsActions.SetProgress) { it(99f) }
+    assertEquals(32, h.last().fontSize)
+    onNodeWithTag("font-size-slider").performSemanticsAction(SemanticsActions.SetProgress) { it(12f) }
+    assertEquals(1, h.transforms.size)
+  }
+
+  @Test
+  fun sliderExposesRangeSemantics() = runComposeUiTest {
+    show(Harness(), Settings(fontSize = 14))
+    onNodeWithTag("font-size-slider").assert(
+      SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo(14f, 8f..32f, 23)),
+    )
+  }
+
+  @Test
+  fun draggingSliderAppliesEachIntegerStepOnce() = runComposeUiTest {
+    val h = Harness()
+    show(h, Settings(fontSize = 8))
+    onNodeWithTag("font-size-slider").performTouchInput {
+      down(Offset(0f, centerY))
+      moveTo(Offset(width.toFloat(), centerY))
+      up()
+    }
+    val sizes = h.transforms.map { it(Settings()).fontSize }
+    assertEquals(32, sizes.last())
+    assertEquals(sizes.distinct(), sizes)
+  }
+
+  @Test
+  fun clickingTrackJumpsToValue() = runComposeUiTest {
+    val h = Harness()
+    show(h, Settings(fontSize = 8))
+    onNodeWithTag("font-size-slider").performTouchInput { click(Offset(width.toFloat(), centerY)) }
+    assertEquals(32, h.last().fontSize)
   }
 
   @Test
@@ -187,18 +266,6 @@ class PreferencesScreenTest {
     visible = false
     waitForIdle()
     assertEquals(emptyList(), h.commits)
-  }
-
-  @Test
-  fun fontSizeStepperAppliesRelativeToLatestSettings() = runComposeUiTest {
-    val h = Harness()
-    show(h, Settings(fontSize = 12))
-    onNodeWithTag("font-size-increase").performClick()
-    assertEquals(21, h.last(Settings(fontSize = 20)).fontSize)
-    onNodeWithTag("font-size-decrease").performClick()
-    assertEquals(19, h.last(Settings(fontSize = 20)).fontSize)
-    onNodeWithTag("font-size-increase").performClick()
-    assertEquals(32, h.last(Settings(fontSize = 32)).fontSize)
   }
 
   @Test

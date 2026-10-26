@@ -103,9 +103,9 @@ fun PreferencesScreen(
         )
       }
       SettingRow("Font size") {
-        FontSizeStepper(
+        FontSizeSlider(
           size = settings.fontSize,
-          onChange = { delta -> onUpdate { it.copy(fontSize = (it.fontSize + delta).coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)) } },
+          onChange = { value -> onUpdate { it.copy(fontSize = value) } },
         )
       }
       SettingRow("Tab width", "Columns a tab character occupies") {
@@ -154,16 +154,17 @@ private fun SettingRow(label: String, description: String? = null, control: @Com
 }
 
 @Composable
-private fun FontSizeStepper(size: Int, onChange: (delta: Int) -> Unit) {
+private fun FontSizeSlider(size: Int, onChange: (Int) -> Unit) {
   val colors = LocalDiffColors.current
   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-    MacPushButton("−", { onChange(-1) }, Modifier.testTag("font-size-decrease"), enabled = size > MIN_FONT_SIZE)
+    BasicText(text = "A", style = TextStyle(color = colors.mutedText, fontSize = 11.sp))
+    MacSlider(value = size, range = MIN_FONT_SIZE..MAX_FONT_SIZE, onValueChange = onChange, modifier = Modifier.testTag("font-size-slider"))
+    BasicText(text = "A", style = TextStyle(color = colors.mutedText, fontSize = 17.sp))
     BasicText(
       text = size.toString(),
-      style = TextStyle(color = colors.text, fontSize = 13.sp, textAlign = TextAlign.Center),
-      modifier = Modifier.width(28.dp),
+      style = TextStyle(color = colors.text, fontSize = 13.sp, textAlign = TextAlign.End),
+      modifier = Modifier.testTag("font-size-value").width(28.dp),
     )
-    MacPushButton("+", { onChange(1) }, Modifier.testTag("font-size-increase"), enabled = size < MAX_FONT_SIZE)
   }
 }
 
