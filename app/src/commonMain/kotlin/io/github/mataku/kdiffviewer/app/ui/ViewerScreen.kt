@@ -59,6 +59,7 @@ import io.github.mataku.kdiffviewer.app.ui.review.revealIndex
 import io.github.mataku.kdiffviewer.app.visibleTree
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.HeadRef
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.review.Placement
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -163,25 +164,48 @@ fun ViewerScreen(
             modifier = Modifier.testTag("repo-name"),
             style = TextStyle(color = colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
           )
-          state.head?.let { head ->
-            val (icon, iconTag, label) = when (head) {
-              is HeadRef.Branch -> Triple(KdvIcons.Branch, "head-branch-icon", head.name)
-              is HeadRef.Detached -> Triple(KdvIcons.Commit, "head-commit-icon", head.shortHash)
-            }
+          val base = state.base as? ResolvedBase.Commit
+          val head = state.head
+          if (base != null || head != null) {
+            val labelStyle = TextStyle(color = colors.mutedText, fontSize = 12.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {
-              Image(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.testTag(iconTag).padding(end = 4.dp).size(12.dp),
-                colorFilter = ColorFilter.tint(colors.mutedText),
-              )
-              BasicText(
-                text = label,
-                modifier = Modifier.testTag("head-label"),
-                style = TextStyle(color = colors.mutedText, fontSize = 12.sp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-              )
+              if (base != null) {
+                Image(
+                  imageVector = KdvIcons.Branch,
+                  contentDescription = null,
+                  modifier = Modifier.padding(end = 4.dp).size(12.dp),
+                  colorFilter = ColorFilter.tint(colors.mutedText),
+                )
+                BasicText(
+                  text = "${base.label} · ${base.shortId}",
+                  modifier = Modifier.testTag("base-label").weight(1f, fill = false),
+                  style = labelStyle,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                )
+                if (head != null) {
+                  BasicText(text = "→", modifier = Modifier.padding(horizontal = 6.dp), style = labelStyle)
+                }
+              }
+              if (head != null) {
+                val (icon, iconTag, label) = when (head) {
+                  is HeadRef.Branch -> Triple(KdvIcons.Branch, "head-branch-icon", head.name)
+                  is HeadRef.Detached -> Triple(KdvIcons.Commit, "head-commit-icon", head.shortHash)
+                }
+                Image(
+                  imageVector = icon,
+                  contentDescription = null,
+                  modifier = Modifier.testTag(iconTag).padding(end = 4.dp).size(12.dp),
+                  colorFilter = ColorFilter.tint(colors.mutedText),
+                )
+                BasicText(
+                  text = label,
+                  modifier = Modifier.testTag("head-label"),
+                  style = labelStyle,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                )
+              }
             }
           }
         }

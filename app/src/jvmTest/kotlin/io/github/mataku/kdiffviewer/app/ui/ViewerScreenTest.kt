@@ -61,6 +61,7 @@ import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.displayPath
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Author
@@ -250,6 +251,31 @@ class ViewerScreenTest {
     onNodeWithTag("head-label", useUnmergedTree = true).assertTextEquals("abc1234")
     onNodeWithTag("head-commit-icon", useUnmergedTree = true).assertIsDisplayed()
     onNodeWithTag("head-branch-icon", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun baseLabelPrecedesHead() = runComposeUiTest {
+    setContent {
+      ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.Commit("origin/develop", "m1", "a1b2c3d"), head = HeadRef.Branch("feature/x")), {})
+    }
+    onNodeWithTag("base-label", useUnmergedTree = true).assertTextEquals("origin/develop · a1b2c3d")
+    val base = onNodeWithTag("base-label", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val head = onNodeWithTag("head-label", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    assertTrue(base.right <= head.left, "base=$base head=$head")
+  }
+
+  @Test
+  fun emptyTreeBaseShowsOnlyHead() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.EmptyTree, head = HeadRef.Branch("main")), {}) }
+    onNodeWithTag("base-label", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithTag("head-label", useUnmergedTree = true).assertTextEquals("main")
+  }
+
+  @Test
+  fun unresolvedBaseShowsOnlyHead() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()).copy(base = null, head = HeadRef.Branch("main")), {}) }
+    onNodeWithTag("base-label", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithTag("head-label", useUnmergedTree = true).assertTextEquals("main")
   }
 
   @Test
