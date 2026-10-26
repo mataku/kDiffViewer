@@ -26,6 +26,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.testTag
@@ -115,6 +116,7 @@ private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onClick: 
       .padding(top = FileHeaderTopMargin)
       .background(colors.fileHeaderBackground)
       .border(1.dp, colors.border)
+      .focusProperties { canFocus = false }
       .clickable(interactionSource = null, indication = null, onClick = onClick)
       .padding(horizontal = 12.dp, vertical = 8.dp)
       .testTag("file-header-${row.fileIndex}"),

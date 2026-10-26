@@ -531,6 +531,20 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun nextHeaderStaysPinnedAfterCollapsingFirstFile() = runComposeUiTest {
+    var ui by mutableStateOf(stateOf(listOf(modified("a.kt", 5), modified("long.kt", 200), modified("next.kt"))))
+    setContent { ViewerScreen(ui, {}, onToggleFile = { ui = ui.toggled(it) }) }
+    onNodeWithTag("file-header-0").performClick()
+    waitForIdle()
+    repeat(30) {
+      onNodeWithTag("diff-list").performMouseInput { scroll(1f) }
+      waitForIdle()
+    }
+    onNodeWithTag("file-header-1").assertIsDisplayed()
+    assertPinnedAtTop("file-header-1")
+  }
+
+  @Test
   fun collapsingPinnedHeaderKeepsItAtTop() = runComposeUiTest {
     var ui by mutableStateOf(stateOf(listOf(modified("long.kt", 200), modified("next.kt"))))
     setContent { ViewerScreen(ui, {}, onToggleFile = { ui = ui.toggled(it) }) }
@@ -538,9 +552,7 @@ class ViewerScreenTest {
     waitForIdle()
     onNodeWithTag("file-header-0").performClick()
     waitForIdle()
-    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
-    val header = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot
-    assertTrue(header.top - list.top < 30f, "header=$header list=$list")
+    assertPinnedAtTop("file-header-0")
     onNodeWithTag("file-header-1").assertIsDisplayed()
   }
 
@@ -557,6 +569,12 @@ class ViewerScreenTest {
     onNodeWithTag("file-header-29").assertIsDisplayed()
     onNodeWithTag("file-header-28").assertIsDisplayed()
   }
+}
+
+private fun SemanticsNodeInteractionsProvider.assertPinnedAtTop(tag: String) {
+  val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+  val header = onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+  assertTrue(header.top - list.top in 0f..30f, "header=$header list=$list")
 }
 
 fun SemanticsNodeInteractionsProvider.lineText(text: String): AnnotatedString = onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode().config[SemanticsProperties.Text].single()
