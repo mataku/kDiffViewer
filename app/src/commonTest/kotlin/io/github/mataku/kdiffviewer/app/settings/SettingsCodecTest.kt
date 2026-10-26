@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 class SettingsCodecTest {
   @Test fun roundTripsAllFields() {
-    val settings = Settings("/g", "Menlo", 14, 4, Appearance.Dark)
+    val settings = Settings("/g", "Menlo", 14, 4, Appearance.Dark, treeFontSize = 16)
     assertEquals(settings, SettingsCodec.decode(SettingsCodec.encode(settings)))
   }
 
@@ -39,6 +39,15 @@ class SettingsCodecTest {
   @Test fun malformedJsonReturnsNull() {
     assertNull(SettingsCodec.decode("{"))
     assertNull(SettingsCodec.decode("""{"fontSize":"big"}"""))
+  }
+
+  @Test fun treeFontSizeDefaultsTo13() {
+    assertEquals(13, SettingsCodec.decode("{}")!!.treeFontSize)
+  }
+
+  @Test fun treeFontSizeIsClamped() {
+    assertEquals(10, SettingsCodec.decode("""{"treeFontSize":5}""")!!.treeFontSize)
+    assertEquals(20, SettingsCodec.decode("""{"treeFontSize":99}""")!!.treeFontSize)
   }
 
   @Test fun encodeWritesEveryField() {

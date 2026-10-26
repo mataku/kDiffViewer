@@ -125,6 +125,7 @@ private fun runApplication(
         fontFamily = fontFamily,
         fontSize = settings.fontSize,
         tabWidth = settings.tabWidth,
+        treeFontSize = settings.treeFontSize,
       ) {
         val status = uiState.status
         when {

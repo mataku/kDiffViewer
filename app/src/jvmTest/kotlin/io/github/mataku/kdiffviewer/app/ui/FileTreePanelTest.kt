@@ -1,17 +1,23 @@
 package io.github.mataku.kdiffviewer.app.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
 import io.github.mataku.kdiffviewer.app.TreeEntry
 import io.github.mataku.kdiffviewer.app.TreeRow
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class FileTreePanelTest {
@@ -61,5 +67,16 @@ class FileTreePanelTest {
   fun fileWithoutLineChangesShowsNoStats() = runComposeUiTest {
     setContent { FileTreePanel(entries, {}, {}, statsOf = { DiffStats(0, 0) }, width = 280.dp) }
     onNodeWithTag("tree-additions-0", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun treeRowGrowsWithFontSize() = runComposeUiTest {
+    var size by mutableStateOf(13)
+    setContent { KdvTheme(darkTheme = false, treeFontSize = size) { FileTreePanel(entries, {}, {}) } }
+    val small = onNodeWithTag("tree-dir-0").getUnclippedBoundsInRoot().height
+    size = 20
+    waitForIdle()
+    val large = onNodeWithTag("tree-dir-0").getUnclippedBoundsInRoot().height
+    assertTrue(large > small, "$large should exceed $small")
   }
 }

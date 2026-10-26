@@ -17,18 +17,21 @@ fun KdvTheme(
   fontFamily: FontFamily = FontFamily.Monospace,
   fontSize: Int = 12,
   tabWidth: Int = 8,
+  treeFontSize: Int = 13,
   content: @Composable () -> Unit,
 ) {
   val diffColors = if (darkTheme) DarkDiffColors else LightDiffColors
   val typography = remember(fontFamily, fontSize, tabWidth, diffColors) {
     diffTypography(fontFamily, fontSize, tabWidth, diffColors)
   }
+  val treeTypography = remember(treeFontSize, diffColors) { treeTypography(treeFontSize, diffColors) }
   val syntaxTheme = if (darkTheme) DarkSyntaxTheme else LightSyntaxTheme
   val base = if (darkTheme) darkColorScheme() else lightColorScheme()
   MaterialTheme(colorScheme = base.withTokens(diffColors)) {
     CompositionLocalProvider(
       LocalDiffColors provides diffColors,
       LocalDiffTypography provides typography,
+      LocalTreeTypography provides treeTypography,
       LocalSyntaxTheme provides syntaxTheme,
       content = content,
     )

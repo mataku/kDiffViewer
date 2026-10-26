@@ -14,12 +14,14 @@ data class Settings(
   val fontSize: Int = 12,
   val tabWidth: Int = 8,
   val appearance: Appearance = Appearance.System,
+  val treeFontSize: Int = 13,
 )
 
 fun Settings.normalized(): Settings = copy(
   gitPath = gitPath?.takeIf { it.isNotBlank() },
   fontFamily = fontFamily?.takeIf { it.isNotBlank() },
   fontSize = fontSize.coerceIn(8, 32),
+  treeFontSize = treeFontSize.coerceIn(10, 20),
   tabWidth = if (tabWidth in setOf(2, 4, 8)) tabWidth else 8,
 )
 

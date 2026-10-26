@@ -20,11 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.TreeEntry
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 
@@ -44,6 +42,7 @@ fun FileTreePanel(
   width: Dp = DefaultTreeWidth,
 ) {
   val colors = LocalDiffColors.current
+  val typography = LocalTreeTypography.current
   val showStats = width >= StatsVisibleWidth
   LazyColumn(
     modifier = modifier
@@ -65,7 +64,7 @@ fun FileTreePanel(
       Row(
         rowModifier
           .fillMaxWidth()
-          .padding(start = (12 * row.depth).dp, top = 3.dp, bottom = 3.dp),
+          .padding(start = typography.indentPerDepth * row.depth, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
         val iconTint = ColorFilter.tint(colors.mutedText)
@@ -76,12 +75,12 @@ fun FileTreePanel(
             modifier = Modifier
               .testTag("tree-chevron-$index")
               .padding(end = 2.dp)
-              .size(12.dp)
+              .size(typography.chevronSize)
               .rotate(if (entry.collapsed) 0f else 90f),
             colorFilter = iconTint,
           )
         } else {
-          Spacer(Modifier.width(14.dp))
+          Spacer(Modifier.width(typography.chevronSize + 2.dp))
         }
         Image(
           imageVector = if (fileIndex != null) KdvIcons.File else KdvIcons.Folder,
@@ -89,16 +88,13 @@ fun FileTreePanel(
           modifier = Modifier
             .testTag(if (fileIndex != null) "tree-file-icon-$index" else "tree-folder-icon-$index")
             .padding(end = 6.dp)
-            .size(14.dp),
+            .size(typography.iconSize),
           colorFilter = iconTint,
         )
         BasicText(
           text = row.name,
           modifier = Modifier.weight(1f),
-          style = TextStyle(
-            color = if (fileIndex != null) colors.text else colors.mutedText,
-            fontSize = 13.sp,
-          ),
+          style = if (fileIndex != null) typography.name else typography.directoryName,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
         )
@@ -107,12 +103,12 @@ fun FileTreePanel(
           BasicText(
             text = "+${stats.additions}",
             modifier = Modifier.testTag("tree-additions-$fileIndex").padding(start = 8.dp),
-            style = TextStyle(color = colors.addedText, fontSize = 11.sp),
+            style = typography.additions,
           )
           BasicText(
             text = "−${stats.deletions}",
             modifier = Modifier.testTag("tree-deletions-$fileIndex").padding(start = 4.dp),
-            style = TextStyle(color = colors.removedText, fontSize = 11.sp),
+            style = typography.deletions,
           )
         }
       }

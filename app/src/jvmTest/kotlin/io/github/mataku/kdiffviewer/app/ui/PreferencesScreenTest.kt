@@ -182,6 +182,20 @@ class PreferencesScreenTest {
   }
 
   @Test
+  fun treeSliderShowsCurrentValue() = runComposeUiTest {
+    show(Harness(), Settings(treeFontSize = 15))
+    onNodeWithTag("tree-font-size-value").assertTextEquals("15")
+  }
+
+  @Test
+  fun treeSliderSetProgressSemantics() = runComposeUiTest {
+    val h = Harness()
+    show(h, Settings(treeFontSize = 13))
+    onNodeWithTag("tree-font-size-slider").performSemanticsAction(SemanticsActions.SetProgress) { it(16f) }
+    assertEquals(16, h.last().treeFontSize)
+  }
+
+  @Test
   fun tabWidthSelection() = runComposeUiTest {
     val h = Harness()
     show(h)

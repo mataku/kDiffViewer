@@ -47,6 +47,8 @@ private const val NOT_USABLE_MESSAGE = "Not a usable git executable"
 private const val NOT_FOUND_MESSAGE = "git was not found"
 private const val MIN_FONT_SIZE = 8
 private const val MAX_FONT_SIZE = 32
+private const val MIN_TREE_FONT_SIZE = 10
+private const val MAX_TREE_FONT_SIZE = 20
 private val TAB_WIDTHS = listOf(2, 4, 8)
 
 @Composable
@@ -105,6 +107,8 @@ fun PreferencesScreen(
       SettingRow("Font size") {
         FontSizeSlider(
           size = settings.fontSize,
+          range = MIN_FONT_SIZE..MAX_FONT_SIZE,
+          tagPrefix = "font-size",
           onChange = { value -> onUpdate { it.copy(fontSize = value) } },
         )
       }
@@ -115,6 +119,16 @@ fun PreferencesScreen(
           label = { it.toString() },
           tag = { "tab-width-$it" },
           onSelect = { value -> onUpdate { it.copy(tabWidth = value) } },
+        )
+      }
+    }
+    Section("File tree") {
+      SettingRow("Font size") {
+        FontSizeSlider(
+          size = settings.treeFontSize,
+          range = MIN_TREE_FONT_SIZE..MAX_TREE_FONT_SIZE,
+          tagPrefix = "tree-font-size",
+          onChange = { value -> onUpdate { it.copy(treeFontSize = value) } },
         )
       }
     }
@@ -154,16 +168,16 @@ private fun SettingRow(label: String, description: String? = null, control: @Com
 }
 
 @Composable
-private fun FontSizeSlider(size: Int, onChange: (Int) -> Unit) {
+private fun FontSizeSlider(size: Int, range: IntRange, tagPrefix: String, onChange: (Int) -> Unit) {
   val colors = LocalDiffColors.current
   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     BasicText(text = "A", style = TextStyle(color = colors.mutedText, fontSize = 11.sp))
-    MacSlider(value = size, range = MIN_FONT_SIZE..MAX_FONT_SIZE, onValueChange = onChange, modifier = Modifier.testTag("font-size-slider"))
+    MacSlider(value = size, range = range, onValueChange = onChange, modifier = Modifier.testTag("$tagPrefix-slider"))
     BasicText(text = "A", style = TextStyle(color = colors.mutedText, fontSize = 17.sp))
     BasicText(
       text = size.toString(),
       style = TextStyle(color = colors.text, fontSize = 13.sp, textAlign = TextAlign.End),
-      modifier = Modifier.testTag("font-size-value").width(28.dp),
+      modifier = Modifier.testTag("$tagPrefix-value").width(28.dp),
     )
   }
 }
