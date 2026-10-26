@@ -29,6 +29,13 @@ sealed interface DraftTarget {
 
 data class Draft(val target: DraftTarget, val text: String)
 
+fun ReviewPlacements.notesFiles(draft: Draft?): Set<Int> {
+  val target = draft?.target
+  val draftFile = if (target is DraftTarget.NewThread) (target.placement as? Placement.OnFile)?.fileIndex else null
+  if (draftFile == null) return byFile.keys
+  return byFile.keys + draftFile
+}
+
 internal fun buildPlacements(loadId: Long, threads: List<ReviewThread>, placementById: Map<String, Placement>): ReviewPlacements {
   val byLine = LinkedHashMap<Long, MutableList<ReviewThread>>()
   val byFile = LinkedHashMap<Int, MutableList<ReviewThread>>()
