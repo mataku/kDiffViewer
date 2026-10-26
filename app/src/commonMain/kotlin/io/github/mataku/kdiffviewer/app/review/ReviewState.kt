@@ -118,26 +118,24 @@ class ReviewState(
     return LoadSettlement(settled.lastLoadFailed, settled.core.settledFiles, settled.threads.count { it.outdated })
   }
 
-  override fun startDraft(target: DraftTarget) {
-    mutate { current ->
-      val existing = current.draft
-      if (existing != null && existing.text.isNotBlank()) return@mutate current to Unit
-      val text = when (target) {
-        is DraftTarget.NewThread -> ""
+  override fun startDraft(target: DraftTarget): Boolean = mutate { current ->
+    val existing = current.draft
+    if (existing != null && existing.text.isNotBlank()) return@mutate current to false
+    val text = when (target) {
+      is DraftTarget.NewThread -> ""
 
-        is DraftTarget.Reply -> {
-          if (current.threads.none { it.id == target.threadId }) return@mutate current to Unit
-          ""
-        }
-
-        is DraftTarget.Edit -> {
-          val comment = current.findComment(target.commentId)
-          if (comment == null || comment.author != Author.User) return@mutate current to Unit
-          comment.body
-        }
+      is DraftTarget.Reply -> {
+        if (current.threads.none { it.id == target.threadId }) return@mutate current to false
+        ""
       }
-      current.copy(draft = Draft(target, text)) to Unit
+
+      is DraftTarget.Edit -> {
+        val comment = current.findComment(target.commentId)
+        if (comment == null || comment.author != Author.User) return@mutate current to false
+        comment.body
+      }
     }
+    current.copy(draft = Draft(target, text)) to true
   }
 
   override fun updateDraft(text: String) {

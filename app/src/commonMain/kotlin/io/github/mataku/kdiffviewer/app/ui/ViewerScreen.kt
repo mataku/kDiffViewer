@@ -2,6 +2,7 @@ package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -47,10 +49,19 @@ import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.notesFiles
+import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftFocusRequests
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftText
+import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
+import io.github.mataku.kdiffviewer.app.ui.review.RevealingReviewActions
+import io.github.mataku.kdiffviewer.app.ui.review.draftPlacement
+import io.github.mataku.kdiffviewer.app.ui.review.fileIndexOrNull
+import io.github.mataku.kdiffviewer.app.ui.review.revealIndex
 import io.github.mataku.kdiffviewer.app.visibleTree
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.HeadRef
+import io.github.mataku.kdiffviewer.core.review.Placement
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 fun ViewerScreen(
@@ -75,6 +86,31 @@ fun ViewerScreen(
     diffLayoutOf(state, notesFiles, hasOrphans)
   }
   val currentLayout by rememberUpdatedState(layout)
+  val focusRequests = remember { mutableIntStateOf(0) }
+  var revealRequests by remember { mutableIntStateOf(0) }
+  val baseActions = LocalReviewActions.current
+  val actions = remember(baseActions, draftText) { baseActions?.let { RevealingReviewActions(it, draftText) { revealRequests++ } } }
+  val currentReview by rememberUpdatedState(review)
+  val currentOnExpandFile by rememberUpdatedState(onExpandFile)
+  LaunchedEffect(revealRequests) {
+    if (revealRequests == 0) return@LaunchedEffect
+    val snapshot = currentReview
+    val target = snapshot.draft?.target ?: return@LaunchedEffect
+    val placement = draftPlacement(target, snapshot.threads, snapshot.core.placementById) ?: return@LaunchedEffect
+    val fileIndex = placement.fileIndexOrNull()?.takeIf { it < currentLayout.fileCount }
+    if (fileIndex != null && currentLayout.isCollapsed(fileIndex)) {
+      currentOnExpandFile(fileIndex)
+      withTimeoutOrNull(1_000) { snapshotFlow { currentLayout }.first { !it.isCollapsed(fileIndex) } }
+    }
+    val index = revealIndex(placement, currentLayout, currentState.rows)
+    listState.scrollToItem(index)
+    if (fileIndex != null && placement is Placement.OnLine) {
+      val headerKey = (currentState.rows[currentLayout.headerRowIndex(fileIndex)]).key
+      val pinned = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == headerKey && it.index != index }
+      if (pinned != null) listState.scrollBy(-pinned.size.toFloat())
+    }
+    focusRequests.intValue++
+  }
   LaunchedEffect(listState) {
     snapshotFlow { Triple(currentState, currentLayout, listState.firstVisibleItemIndex) }.collect { (ui, uiLayout, firstVisible) ->
       restorer.next(ui, uiLayout, firstVisible)?.let { listState.scrollToItem(it) }
@@ -168,7 +204,11 @@ fun ViewerScreen(
             style = TextStyle(color = colors.mutedText, fontSize = 14.sp),
           )
         } else {
-          CompositionLocalProvider(LocalDraftText provides draftText) {
+          CompositionLocalProvider(
+            LocalDraftText provides draftText,
+            LocalDraftFocusRequests provides focusRequests,
+            LocalReviewActions provides actions,
+          ) {
             DiffView(
               rows = state.rows,
               layout = layout,

@@ -36,7 +36,8 @@ fun CommentComposer(
   val draftText = LocalDraftText.current
   val latestSubmit by rememberUpdatedState(onSubmit)
   val latestCancel by rememberUpdatedState(onCancel)
-  LaunchedEffect(Unit) { focusRequester.requestFocus() }
+  val focusRequests = LocalDraftFocusRequests.current.value
+  LaunchedEffect(focusRequests) { focusRequester.requestFocus() }
   Column(
     modifier = Modifier
       .fillMaxWidth()

@@ -28,6 +28,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -91,7 +92,7 @@ class ReviewStateTest {
     val first = DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1)))
     state.startDraft(first)
     state.updateDraft("keep")
-    state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0, 0, 2))))
+    assertFalse(state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0, 0, 2)))))
     assertEquals(Draft(first, "keep"), state.snapshot.value.draft)
   }
 
@@ -114,7 +115,7 @@ class ReviewStateTest {
     val state = newState()
     state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
     val second = DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0, 0, 2)))
-    state.startDraft(second)
+    assertTrue(state.startDraft(second))
     assertEquals(Draft(second, ""), state.snapshot.value.draft)
   }
 

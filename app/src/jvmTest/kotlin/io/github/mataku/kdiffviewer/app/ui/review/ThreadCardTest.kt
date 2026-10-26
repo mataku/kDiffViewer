@@ -32,8 +32,9 @@ import kotlin.time.Instant
 class ThreadCardTest {
   private class FakeActions : ReviewActions {
     val calls = mutableListOf<String>()
-    override fun startDraft(target: DraftTarget) {
+    override fun startDraft(target: DraftTarget): Boolean {
       calls += "start:$target"
+      return true
     }
     override fun updateDraft(text: String) {
       calls += "update:$text"

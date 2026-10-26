@@ -15,10 +15,13 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -793,6 +796,56 @@ class ViewerScreenTest {
     waitForIdle()
     onNodeWithText("No changes").assertDoesNotExist()
     onNodeWithTag("comment-composer").assertTextEquals("note")
+  }
+
+  private fun manyFilesUi() = stateOf((0 until 30).map { modified("f${it.toString().padStart(2, '0')}.kt", 20) }).copy(loadId = 1)
+
+  @Test
+  fun addCommentWithPendingDraftRevealsAndFocusesItInCollapsedFile() = runComposeUiTest {
+    val initial = manyFilesUi()
+    var ui by mutableStateOf(initial)
+    val review = reviewState(initial)
+    review.startDraft(DraftTarget.NewThread(anchorOf(initial.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
+    review.updateDraft("keep")
+    ui = ui.toggled(0)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) {
+        ViewerScreen(ui, {}, review = snapshot, onExpandFile = { ui = ui.expanded(it) })
+      }
+    }
+    onNodeWithTag("diff-list").performScrollToIndex(600)
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertDoesNotExist()
+    onAllNodesWithText("TWO").onLast().performMouseInput { moveTo(center) }
+    waitForIdle()
+    onNodeWithTag("add-comment").performClick()
+    waitForIdle()
+    assertFalse(ui.isCollapsed(0))
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+    onNodeWithTag("comment-composer").assertTextEquals("keep")
+    onNodeWithTag("comment-composer").assertIsFocused()
+    assertEquals("keep", review.snapshot.value.draft?.text)
+  }
+
+  @Test
+  fun fileCommentWithPendingDraftRevealsAndFocusesIt() = runComposeUiTest {
+    val ui = manyFilesUi()
+    val review = reviewState(ui)
+    review.startDraft(DraftTarget.NewThread(Anchor.File("f00.kt"), Placement.OnFile(0)))
+    review.updateDraft("file draft")
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithTag("diff-list").performScrollToIndex(ui.rows.lastIndex)
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertIsNotDisplayed()
+    onNodeWithTag("file-comment-29", useUnmergedTree = true).performClick()
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+    onNodeWithTag("comment-composer").assertTextEquals("file draft")
+    onNodeWithTag("comment-composer").assertIsFocused()
   }
 
   @Test
