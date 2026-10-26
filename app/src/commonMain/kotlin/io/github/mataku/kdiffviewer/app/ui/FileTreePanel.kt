@@ -24,8 +24,11 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.mataku.kdiffviewer.app.GitFileStatus
@@ -53,12 +56,6 @@ fun FileTreePanel(
   val showStats = width >= StatsVisibleWidth
   val measurer = rememberTextMeasurer()
   val density = LocalDensity.current
-  val additionsWidth = remember(typography, measurer, density) {
-    with(density) { measurer.measure("+9999", typography.additions).size.width.toDp() }
-  }
-  val deletionsWidth = remember(typography, measurer, density) {
-    with(density) { measurer.measure("−9999", typography.deletions).size.width.toDp() }
-  }
   val statusWidth = remember(typography, measurer, density) {
     with(density) { measurer.measure("M", typography.statusModified).size.width.toDp() }
   }
@@ -118,23 +115,12 @@ fun FileTreePanel(
         )
         if (showStats && fileIndex != null) {
           val stats = statsOf(fileIndex)
-          Box(Modifier.padding(start = 8.dp).widthIn(min = additionsWidth), contentAlignment = Alignment.CenterEnd) {
-            if (stats != null && stats.additions > 0) {
-              BasicText(
-                text = "+${stats.additions}",
-                modifier = Modifier.testTag("tree-additions-$fileIndex"),
-                style = typography.additions,
-              )
-            }
-          }
-          Box(Modifier.padding(start = 4.dp).widthIn(min = deletionsWidth), contentAlignment = Alignment.CenterEnd) {
-            if (stats != null && stats.deletions > 0) {
-              BasicText(
-                text = "−${stats.deletions}",
-                modifier = Modifier.testTag("tree-deletions-$fileIndex"),
-                style = typography.deletions,
-              )
-            }
+          val statsText = remember(stats, typography) { stats?.let { compactStats(it, typography) } }
+          if (statsText != null) {
+            BasicText(
+              text = statsText,
+              modifier = Modifier.padding(start = 8.dp).testTag("tree-stats-$fileIndex"),
+            )
           }
           Box(Modifier.padding(start = 6.dp).widthIn(min = statusWidth), contentAlignment = Alignment.Center) {
             val status = statusOf(fileIndex)
@@ -149,6 +135,15 @@ fun FileTreePanel(
         }
       }
     }
+  }
+}
+
+private fun compactStats(stats: DiffStats, typography: TreeTypography): AnnotatedString? {
+  if (stats.additions <= 0 && stats.deletions <= 0) return null
+  return buildAnnotatedString {
+    if (stats.additions > 0) withStyle(typography.additions.toSpanStyle()) { append("+${stats.additions}") }
+    if (stats.additions > 0 && stats.deletions > 0) append(" ")
+    if (stats.deletions > 0) withStyle(typography.deletions.toSpanStyle()) { append("−${stats.deletions}") }
   }
 }
 

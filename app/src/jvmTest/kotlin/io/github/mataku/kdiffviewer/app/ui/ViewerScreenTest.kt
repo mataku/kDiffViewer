@@ -330,8 +330,7 @@ class ViewerScreenTest {
   @Test
   fun treeShowsFileStatsFromTheDiff() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) }
-    onNodeWithTag("tree-additions-0", useUnmergedTree = true).assertTextEquals("+1")
-    onNodeWithTag("tree-deletions-0", useUnmergedTree = true).assertTextEquals("−1")
+    onNodeWithTag("tree-stats-0", useUnmergedTree = true).assertTextEquals("+1 −1")
   }
 
   @Test
@@ -369,7 +368,7 @@ class ViewerScreenTest {
     waitForIdle()
     val width = onNodeWithTag("file-tree").fetchSemanticsNode().boundsInRoot.width
     assertEquals(with(density) { MinTreeWidth.toPx() }, width)
-    onNodeWithTag("tree-additions-0", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithTag("tree-stats-0", useUnmergedTree = true).assertDoesNotExist()
   }
 
   @Test
