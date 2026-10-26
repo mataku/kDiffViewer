@@ -38,10 +38,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import io.github.mataku.compose.highlight.core.LocalSyntaxTheme
 import io.github.mataku.kdiffviewer.app.DiffLayout
@@ -345,12 +347,14 @@ private fun LineNumberCell(number: Int?, background: Color, typography: DiffTypo
     )
     if (onAdd != null && row != null) {
       val colors = LocalDiffColors.current
+      val lineHeight = with(LocalDensity.current) { typography.lineNumber.lineHeight.toDp() }
+      val size = min(AddCommentSize, lineHeight)
       Box(
         modifier = Modifier
-          .align(Alignment.CenterStart)
-          .padding(start = 2.dp)
+          .align(Alignment.TopStart)
+          .padding(start = 2.dp, top = (lineHeight - size) / 2)
           .testTag("add-comment")
-          .size(AddCommentSize)
+          .size(size)
           .clip(RoundedCornerShape(3.dp))
           .background(colors.accent)
           .clickable(interactionSource = null, indication = null) { onAdd(row) },
