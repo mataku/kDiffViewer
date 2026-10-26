@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,7 +90,7 @@ fun PreferencesScreen(
     SettingRow("Font size") {
       FontSizeStepper(
         size = settings.fontSize,
-        onChange = { value -> onUpdate { it.copy(fontSize = value) } },
+        onChange = { delta -> onUpdate { it.copy(fontSize = (it.fontSize + delta).coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)) } },
       )
     }
     SettingRow("Tab width") {
@@ -148,16 +150,16 @@ private fun <T> Segmented(
 }
 
 @Composable
-private fun FontSizeStepper(size: Int, onChange: (Int) -> Unit) {
+private fun FontSizeStepper(size: Int, onChange: (delta: Int) -> Unit) {
   val colors = LocalDiffColors.current
   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-    StepButton("−", "font-size-decrease", size > MIN_FONT_SIZE) { onChange(size - 1) }
+    StepButton("−", "font-size-decrease", size > MIN_FONT_SIZE) { onChange(-1) }
     BasicText(
       text = size.toString(),
       style = TextStyle(color = colors.text, fontSize = 13.sp),
       modifier = Modifier.width(24.dp),
     )
-    StepButton("+", "font-size-increase", size < MAX_FONT_SIZE) { onChange(size + 1) }
+    StepButton("+", "font-size-increase", size < MAX_FONT_SIZE) { onChange(1) }
     BasicText(
       text = "($MIN_FONT_SIZE–$MAX_FONT_SIZE)",
       style = TextStyle(color = colors.mutedText, fontSize = 12.sp),
@@ -190,6 +192,14 @@ private fun GitSection(
   val colors = LocalDiffColors.current
   var text by remember(gitPath) { mutableStateOf(gitPath.orEmpty()) }
   var hadFocus by remember { mutableStateOf(false) }
+  val latestText by rememberUpdatedState(text)
+  val latestGitPath by rememberUpdatedState(gitPath)
+  val latestOnCommit by rememberUpdatedState(onCommit)
+  DisposableEffect(Unit) {
+    onDispose {
+      if (latestText != latestGitPath.orEmpty()) latestOnCommit(latestText)
+    }
+  }
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       Box(
@@ -213,7 +223,7 @@ private fun GitSection(
               hadFocus = state.isFocused
             }
             .onPreviewKeyEvent { event ->
-              if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
+              if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)) {
                 onCommit(text)
                 true
               } else {

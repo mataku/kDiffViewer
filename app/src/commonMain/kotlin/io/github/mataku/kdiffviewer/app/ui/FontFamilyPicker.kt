@@ -112,7 +112,7 @@ private fun FontPopupContent(
       item(key = "system-monospace") {
         FontItem(SYSTEM_MONOSPACE, textStyle) { onSelect(null) }
       }
-      items(filtered) { name ->
+      items(filtered, key = { it }) { name ->
         FontItem(name, textStyle) { onSelect(name) }
       }
     }

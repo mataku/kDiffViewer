@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -13,7 +12,6 @@ import io.github.mataku.kdiffviewer.app.settings.GitStatus
 import io.github.mataku.kdiffviewer.app.settings.Settings
 import io.github.mataku.kdiffviewer.app.ui.KdvTheme
 import io.github.mataku.kdiffviewer.app.ui.PreferencesScreen
-import io.github.mataku.kdiffviewer.app.ui.resolveFontFamily
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.awt.FileDialog
@@ -43,13 +41,7 @@ fun PreferencesWindow(
         GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames.toList()
       }
     }
-    val fontFamily = remember(settings.fontFamily) { resolveFontFamily(settings.fontFamily) }
-    KdvTheme(
-      darkTheme = settings.appearance.isDark(),
-      fontFamily = fontFamily,
-      fontSize = settings.fontSize,
-      tabWidth = settings.tabWidth,
-    ) {
+    KdvTheme(darkTheme = settings.appearance.isDark()) {
       PreferencesScreen(
         settings = settings,
         loadError = loadError,

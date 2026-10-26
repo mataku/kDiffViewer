@@ -1,5 +1,8 @@
 package io.github.mataku.kdiffviewer.app.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -106,6 +109,77 @@ class PreferencesScreenTest {
     onNodeWithTag("git-choose").performClick()
     waitForIdle()
     assertEquals(listOf("/bad"), h.commits)
+  }
+
+  @Test
+  fun numpadEnterInGitFieldCommits() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    onNodeWithTag("git-path-field").performTextInput("/bad")
+    onNodeWithTag("git-path-field").performKeyInput { pressKey(Key.NumPadEnter) }
+    assertEquals(listOf("/bad"), h.commits)
+  }
+
+  @Test
+  fun disposingWithEditedGitFieldCommits() = runComposeUiTest {
+    val h = Harness()
+    var visible by mutableStateOf(true)
+    setContent {
+      if (visible) {
+        KdvTheme(darkTheme = false) {
+          PreferencesScreen(
+            settings = Settings(),
+            loadError = false,
+            gitStatus = ready,
+            fontFamilies = null,
+            onUpdate = {},
+            onCommitGitPath = { h.commits += it },
+            onChooseGit = {},
+          )
+        }
+      }
+    }
+    onNodeWithTag("git-path-field").performTextInput("/bad")
+    visible = false
+    waitForIdle()
+    assertEquals(listOf("/bad"), h.commits)
+  }
+
+  @Test
+  fun disposingWithoutEditsDoesNotCommit() = runComposeUiTest {
+    val h = Harness()
+    var visible by mutableStateOf(true)
+    setContent {
+      if (visible) {
+        KdvTheme(darkTheme = false) {
+          PreferencesScreen(
+            settings = Settings(),
+            loadError = false,
+            gitStatus = ready,
+            fontFamilies = null,
+            onUpdate = {},
+            onCommitGitPath = { h.commits += it },
+            onChooseGit = {},
+          )
+        }
+      }
+    }
+    waitForIdle()
+    visible = false
+    waitForIdle()
+    assertEquals(emptyList(), h.commits)
+  }
+
+  @Test
+  fun fontSizeStepperAppliesRelativeToLatestSettings() = runComposeUiTest {
+    val h = Harness()
+    show(h, Settings(fontSize = 12))
+    onNodeWithTag("font-size-increase").performClick()
+    assertEquals(21, h.last(Settings(fontSize = 20)).fontSize)
+    onNodeWithTag("font-size-decrease").performClick()
+    assertEquals(19, h.last(Settings(fontSize = 20)).fontSize)
+    onNodeWithTag("font-size-increase").performClick()
+    assertEquals(32, h.last(Settings(fontSize = 32)).fontSize)
   }
 
   @Test

@@ -47,6 +47,7 @@ class GitBackendControllerTest {
     )
     var onProbe: (String) -> Unit = {}
     var onLocate: () -> Unit = {}
+    var probeFailure: Throwable? = null
     val probed = mutableListOf<String>()
     val locateCalls = mutableListOf<String?>()
     val installed = mutableListOf<GitBackend?>()
@@ -58,6 +59,7 @@ class GitBackendControllerTest {
       probe = { path ->
         probed += path
         onProbe(path)
+        probeFailure?.let { throw it }
         if (path in accepted) info(path) else null
       },
       locate = { configured ->
@@ -121,6 +123,18 @@ class GitBackendControllerTest {
     advanceUntilIdle()
 
     assertEquals(GitStatus.Rejected("/bad", info("/initial")), h.controller.status.value)
+    assertNull(h.settings.settings.value.gitPath)
+    assertTrue(h.installed.isEmpty())
+  }
+
+  @Test
+  fun probeFailureIsRejectedAndNotSaved() = runTest(StandardTestDispatcher()) {
+    val h = Harness(this)
+    h.probeFailure = IllegalStateException("boom")
+    h.controller.commit("/g")
+    advanceUntilIdle()
+
+    assertEquals(GitStatus.Rejected("/g", info("/initial")), h.controller.status.value)
     assertNull(h.settings.settings.value.gitPath)
     assertTrue(h.installed.isEmpty())
   }

@@ -85,6 +85,14 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun expandsTabsWithConfiguredTabWidth() = runComposeUiTest {
+    val line = DiffLine(LineKind.Added, "\tx", null, 1)
+    val file = FileDiff(null, "t.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", listOf(line)))))
+    setContent { KdvTheme(darkTheme = false, tabWidth = 4) { ViewerScreen(stateOf(listOf(file)), {}) } }
+    onNodeWithText("    x").assertIsDisplayed()
+  }
+
+  @Test
   fun longPathKeepsBadgeAndStatsVisible() = runComposeUiTest {
     val path = "very/long/" + "nested-directory/".repeat(5) + "a-file-with-a-rather-long-name.kt"
     setContent {

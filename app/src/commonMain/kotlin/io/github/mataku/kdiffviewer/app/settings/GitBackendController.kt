@@ -4,6 +4,7 @@ import io.github.mataku.kdiffviewer.app.highlight.HighlightPipeline
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.git.GitInfo
 import io.github.mataku.kdiffviewer.core.git.GitLocation
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -57,18 +58,24 @@ class GitBackendController(
     job?.cancel()
     state.value = GitStatus.Checking
     job = scope.launch {
-      if (path.isEmpty()) {
-        val location = runInterruptible(ioDispatcher) { locate(null) }
-        settings.update { it.copy(gitPath = null) }
-        install(location)
-      } else {
-        val info = runInterruptible(ioDispatcher) { probe(path) }
-        if (info == null) {
-          state.value = GitStatus.Rejected(path, active)
+      try {
+        if (path.isEmpty()) {
+          val location = runInterruptible(ioDispatcher) { locate(null) }
+          settings.update { it.copy(gitPath = null) }
+          install(location)
         } else {
-          settings.update { it.copy(gitPath = path) }
-          install(GitLocation.Found(info))
+          val info = runInterruptible(ioDispatcher) { probe(path) }
+          if (info == null) {
+            state.value = GitStatus.Rejected(path, active)
+          } else {
+            settings.update { it.copy(gitPath = path) }
+            install(GitLocation.Found(info))
+          }
         }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        state.value = GitStatus.Rejected(path, active)
       }
     }
   }
