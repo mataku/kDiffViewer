@@ -4,6 +4,7 @@ import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.FileDiff
+import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -29,6 +30,8 @@ class DiffViewerStateThreadingTest {
         if (index % 7 == 0) yield()
       }
     }
+
+    override suspend fun head(repo: RepoPath): HeadRef? = null
   }
 
   @Test

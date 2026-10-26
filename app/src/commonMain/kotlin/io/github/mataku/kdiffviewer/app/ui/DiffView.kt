@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,6 +39,8 @@ import io.github.mataku.kdiffviewer.core.model.LineKind
 
 private const val MINUS = "−"
 
+private val FileHeaderTopMargin = 12.dp
+
 @Composable
 fun DiffView(
   rows: List<DiffRow>,
@@ -45,7 +48,11 @@ fun DiffView(
   listState: LazyListState,
   modifier: Modifier = Modifier,
 ) {
-  LazyColumn(state = listState, modifier = modifier.testTag("diff-list")) {
+  LazyColumn(
+    state = listState,
+    modifier = modifier.testTag("diff-list"),
+    contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = FileHeaderTopMargin),
+  ) {
     items(rows, key = { it.key }) { row ->
       when (row) {
         is DiffRow.FileHeader -> FileHeaderRow(row)
@@ -70,7 +77,7 @@ private fun FileHeaderRow(row: DiffRow.FileHeader) {
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .padding(top = 12.dp)
+      .padding(top = FileHeaderTopMargin)
       .background(colors.fileHeaderBackground)
       .border(1.dp, colors.border)
       .padding(horizontal = 12.dp, vertical = 8.dp)

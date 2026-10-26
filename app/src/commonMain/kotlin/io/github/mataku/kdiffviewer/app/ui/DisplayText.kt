@@ -5,6 +5,7 @@ import androidx.compose.ui.text.SpanStyle
 import io.github.mataku.compose.highlight.core.HighlightSpan
 import io.github.mataku.compose.highlight.core.SyntaxTheme
 import io.github.mataku.kdiffviewer.core.model.Hunk
+import io.github.mataku.kdiffviewer.core.model.RepoPath
 
 private const val TAB_WIDTH = 8
 
@@ -60,4 +61,9 @@ fun hunkHeaderLabel(hunk: Hunk): String {
   val range = "@@ -${hunk.oldStart},${hunk.oldCount} +${hunk.newStart},${hunk.newCount} @@"
   val functionName = hunk.header.trim()
   return if (functionName.isEmpty()) range else "$range $functionName"
+}
+
+fun repoName(repo: RepoPath): String {
+  val trimmed = repo.value.trimEnd('/')
+  return if (trimmed.isEmpty()) repo.value else trimmed.substringAfterLast('/')
 }

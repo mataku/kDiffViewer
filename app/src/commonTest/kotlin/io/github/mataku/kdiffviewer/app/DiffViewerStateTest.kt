@@ -12,6 +12,7 @@ import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.FileDiff
+import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
@@ -63,9 +64,14 @@ class DiffViewerStateTest {
     ),
   )
 
-  private class FakeSource(private val block: (Int) -> Flow<FileDiff>) : DiffSource {
+  private class FakeSource(
+    private val heads: List<HeadRef?> = emptyList(),
+    private val block: (Int) -> Flow<FileDiff>,
+  ) : DiffSource {
     var calls = 0
+    private var headCalls = 0
     override fun load(repo: RepoPath): Flow<FileDiff> = block(calls++)
+    override suspend fun head(repo: RepoPath): HeadRef? = heads.getOrNull(headCalls++)
   }
 
   private fun TestScope.stateFor(source: DiffSource?) = DiffViewerState(source, this, 16)
@@ -90,6 +96,123 @@ class DiffViewerStateTest {
     assertEquals(files, ui.files)
     assertEquals(flattenRows(files), ui.rows)
     assertEquals(buildFileTree(files), ui.tree)
+  }
+
+  @Test
+  fun openPublishesHead() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource(listOf(HeadRef.Branch("main"))) { flow {} })
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(HeadRef.Branch("main"), state.uiState.value.head)
+  }
+
+  @Test
+  fun reloadRefreshesHead() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource(listOf(HeadRef.Branch("main"), HeadRef.Branch("feature/x"))) { flow {} })
+    state.open(repo)
+    advanceUntilIdle()
+    state.reload()
+    advanceUntilIdle()
+    assertEquals(HeadRef.Branch("feature/x"), state.uiState.value.head)
+  }
+
+  @Test
+  fun reloadKeepsHeadWhileLoading() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource(listOf(HeadRef.Branch("main"), HeadRef.Branch("main"))) { flow {} })
+    state.open(repo)
+    advanceUntilIdle()
+    state.reload()
+    assertEquals(LoadStatus.Loading, state.uiState.value.status)
+    assertEquals(HeadRef.Branch("main"), state.uiState.value.head)
+  }
+
+  @Test
+  fun openingAnotherRepoClearsHead() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource(listOf(HeadRef.Branch("main"))) { flow {} })
+    state.open(repo)
+    advanceUntilIdle()
+    state.open(RepoPath("/other"))
+    assertNull(state.uiState.value.head)
+  }
+
+  @Test
+  fun headFailureDoesNotFailTheLoad() = runTest(StandardTestDispatcher()) {
+    val source = object : DiffSource {
+      override fun load(repo: RepoPath): Flow<FileDiff> = flow { emit(file("a")) }
+      override suspend fun head(repo: RepoPath): HeadRef? = throw IllegalStateException("boom")
+    }
+    val state = stateFor(source)
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(LoadStatus.Done, state.uiState.value.status)
+    assertNull(state.uiState.value.head)
+  }
+
+  @Test
+  fun reloadKeepsPreviousContentUntilLoadCompletes() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(
+      FakeSource { call ->
+        if (call == 0) {
+          flow { emit(file("a")) }
+        } else {
+          flow {
+            delay(100)
+            emit(file("a"))
+            delay(100)
+            emit(file("b"))
+          }
+        }
+      },
+    )
+    state.open(repo)
+    advanceUntilIdle()
+    val firstLoadId = state.uiState.value.loadId
+    state.reload()
+    advanceTimeBy(150)
+    runCurrent()
+    assertEquals(listOf(file("a")), state.uiState.value.files)
+    assertEquals(LoadStatus.Loading, state.uiState.value.status)
+    assertEquals(firstLoadId, state.uiState.value.loadId)
+    advanceUntilIdle()
+    assertEquals(listOf(file("a"), file("b")), state.uiState.value.files)
+    assertEquals(LoadStatus.Done, state.uiState.value.status)
+    assertTrue(state.uiState.value.loadId > firstLoadId)
+  }
+
+  @Test
+  fun slowReloadSwitchesToStreamingAfterHoldWindow() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(
+      FakeSource { call ->
+        if (call == 0) {
+          flow { emit(file("old")) }
+        } else {
+          flow {
+            delay(100)
+            emit(file("new"))
+            delay(1_000)
+          }
+        }
+      },
+    )
+    state.open(repo)
+    advanceUntilIdle()
+    val firstLoadId = state.uiState.value.loadId
+    state.reload()
+    advanceTimeBy(350)
+    runCurrent()
+    assertEquals(listOf(file("new")), state.uiState.value.files)
+    assertEquals(LoadStatus.Loading, state.uiState.value.status)
+    assertTrue(state.uiState.value.loadId > firstLoadId)
+  }
+
+  @Test
+  fun openingAnotherRepoClearsContentImmediately() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(FakeSource { flow { emit(file("a")) } })
+    state.open(repo)
+    advanceUntilIdle()
+    state.open(RepoPath("/other"))
+    assertEquals(emptyList(), state.uiState.value.files)
+    assertEquals(emptyList(), state.uiState.value.tree)
   }
 
   @Test
@@ -189,9 +312,7 @@ class DiffViewerStateTest {
     runCurrent()
     assertEquals(1, state.uiState.value.files.size)
     state.reload()
-    assertEquals(emptyList(), state.uiState.value.files)
-    assertEquals(emptyList(), state.uiState.value.rows)
-    assertEquals(emptyList(), state.uiState.value.tree)
+    assertEquals(listOf(file("old")), state.uiState.value.files)
     assertEquals(LoadStatus.Loading, state.uiState.value.status)
     advanceUntilIdle()
     assertTrue(firstCancelled)
@@ -304,13 +425,15 @@ class DiffViewerStateTest {
   }
 
   @Test
-  fun everyOpenAndReloadGetsANewLoadId() = runTest(StandardTestDispatcher()) {
+  fun loadIdChangesWhenDisplayedContentIsReplaced() = runTest(StandardTestDispatcher()) {
     val state = stateFor(FakeSource { flow { } })
     state.open(repo)
     val first = state.uiState.value.loadId
     advanceUntilIdle()
     assertEquals(first, state.uiState.value.loadId)
     state.reload()
+    assertEquals(first, state.uiState.value.loadId)
+    advanceUntilIdle()
     val second = state.uiState.value.loadId
     state.open(RepoPath("/other"))
     val third = state.uiState.value.loadId
@@ -436,7 +559,7 @@ class DiffViewerStateTest {
     assertTrue(contentSource.closed)
     assertEquals(1, firstSlots.size)
     assertNull(firstSlots[0].value)
-    assertEquals(0, state.uiState.value.highlights.size)
+    assertEquals(firstSlots, state.uiState.value.highlights)
   }
 
   @Test

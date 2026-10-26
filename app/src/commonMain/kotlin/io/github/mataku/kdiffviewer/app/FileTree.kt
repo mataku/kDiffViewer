@@ -1,8 +1,10 @@
 package io.github.mataku.kdiffviewer.app
 
+import androidx.compose.runtime.Immutable
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.displayPath
 
+@Immutable
 data class TreeRow(val depth: Int, val name: String, val fileIndex: Int?)
 
 private class TreeNode {
@@ -73,3 +75,27 @@ class FileTreeBuilder {
 }
 
 fun buildFileTree(files: List<FileDiff>): List<TreeRow> = FileTreeBuilder().apply { add(files) }.rows()
+
+@Immutable
+data class TreeEntry(val row: TreeRow, val directoryPath: String?, val collapsed: Boolean)
+
+fun visibleTree(rows: List<TreeRow>, collapsed: Set<String>): List<TreeEntry> {
+  val result = ArrayList<TreeEntry>(rows.size)
+  val ancestors = ArrayList<String>()
+  var hiddenBelowDepth = Int.MAX_VALUE
+  for (row in rows) {
+    if (row.depth > hiddenBelowDepth) continue
+    hiddenBelowDepth = Int.MAX_VALUE
+    if (row.fileIndex != null) {
+      result += TreeEntry(row, null, false)
+      continue
+    }
+    while (ancestors.size > row.depth) ancestors.removeAt(ancestors.lastIndex)
+    val path = if (row.depth == 0) row.name else "${ancestors.last()}/${row.name}"
+    ancestors += path
+    val isCollapsed = path in collapsed
+    if (isCollapsed) hiddenBelowDepth = row.depth
+    result += TreeEntry(row, path, isCollapsed)
+  }
+  return result
+}

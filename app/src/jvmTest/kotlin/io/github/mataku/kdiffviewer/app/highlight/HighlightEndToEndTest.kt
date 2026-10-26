@@ -20,6 +20,7 @@ import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.FileDiff
+import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
@@ -45,6 +46,8 @@ import kotlin.test.assertTrue
 class HighlightEndToEndTest {
   private class InMemoryDiffSource(var files: List<FileDiff>) : DiffSource {
     override fun load(repo: RepoPath): Flow<FileDiff> = files.asFlow()
+
+    override suspend fun head(repo: RepoPath): HeadRef? = null
   }
 
   private class InMemoryContentSource(

@@ -2,6 +2,7 @@ package io.github.mataku.kdiffviewer.core.git
 
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.FileDiff
+import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -140,5 +141,29 @@ class GitDiffSourceTest {
   fun noChangesEmitsNothing() = runTest {
     repoSetup()
     assertEquals(emptyList(), load())
+  }
+
+  private val symbolicRef = listOf("symbolic-ref", "--quiet", "--short", "HEAD")
+  private val shortHead = listOf("rev-parse", "--short", "HEAD")
+
+  @Test
+  fun headIsBranchName() = runTest {
+    runner.runResults[symbolicRef] = GitResult(0, "feature/x\n", "")
+    assertEquals(HeadRef.Branch("feature/x"), source.head(RepoPath("/repo/sub")))
+    assertEquals("/repo/sub", runner.runCalls.single().workingDir)
+  }
+
+  @Test
+  fun detachedHeadIsShortHash() = runTest {
+    runner.runResults[symbolicRef] = GitResult(1, "", "")
+    runner.runResults[shortHead] = GitResult(0, "abc1234\n", "")
+    assertEquals(HeadRef.Detached("abc1234"), source.head(RepoPath("/repo")))
+  }
+
+  @Test
+  fun headIsNullWhenGitFails() = runTest {
+    runner.runResults[symbolicRef] = GitResult(128, "", "fatal")
+    runner.runResults[shortHead] = GitResult(128, "", "fatal")
+    assertEquals(null, source.head(RepoPath("/repo")))
   }
 }

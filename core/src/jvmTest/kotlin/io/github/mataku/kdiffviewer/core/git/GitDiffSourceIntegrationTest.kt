@@ -3,6 +3,7 @@ package io.github.mataku.kdiffviewer.core.git
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.FileDiff
+import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.displayPath
 import kotlinx.coroutines.flow.toList
@@ -165,5 +166,23 @@ class GitDiffSourceIntegrationTest {
     val files = load()
 
     assertTrue(files.byPath("a.txt").content is DiffContent.Text, "content=${files.byPath("a.txt").content}")
+  }
+
+  @Test
+  fun headFollowsBranchAndDetachedHead() {
+    initRepo()
+    write("a.txt", "1\n")
+    commitAll()
+    runGit(repo, "switch", "-c", "feature/x")
+    assertEquals(HeadRef.Branch("feature/x"), runBlocking { source.head(RepoPath(repo.path)) })
+    val hash = runGit(repo, "rev-parse", "--short", "HEAD").trim()
+    runGit(repo, "switch", "--detach")
+    assertEquals(HeadRef.Detached(hash), runBlocking { source.head(RepoPath(repo.path)) })
+  }
+
+  @Test
+  fun headOfUnbornBranchIsItsName() {
+    initRepo()
+    assertEquals(HeadRef.Branch("main"), runBlocking { source.head(RepoPath(repo.path)) })
   }
 }

@@ -1,5 +1,7 @@
 package io.github.mataku.kdiffviewer.app.highlight
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -29,10 +31,12 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.max
 
+@Stable
 class HighlightSlot {
   var value: FileHighlight? by mutableStateOf(null)
 }
 
+@Immutable
 class FileHighlight(val spans: Array<Array<List<HighlightSpan>?>>)
 
 class HighlightEntry(val fileIndex: Int, val file: FileDiff, val slot: HighlightSlot)

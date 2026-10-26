@@ -6,6 +6,7 @@ import androidx.compose.ui.text.SpanStyle
 import io.github.mataku.compose.highlight.core.HighlightSpan
 import io.github.mataku.compose.highlight.core.SyntaxTheme
 import io.github.mataku.kdiffviewer.core.model.Hunk
+import io.github.mataku.kdiffviewer.core.model.RepoPath
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -110,5 +111,20 @@ class DisplayTextTest {
     listOf("", "abc", "ab\tc", "\ta\tb", "\t\t", "abcdefgh\ti").forEach {
       assertEquals(expandTabs(it), displayText(it, emptyList(), theme).text)
     }
+  }
+
+  @Test
+  fun repoNameIsLastPathSegment() {
+    assertEquals("kDiffViewer", repoName(RepoPath("/Users/me/src/kDiffViewer")))
+  }
+
+  @Test
+  fun repoNameIgnoresTrailingSlash() {
+    assertEquals("repo", repoName(RepoPath("/work/repo/")))
+  }
+
+  @Test
+  fun repoNameOfRootIsThePathItself() {
+    assertEquals("/", repoName(RepoPath("/")))
   }
 }
