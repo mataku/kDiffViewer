@@ -2,10 +2,7 @@ package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,8 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -27,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -35,11 +32,11 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.error
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.settings.Appearance
@@ -64,8 +61,12 @@ fun PreferencesScreen(
 ) {
   val colors = LocalDiffColors.current
   Column(
-    modifier = Modifier.fillMaxSize().background(colors.background).padding(24.dp),
-    verticalArrangement = Arrangement.spacedBy(16.dp),
+    modifier = Modifier
+      .fillMaxSize()
+      .background(colors.background)
+      .verticalScroll(rememberScrollState())
+      .padding(start = 32.dp, end = 32.dp, top = 28.dp, bottom = 28.dp),
+    verticalArrangement = Arrangement.spacedBy(28.dp),
   ) {
     if (loadError) {
       BasicText(
@@ -78,115 +79,92 @@ fun PreferencesScreen(
           .padding(10.dp),
       )
     }
-    SettingRow("Appearance") {
-      Segmented(
-        options = Appearance.entries,
-        selected = settings.appearance,
-        label = { it.name },
-        tag = { "appearance-${it.name}" },
-        onSelect = { value -> onUpdate { it.copy(appearance = value) } },
-      )
+    BasicText(
+      text = "Settings",
+      style = TextStyle(color = colors.text, fontSize = 26.sp, fontWeight = FontWeight.Bold),
+    )
+    Section("Appearance") {
+      Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Appearance.entries.forEach { appearance ->
+          AppearanceCard(
+            appearance = appearance,
+            selected = appearance == settings.appearance,
+            onClick = { onUpdate { it.copy(appearance = appearance) } },
+          )
+        }
+      }
     }
-    SettingRow("Font") {
-      FontFamilyPicker(
-        selected = settings.fontFamily,
-        fontFamilies = fontFamilies,
-        onSelect = { value -> onUpdate { it.copy(fontFamily = value) } },
-      )
+    Section("Diff") {
+      SettingRow("Font", "Font used for diff lines") {
+        FontFamilyPicker(
+          selected = settings.fontFamily,
+          fontFamilies = fontFamilies,
+          onSelect = { value -> onUpdate { it.copy(fontFamily = value) } },
+        )
+      }
+      SettingRow("Font size") {
+        FontSizeStepper(
+          size = settings.fontSize,
+          onChange = { delta -> onUpdate { it.copy(fontSize = (it.fontSize + delta).coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)) } },
+        )
+      }
+      SettingRow("Tab width", "Columns a tab character occupies") {
+        MacSegmented(
+          options = TAB_WIDTHS,
+          selected = settings.tabWidth,
+          label = { it.toString() },
+          tag = { "tab-width-$it" },
+          onSelect = { value -> onUpdate { it.copy(tabWidth = value) } },
+        )
+      }
     }
-    SettingRow("Font size") {
-      FontSizeStepper(
-        size = settings.fontSize,
-        onChange = { delta -> onUpdate { it.copy(fontSize = (it.fontSize + delta).coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)) } },
-      )
-    }
-    SettingRow("Tab width") {
-      Segmented(
-        options = TAB_WIDTHS,
-        selected = settings.tabWidth,
-        label = { it.toString() },
-        tag = { "tab-width-$it" },
-        onSelect = { value -> onUpdate { it.copy(tabWidth = value) } },
-      )
-    }
-    SettingRow("Git", alignTop = true) {
+    Section("Git") {
       GitSection(settings.gitPath, gitStatus, onCommitGitPath, onChooseGit)
     }
   }
 }
 
 @Composable
-private fun SettingRow(label: String, alignTop: Boolean = false, content: @Composable () -> Unit) {
-  Row(
-    horizontalArrangement = Arrangement.spacedBy(16.dp),
-    verticalAlignment = if (alignTop) Alignment.Top else Alignment.CenterVertically,
-  ) {
+private fun Section(title: String, content: @Composable () -> Unit) {
+  Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
     BasicText(
-      text = label,
-      style = TextStyle(color = LocalDiffColors.current.text, fontSize = 13.sp),
-      modifier = Modifier.width(88.dp).padding(top = if (alignTop) 6.dp else 0.dp),
+      text = title,
+      style = TextStyle(color = LocalDiffColors.current.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
     )
     content()
   }
 }
 
 @Composable
-private fun <T> Segmented(
-  options: List<T>,
-  selected: T,
-  label: (T) -> String,
-  tag: (T) -> String,
-  onSelect: (T) -> Unit,
-) {
+private fun SettingRow(label: String, description: String? = null, control: @Composable () -> Unit) {
   val colors = LocalDiffColors.current
-  Row(modifier = Modifier.border(1.dp, colors.border)) {
-    options.forEach { option ->
-      val isSelected = option == selected
-      BasicText(
-        text = label(option),
-        style = TextStyle(color = colors.text, fontSize = 13.sp),
-        modifier = Modifier
-          .testTag(tag(option))
-          .background(if (isSelected) colors.hunkBackground else colors.fileHeaderBackground)
-          .semantics { this.selected = isSelected }
-          .clickable(role = Role.RadioButton) { onSelect(option) }
-          .padding(horizontal = 14.dp, vertical = 6.dp),
-      )
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(16.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      BasicText(text = label, style = TextStyle(color = colors.text, fontSize = 13.sp))
+      if (description != null) {
+        BasicText(text = description, style = TextStyle(color = colors.mutedText, fontSize = 12.sp))
+      }
     }
+    control()
   }
 }
 
 @Composable
 private fun FontSizeStepper(size: Int, onChange: (delta: Int) -> Unit) {
   val colors = LocalDiffColors.current
-  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-    StepButton("−", "font-size-decrease", size > MIN_FONT_SIZE) { onChange(-1) }
+  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    MacPushButton("−", { onChange(-1) }, Modifier.testTag("font-size-decrease"), enabled = size > MIN_FONT_SIZE)
     BasicText(
       text = size.toString(),
-      style = TextStyle(color = colors.text, fontSize = 13.sp),
-      modifier = Modifier.width(24.dp),
+      style = TextStyle(color = colors.text, fontSize = 13.sp, textAlign = TextAlign.Center),
+      modifier = Modifier.width(28.dp),
     )
-    StepButton("+", "font-size-increase", size < MAX_FONT_SIZE) { onChange(1) }
-    BasicText(
-      text = "($MIN_FONT_SIZE–$MAX_FONT_SIZE)",
-      style = TextStyle(color = colors.mutedText, fontSize = 12.sp),
-    )
+    MacPushButton("+", { onChange(1) }, Modifier.testTag("font-size-increase"), enabled = size < MAX_FONT_SIZE)
   }
-}
-
-@Composable
-private fun StepButton(label: String, tag: String, enabled: Boolean, onClick: () -> Unit) {
-  val colors = LocalDiffColors.current
-  BasicText(
-    text = label,
-    style = TextStyle(color = if (enabled) colors.text else colors.mutedText.copy(alpha = 0.5f), fontSize = 14.sp),
-    modifier = Modifier
-      .testTag(tag)
-      .border(1.dp, colors.border)
-      .background(colors.fileHeaderBackground)
-      .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-      .padding(horizontal = 12.dp, vertical = 4.dp),
-  )
 }
 
 @Composable
@@ -207,24 +185,15 @@ private fun GitSection(
       if (latestText != latestGitPath.orEmpty()) latestOnCommit(latestText)
     }
   }
-  Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      Box(
-        modifier = Modifier
-          .width(300.dp)
-          .border(1.dp, colors.border)
-          .background(colors.fileHeaderBackground)
-          .padding(horizontal = 10.dp, vertical = 6.dp),
-      ) {
-        BasicTextField(
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    SettingRow("Executable", "Leave empty to detect git automatically") {
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        MacTextField(
           value = text,
           onValueChange = { text = it },
-          singleLine = true,
-          textStyle = TextStyle(color = colors.text, fontSize = 13.sp),
-          cursorBrush = SolidColor(colors.text),
+          containerModifier = Modifier.width(240.dp),
           modifier = Modifier
             .testTag("git-path-field")
-            .fillMaxWidth()
             .semantics { status.errorMessage()?.let { error(it) } }
             .onFocusChanged { state ->
               if (hadFocus && !state.isFocused) onCommit(text)
@@ -239,17 +208,8 @@ private fun GitSection(
               }
             },
         )
+        MacPushButton("Choose…", onChoose, Modifier.testTag("git-choose"))
       }
-      BasicText(
-        text = "Choose…",
-        style = TextStyle(color = colors.text, fontSize = 13.sp),
-        modifier = Modifier
-          .testTag("git-choose")
-          .border(1.dp, colors.border)
-          .background(colors.fileHeaderBackground)
-          .clickable(role = Role.Button, onClick = onChoose)
-          .padding(horizontal = 12.dp, vertical = 6.dp),
-      )
     }
     val line = statusLine(gitPath, status, colors)
     Row(

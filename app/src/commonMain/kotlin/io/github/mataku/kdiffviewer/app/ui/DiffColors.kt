@@ -24,6 +24,7 @@ data class DiffColors(
   val glassFillPressed: Color,
   val glassHighlight: Color,
   val glassEdge: Color,
+  val accent: Color,
 )
 
 val LightDiffColors = DiffColors(
@@ -44,6 +45,7 @@ val LightDiffColors = DiffColors(
   glassFillPressed = Color(0xFFE6EAEF),
   glassHighlight = Color(0xFFFFFFFF),
   glassEdge = Color(0x26000000),
+  accent = Color(0xFF007AFF),
 )
 
 val DarkDiffColors = DiffColors(
@@ -64,6 +66,7 @@ val DarkDiffColors = DiffColors(
   glassFillPressed = Color(0x33FFFFFF),
   glassHighlight = Color(0x40FFFFFF),
   glassEdge = Color(0x0FFFFFFF),
+  accent = Color(0xFF0A84FF),
 )
 
 val LocalDiffColors: ProvidableCompositionLocal<DiffColors> = staticCompositionLocalOf { LightDiffColors }

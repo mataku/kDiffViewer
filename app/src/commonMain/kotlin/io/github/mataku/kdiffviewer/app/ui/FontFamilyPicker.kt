@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
@@ -20,6 +21,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
@@ -30,6 +33,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+
+private val PopupShape = RoundedCornerShape(8.dp)
 
 internal const val SYSTEM_MONOSPACE = "System monospace"
 
@@ -44,17 +49,10 @@ fun FontFamilyPicker(
   var open by remember { mutableStateOf(false) }
   val textStyle = TextStyle(color = colors.text, fontSize = 13.sp)
   Box(modifier = modifier) {
-    BasicText(
-      text = "${selected ?: SYSTEM_MONOSPACE}  ▾",
-      style = textStyle,
-      maxLines = 1,
-      modifier = Modifier
-        .testTag("font-picker")
-        .width(240.dp)
-        .border(1.dp, colors.border)
-        .background(colors.fileHeaderBackground)
-        .clickable { open = true }
-        .padding(horizontal = 10.dp, vertical = 6.dp),
+    MacPopupButton(
+      text = selected ?: SYSTEM_MONOSPACE,
+      onClick = { open = true },
+      modifier = Modifier.testTag("font-picker"),
     )
     if (open) {
       Popup(
@@ -91,9 +89,11 @@ private fun FontPopupContent(
   LaunchedEffect(Unit) { focusRequester.requestFocus() }
   Column(
     modifier = Modifier
-      .width(240.dp)
-      .border(1.dp, colors.border)
-      .background(colors.background),
+      .width(220.dp)
+      .shadow(12.dp, PopupShape, clip = false)
+      .clip(PopupShape)
+      .background(colors.background)
+      .border(0.5.dp, colors.border, PopupShape),
   ) {
     BasicTextField(
       value = query,

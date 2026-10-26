@@ -70,6 +70,22 @@ class PreferencesScreenTest {
   }
 
   @Test
+  fun clickingPreviewCardSelectsAppearance() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    onNodeWithTag("appearance-preview-Light", useUnmergedTree = true).performClick()
+    assertEquals(Appearance.Light, h.last().appearance)
+  }
+
+  @Test
+  fun allPreviewCardsAreShown() = runComposeUiTest {
+    show(Harness())
+    listOf("System", "Light", "Dark").forEach {
+      onNodeWithTag("appearance-preview-$it", useUnmergedTree = true).assertExists()
+    }
+  }
+
+  @Test
   fun fontSizeStepperStopsAtBounds() = runComposeUiTest {
     val h = Harness()
     show(h, Settings(fontSize = 32))

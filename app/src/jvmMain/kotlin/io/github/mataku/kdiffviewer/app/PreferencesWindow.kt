@@ -32,7 +32,7 @@ fun PreferencesWindow(
     onCloseRequest = onClose,
     title = "Settings",
     resizable = false,
-    state = rememberWindowState(size = DpSize(520.dp, 440.dp)),
+    state = rememberWindowState(size = DpSize(640.dp, 600.dp)),
   ) {
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     LaunchedEffect(focusRequests) { window.toFront() }
