@@ -52,6 +52,15 @@ kotlin {
   }
 }
 
+val prepareKdvResources by tasks.registering(Sync::class) {
+  dependsOn(":cli:linkReleaseExecutableMacosArm64")
+  from(rootProject.layout.projectDirectory.file("cli/build/bin/macosArm64/releaseExecutable/kdv.kexe")) {
+    rename { "kdv" }
+  }
+  into(layout.buildDirectory.dir("kdv-resources/macos-arm64"))
+  filePermissions { unix("rwxr-xr-x") }
+}
+
 compose.desktop {
   application {
     mainClass = "io.github.mataku.kdiffviewer.app.MainKt"
@@ -69,10 +78,22 @@ compose.desktop {
       packageName = "kDiffViewer"
       packageVersion = "1.0.0"
       modules("java.instrument", "jdk.unsupported")
+      appResourcesRootDir.set(layout.buildDirectory.dir("kdv-resources"))
 
       macOS {
         bundleID = "io.github.mataku.kdiffviewer"
       }
     }
+  }
+}
+
+tasks.matching { it.name == "prepareAppResources" }.configureEach {
+  dependsOn(prepareKdvResources)
+}
+
+tasks.matching { it.name == "createDistributable" }.configureEach {
+  val kdvBinary = layout.buildDirectory.file("compose/binaries/main/app/kDiffViewer.app/Contents/app/resources/kdv")
+  doLast {
+    kdvBinary.get().asFile.setExecutable(true, false)
   }
 }
