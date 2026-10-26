@@ -18,6 +18,7 @@ import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.Side
 import io.github.mataku.kdiffviewer.core.model.highlightRanges
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -118,7 +119,14 @@ class HighlightPipeline<L>(
     if (ranges.isEmpty()) return null
     val language = languages.languageFor(path) ?: return null
     val text = sessions.get().read(file, side, UNTRACKED_SIZE_LIMIT) ?: return null
-    return highlighter.highlight(text, language, ranges)
+    return try {
+      highlighter.highlight(text, language, ranges)
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      onFailure(e)
+      null
+    }
   }
 
   private fun List<HighlightedLine>.findLine(lineNumber: Int): HighlightedLine? {

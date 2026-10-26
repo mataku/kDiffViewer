@@ -24,6 +24,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -244,15 +245,32 @@ class HighlightPipelineTest {
   }
 
   @Test
-  fun failureStopsRunAndReportsIt() = runTest {
+  fun highlighterExceptionSkipsOnlyThatFileAndReportsIt() = runTest {
     val paths = (1..3).map { "$it.kt" }
     val source = FakeContentSource(paths.associate { (it to Side.New) to "x" })
-    val highlighter = FakeHighlighter().apply { onCall = { throw IllegalStateException("boom") } }
+    val highlighter = FakeHighlighter().apply { onCall = { if (it == 2) throw StringIndexOutOfBoundsException("boom") } }
     val failures = mutableListOf<Throwable>()
     val (_, slots) = runEntries(pipeline(source, highlighter) { failures += it }, *paths.map { addition(it) }.toTypedArray())
 
     assertEquals(1, failures.size)
-    assertTrue(failures[0] is IllegalStateException)
+    assertTrue(failures[0] is StringIndexOutOfBoundsException)
+    assertEquals(3, highlighter.calls.size)
+    assertNotNull(slots[0].value)
+    assertNull(slots[1].value)
+    assertNotNull(slots[2].value)
+    assertFalse(source.closed)
+  }
+
+  @Test
+  fun failureStopsRunAndReportsIt() = runTest {
+    val paths = (1..3).map { "$it.kt" }
+    val source = FakeContentSource(paths.associate { (it to Side.New) to "x" })
+    val highlighter = FakeHighlighter().apply { onCall = { throw LinkageError("boom") } }
+    val failures = mutableListOf<Throwable>()
+    val (_, slots) = runEntries(pipeline(source, highlighter) { failures += it }, *paths.map { addition(it) }.toTypedArray())
+
+    assertEquals(1, failures.size)
+    assertTrue(failures[0] is LinkageError)
     assertEquals(1, highlighter.calls.size)
     assertTrue(slots.all { it.value == null })
     assertTrue(source.closed)
