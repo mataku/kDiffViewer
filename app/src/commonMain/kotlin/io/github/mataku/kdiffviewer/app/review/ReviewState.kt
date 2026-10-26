@@ -27,9 +27,25 @@ data class ReviewSnapshot(
   val draft: Draft?,
   val settledLoadId: Long,
   val lastLoadFailed: Boolean,
+  val core: ReviewCore = ReviewCore.Empty,
 ) {
   companion object {
     val Empty = ReviewSnapshot(emptyList(), ReviewPlacements.Empty, null, 0L, false)
+  }
+}
+
+@Immutable
+data class ReviewCore(
+  val repo: RepoPath?,
+  val placementById: Map<String, Placement>,
+  val settledFiles: Int,
+  val seenLoadId: Long,
+  val generation: Int,
+  val nextThreadNumber: Int,
+  val nextCommentNumber: Int,
+) {
+  companion object {
+    val Empty = ReviewCore(null, emptyMap(), 0, 0L, 0, 1, 1)
   }
 }
 
@@ -53,195 +69,196 @@ class ReviewState(
   private val mutableSnapshot = MutableStateFlow(ReviewSnapshot.Empty)
   val snapshot: StateFlow<ReviewSnapshot> = mutableSnapshot.asStateFlow()
 
-  private var repo: RepoPath? = null
-  private var threads: List<ReviewThread> = emptyList()
-  private var placementById: Map<String, Placement> = emptyMap()
-  private var placements = ReviewPlacements.Empty
-  private var draft: Draft? = null
-  private var placementsLoadId = 0L
-  private var settledLoadId = 0L
-  private var settledFiles = 0
-  private var lastLoadFailed = false
-  private var seenLoadId = 0L
-  private var generation = 0
-  private var nextThreadNumber = 1
-  private var nextCommentNumber = 1
+  private inline fun <R> mutate(block: (ReviewSnapshot) -> Pair<ReviewSnapshot, R>): R {
+    while (true) {
+      val current = mutableSnapshot.value
+      val (next, result) = block(current)
+      if (next === current || mutableSnapshot.compareAndSet(current, next)) return result
+    }
+  }
 
   fun onViewerState(ui: ViewerUiState) {
-    if (ui.repo != repo) {
-      reset(ui.repo)
-    }
-    when (ui.status) {
-      LoadStatus.Done -> if (ui.loadId > seenLoadId) {
-        seenLoadId = ui.loadId
-        launchReanchor(ui.loadId, ui.files)
+    val launch = mutate { current ->
+      var next = current
+      if (ui.repo != next.core.repo) {
+        next = ReviewSnapshot(
+          emptyList(),
+          ReviewPlacements.Empty,
+          null,
+          0L,
+          false,
+          ReviewCore.Empty.copy(repo = ui.repo, generation = next.core.generation + 1),
+        )
       }
+      var launchReanchor = false
+      when (ui.status) {
+        LoadStatus.Done -> if (ui.loadId > next.core.seenLoadId) {
+          next = next.copy(core = next.core.copy(seenLoadId = ui.loadId))
+          launchReanchor = true
+        }
 
-      is LoadStatus.Failed -> if (ui.loadId > seenLoadId) {
-        seenLoadId = ui.loadId
-        settledLoadId = ui.loadId
-        settledFiles = ui.files.size
-        lastLoadFailed = true
-        publish()
+        is LoadStatus.Failed -> if (ui.loadId > next.core.seenLoadId) {
+          next = next.copy(
+            settledLoadId = ui.loadId,
+            lastLoadFailed = true,
+            core = next.core.copy(seenLoadId = ui.loadId, settledFiles = ui.files.size),
+          )
+        }
+
+        else -> Unit
       }
-
-      else -> Unit
+      next to launchReanchor
     }
+    if (launch) launchReanchor(ui.loadId, ui.files)
   }
 
   suspend fun awaitSettled(loadId: Long): LoadSettlement {
     val settled = snapshot.first { it.settledLoadId >= loadId }
-    return LoadSettlement(settled.lastLoadFailed, settledFiles, settled.threads.count { it.outdated })
+    return LoadSettlement(settled.lastLoadFailed, settled.core.settledFiles, settled.threads.count { it.outdated })
   }
 
   fun startDraft(target: DraftTarget) {
-    val current = draft
-    if (current != null && current.text.isNotBlank()) return
-    val text = when (target) {
-      is DraftTarget.NewThread -> ""
+    mutate { current ->
+      val existing = current.draft
+      if (existing != null && existing.text.isNotBlank()) return@mutate current to Unit
+      val text = when (target) {
+        is DraftTarget.NewThread -> ""
 
-      is DraftTarget.Reply -> {
-        if (threads.none { it.id == target.threadId }) return
-        ""
+        is DraftTarget.Reply -> {
+          if (current.threads.none { it.id == target.threadId }) return@mutate current to Unit
+          ""
+        }
+
+        is DraftTarget.Edit -> {
+          val comment = current.findComment(target.commentId)
+          if (comment == null || comment.author != Author.User) return@mutate current to Unit
+          comment.body
+        }
       }
-
-      is DraftTarget.Edit -> findComment(target.commentId)?.body ?: return
+      current.copy(draft = Draft(target, text)) to Unit
     }
-    draft = Draft(target, text)
-    publish()
   }
 
   fun updateDraft(text: String) {
-    val current = draft ?: return
-    if (current.text == text) return
-    draft = current.copy(text = text)
-    publish()
+    mutate { current ->
+      val draft = current.draft ?: return@mutate current to Unit
+      if (draft.text == text) return@mutate current to Unit
+      current.copy(draft = draft.copy(text = text)) to Unit
+    }
   }
 
   fun cancelDraft() {
-    if (draft == null) return
-    draft = null
-    publish()
+    mutate { current ->
+      if (current.draft == null) current to Unit else current.copy(draft = null) to Unit
+    }
   }
 
   fun submitDraft() {
-    val current = draft ?: return
-    if (current.text.isBlank()) return
-    when (val target = current.target) {
-      is DraftTarget.NewThread -> {
-        val thread = ReviewThread(
-          id = "t${nextThreadNumber++}",
-          anchor = target.anchor,
-          comments = listOf(newComment(Author.User, current.text)),
-          resolved = false,
-          outdated = false,
-        )
-        threads = threads + thread
-        placementById = placementById + (thread.id to target.placement)
-      }
+    mutate { current ->
+      val draft = current.draft ?: return@mutate current to Unit
+      if (draft.text.isBlank()) return@mutate current to Unit
+      val core = current.core
+      val next = when (val target = draft.target) {
+        is DraftTarget.NewThread -> {
+          val comment = Comment("c${core.nextCommentNumber}", Author.User, draft.text, now())
+          val thread = ReviewThread("t${core.nextThreadNumber}", target.anchor, listOf(comment), resolved = false, outdated = false)
+          current.withThreads(
+            current.threads + thread,
+            core.copy(
+              placementById = core.placementById + (thread.id to target.placement),
+              nextThreadNumber = core.nextThreadNumber + 1,
+              nextCommentNumber = core.nextCommentNumber + 1,
+            ),
+          )
+        }
 
-      is DraftTarget.Reply -> {
-        val index = threads.indexOfFirst { it.id == target.threadId }
-        if (index < 0) {
-          draft = null
-          publish()
-          return
+        is DraftTarget.Reply -> {
+          val index = current.threads.indexOfFirst { it.id == target.threadId }
+          if (index < 0) {
+            current
+          } else {
+            val comment = Comment("c${core.nextCommentNumber}", Author.User, draft.text, now())
+            current.withThreads(
+              current.threads.replaced(index) { it.copy(comments = it.comments + comment) },
+              core.copy(nextCommentNumber = core.nextCommentNumber + 1),
+            )
+          }
         }
-        val comment = newComment(Author.User, current.text)
-        replaceThread(index) { it.copy(comments = it.comments + comment) }
-      }
 
-      is DraftTarget.Edit -> {
-        val index = threads.indexOfFirst { thread -> thread.comments.any { it.id == target.commentId } }
-        if (index < 0) {
-          draft = null
-          publish()
-          return
-        }
-        replaceThread(index) { thread ->
-          thread.copy(comments = thread.comments.map { if (it.id == target.commentId) it.copy(body = current.text) else it })
+        is DraftTarget.Edit -> {
+          val index = current.threads.indexOfFirst { thread -> thread.comments.any { it.id == target.commentId } }
+          if (index < 0) {
+            current
+          } else {
+            current.withThreads(
+              current.threads.replaced(index) { thread ->
+                thread.copy(comments = thread.comments.map { if (it.id == target.commentId) it.copy(body = draft.text) else it })
+              },
+              core,
+            )
+          }
         }
       }
+      next.copy(draft = null) to Unit
     }
-    draft = null
-    rebuildPlacements()
-    publish()
   }
 
-  fun reply(threadId: String, author: Author, body: String): ReviewResult<Comment> {
-    val index = threads.indexOfFirst { it.id == threadId }
-    if (index < 0) return ReviewResult.Err(ReviewError.ThreadNotFound(threadId))
-    val comment = newComment(author, body)
-    replaceThread(index) { it.copy(comments = it.comments + comment) }
-    rebuildPlacements()
-    publish()
-    return ReviewResult.Ok(comment)
+  fun reply(threadId: String, author: Author, body: String): ReviewResult<Comment> = mutate { current ->
+    val index = current.threads.indexOfFirst { it.id == threadId }
+    if (index < 0) return@mutate current to ReviewResult.Err(ReviewError.ThreadNotFound(threadId))
+    val core = current.core
+    val comment = Comment("c${core.nextCommentNumber}", author, body, now())
+    val next = current.withThreads(
+      current.threads.replaced(index) { it.copy(comments = it.comments + comment) },
+      core.copy(nextCommentNumber = core.nextCommentNumber + 1),
+    )
+    next to ReviewResult.Ok(comment)
   }
 
-  fun setResolved(threadId: String, resolved: Boolean): ReviewResult<ReviewThread> {
-    val index = threads.indexOfFirst { it.id == threadId }
-    if (index < 0) return ReviewResult.Err(ReviewError.ThreadNotFound(threadId))
-    replaceThread(index) { it.copy(resolved = resolved) }
-    rebuildPlacements()
-    publish()
-    return ReviewResult.Ok(threads[index])
+  fun setResolved(threadId: String, resolved: Boolean): ReviewResult<ReviewThread> = mutate { current ->
+    val index = current.threads.indexOfFirst { it.id == threadId }
+    if (index < 0) return@mutate current to ReviewResult.Err(ReviewError.ThreadNotFound(threadId))
+    val next = current.withThreads(current.threads.replaced(index) { it.copy(resolved = resolved) }, current.core)
+    next to ReviewResult.Ok(next.threads[index])
   }
 
   fun delete(commentId: String) {
-    val index = threads.indexOfFirst { thread -> thread.comments.any { it.id == commentId && it.author == Author.User } }
-    if (index < 0) return
-    val thread = threads[index]
-    val remaining = thread.comments.filter { it.id != commentId }
-    if (remaining.isEmpty()) {
-      threads = threads.filterIndexed { i, _ -> i != index }
-      placementById = placementById - thread.id
-    } else {
-      replaceThread(index) { it.copy(comments = remaining) }
+    mutate { current ->
+      val index = current.threads.indexOfFirst { thread -> thread.comments.any { it.id == commentId && it.author == Author.User } }
+      if (index < 0) return@mutate current to Unit
+      val thread = current.threads[index]
+      val remaining = thread.comments.filter { it.id != commentId }
+      val next = if (remaining.isEmpty()) {
+        current.withThreads(
+          current.threads.filterIndexed { i, _ -> i != index },
+          current.core.copy(placementById = current.core.placementById - thread.id),
+        )
+      } else {
+        current.withThreads(current.threads.replaced(index) { it.copy(comments = remaining) }, current.core)
+      }
+      val dropsDraft = when (val target = current.draft?.target) {
+        is DraftTarget.Edit -> target.commentId == commentId
+        is DraftTarget.Reply -> remaining.isEmpty() && target.threadId == thread.id
+        else -> false
+      }
+      (if (dropsDraft) next.copy(draft = null) else next) to Unit
     }
-    val dropsDraft = when (val target = draft?.target) {
-      is DraftTarget.Edit -> target.commentId == commentId
-      is DraftTarget.Reply -> remaining.isEmpty() && target.threadId == thread.id
-      else -> false
-    }
-    if (dropsDraft) draft = null
-    rebuildPlacements()
-    publish()
   }
 
-  fun threads(includeResolved: Boolean): List<ReviewThread> = if (includeResolved) threads else threads.filterNot { it.resolved }
-
-  private fun reset(newRepo: RepoPath?) {
-    generation++
-    repo = newRepo
-    threads = emptyList()
-    placementById = emptyMap()
-    placements = ReviewPlacements.Empty
-    draft = null
-    placementsLoadId = 0L
-    settledLoadId = 0L
-    settledFiles = 0
-    lastLoadFailed = false
-    seenLoadId = 0L
-    nextThreadNumber = 1
-    nextCommentNumber = 1
-    publish()
+  fun threads(includeResolved: Boolean): List<ReviewThread> {
+    val all = snapshot.value.threads
+    return if (includeResolved) all else all.filterNot { it.resolved }
   }
 
-  private fun newComment(author: Author, body: String) = Comment("c${nextCommentNumber++}", author, body, now())
+  private fun ReviewSnapshot.findComment(commentId: String): Comment? = threads.firstNotNullOfOrNull { thread -> thread.comments.firstOrNull { it.id == commentId } }
 
-  private fun findComment(commentId: String): Comment? = threads.firstNotNullOfOrNull { thread -> thread.comments.firstOrNull { it.id == commentId } }
+  private inline fun List<ReviewThread>.replaced(index: Int, transform: (ReviewThread) -> ReviewThread): List<ReviewThread> = toMutableList().also { it[index] = transform(it[index]) }
 
-  private inline fun replaceThread(index: Int, transform: (ReviewThread) -> ReviewThread) {
-    threads = threads.toMutableList().also { it[index] = transform(it[index]) }
-  }
-
-  private fun rebuildPlacements() {
-    placements = buildPlacements(placementsLoadId, threads, placementById)
-  }
-
-  private fun publish() {
-    mutableSnapshot.value = ReviewSnapshot(threads, placements, draft, settledLoadId, lastLoadFailed)
-  }
+  private fun ReviewSnapshot.withThreads(threads: List<ReviewThread>, core: ReviewCore): ReviewSnapshot = copy(
+    threads = threads,
+    placements = buildPlacements(placements.loadId, threads, core.placementById),
+    core = core,
+  )
 
   private class Reanchored(
     val threads: Map<String, Pair<ReviewThread, Placement>>,
@@ -249,45 +266,46 @@ class ReviewState(
   )
 
   private fun launchReanchor(loadId: Long, files: List<FileDiff>) {
-    val launchedGeneration = generation
-    val inputThreads = threads
-    val inputDraft = draft?.target as? DraftTarget.NewThread
+    val input = mutableSnapshot.value
+    val inputDraft = input.draft?.target as? DraftTarget.NewThread
     scope.launch {
       val result = withContext(reanchorContext) {
         Reanchored(
-          inputThreads.associate { it.id to reanchor(it, files) },
+          input.threads.associate { it.id to reanchor(it, files) },
           inputDraft?.let { target ->
             val (anchor, placement) = reanchor(target.anchor, files)
             DraftTarget.NewThread(anchor, placement)
           },
         )
       }
-      if (launchedGeneration != generation || seenLoadId != loadId) return@launch
-      val currentDraft = draft?.target as? DraftTarget.NewThread
-      if (threads.any { it.id !in result.threads } || currentDraft != inputDraft) {
-        launchReanchor(loadId, files)
-        return@launch
+      val retry = mutate { current ->
+        if (current.core.generation != input.core.generation || current.core.seenLoadId != loadId) {
+          return@mutate current to false
+        }
+        val currentDraft = current.draft?.target as? DraftTarget.NewThread
+        if (current.threads.any { it.id !in result.threads } || currentDraft != inputDraft) {
+          return@mutate current to true
+        }
+        val threads = current.threads.map { thread ->
+          val reanchored = result.threads.getValue(thread.id).first
+          thread.copy(anchor = reanchored.anchor, outdated = reanchored.outdated)
+        }
+        val core = current.core.copy(
+          placementById = result.threads.mapValues { it.value.second },
+          settledFiles = files.size,
+        )
+        val draft = current.draft
+        val reanchoredDraft = result.draft
+        current.copy(
+          threads = threads,
+          placements = buildPlacements(loadId, threads, core.placementById),
+          draft = if (draft != null && reanchoredDraft != null) draft.copy(target = reanchoredDraft) else draft,
+          settledLoadId = maxOf(current.settledLoadId, loadId),
+          lastLoadFailed = false,
+          core = core,
+        ) to false
       }
-      apply(loadId, files.size, result)
+      if (retry) launchReanchor(loadId, files)
     }
-  }
-
-  private fun apply(loadId: Long, fileCount: Int, result: Reanchored) {
-    threads = threads.map { thread ->
-      val reanchored = result.threads.getValue(thread.id).first
-      thread.copy(anchor = reanchored.anchor, outdated = reanchored.outdated)
-    }
-    placementById = result.threads.mapValues { it.value.second }
-    val current = draft
-    val reanchoredDraft = result.draft
-    if (current != null && reanchoredDraft != null) {
-      draft = current.copy(target = reanchoredDraft)
-    }
-    placementsLoadId = loadId
-    settledLoadId = maxOf(settledLoadId, loadId)
-    settledFiles = fileCount
-    lastLoadFailed = false
-    rebuildPlacements()
-    publish()
   }
 }

@@ -15,13 +15,16 @@ import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.core.review.LineLocation
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.anchorOf
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -304,5 +307,61 @@ class ReviewStateTest {
     state.onViewerState(ui(2))
     advanceUntilIdle()
     assertEquals(listOf("t1"), state.snapshot.value.placements.orphans.map { it.id })
+  }
+
+  @Test
+  fun agentCommentIsNotEditable() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 1)
+    state.reply("t1", Author.Agent("claude"), "hi")
+    state.startDraft(DraftTarget.Edit("c2"))
+    assertNull(state.snapshot.value.draft)
+  }
+
+  @Test
+  fun repoSwitchDuringReanchorDiscardsResult() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.onViewerState(ui(1, base))
+    state.onViewerState(ui(2, base, repo = RepoPath("/other"), status = LoadStatus.Loading))
+    advanceUntilIdle()
+    val snapshot = state.snapshot.value
+    assertEquals(0L, snapshot.settledLoadId)
+    assertEquals(0L, snapshot.placements.loadId)
+  }
+
+  @Test
+  fun doneAfterFailedClearsLastLoadFailed() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.onViewerState(ui(1, status = LoadStatus.Failed(ViewerError.GitFailed("bad"))))
+    assertTrue(state.snapshot.value.lastLoadFailed)
+    state.onViewerState(ui(2, base))
+    advanceUntilIdle()
+    assertTrue(!state.snapshot.value.lastLoadFailed)
+    assertEquals(2L, state.snapshot.value.settledLoadId)
+  }
+
+  @Test
+  fun concurrentRepliesAndSubmitsLoseNothing() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 1)
+    withContext(Dispatchers.Default) {
+      val repliers = (1..8).map { worker ->
+        async { repeat(200) { state.reply("t1", Author.Agent("w$worker"), "r") } }
+      }
+      val drafter = async {
+        repeat(100) {
+          state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0, 0, 2))))
+          state.updateDraft("x")
+          state.submitDraft()
+        }
+      }
+      (repliers + drafter).awaitAll()
+    }
+    val threads = state.snapshot.value.threads
+    assertEquals(101, threads.size)
+    assertEquals(101, threads.map { it.id }.toSet().size)
+    val commentIds = threads.flatMap { t -> t.comments.map { it.id } }
+    assertEquals(1 + 1600 + 100, commentIds.size)
+    assertEquals(commentIds.size, commentIds.toSet().size)
   }
 }
