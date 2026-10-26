@@ -40,6 +40,7 @@ fun ErrorScreen(error: ViewerError, onOpenAnother: () -> Unit, onOpenSettings: (
       is ViewerError.NotARepository -> "${error.path} is not a git repository."
       is ViewerError.UnknownBase -> "Unknown base revision '${error.ref}'"
       is ViewerError.NoCommonAncestor -> "No common ancestor between '${error.ref}' and HEAD"
+      is ViewerError.InvalidLaunchArgs -> error.message
       is ViewerError.GitFailed -> "git failed."
     }
     BasicText(text = message, style = TextStyle(color = colors.removedText, fontSize = 15.sp))

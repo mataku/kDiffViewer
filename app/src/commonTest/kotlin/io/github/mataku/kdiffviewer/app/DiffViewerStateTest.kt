@@ -100,6 +100,17 @@ class DiffViewerStateTest {
   private fun TestScope.stateFor(source: DiffSource?) = DiffViewerState(source, this, 16)
 
   @Test
+  fun failShowsErrorWithoutLoading() = runTest(StandardTestDispatcher()) {
+    val source = FakeSource { flow { emit(file("a")) } }
+    val state = stateFor(source)
+    state.fail(repo, ViewerError.InvalidLaunchArgs("m"))
+    advanceUntilIdle()
+    assertEquals(repo, state.uiState.value.repo)
+    assertEquals(LoadStatus.Failed(ViewerError.InvalidLaunchArgs("m")), state.uiState.value.status)
+    assertEquals(0, source.calls)
+  }
+
+  @Test
   fun openResolvesBaseThenLoadsAgainstIt() = runTest(StandardTestDispatcher()) {
     val resolved = ResolvedBase.Commit("develop", "m1", "m1")
     val source = FakeSource(bases = { _, _ -> resolved }) { flow { emit(file("a")) } }

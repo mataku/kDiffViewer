@@ -58,6 +58,9 @@ sealed interface ViewerError {
   data class NoCommonAncestor(val ref: String) : ViewerError
 
   @Immutable
+  data class InvalidLaunchArgs(val message: String) : ViewerError
+
+  @Immutable
   data class GitFailed(val stderr: String, val exitCode: Int? = null) : ViewerError
 }
 
@@ -188,6 +191,15 @@ class DiffViewerState(
       }
     }
     return loadId
+  }
+
+  fun fail(repo: RepoPath, error: ViewerError) {
+    loadJob?.cancel()
+    loadJob = null
+    highlightRun?.cancel()
+    highlightRun = null
+    currentLoad = null
+    mutableUiState.value = ViewerUiState(repo = repo, status = LoadStatus.Failed(error), loadId = ++nextLoadId)
   }
 
   fun reload(): Long? {

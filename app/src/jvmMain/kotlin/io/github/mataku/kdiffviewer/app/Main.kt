@@ -117,7 +117,11 @@ private fun runApplication(
       missingSourceError = missingSourceError,
       loadContext = Dispatchers.Default,
     ).also { viewerState ->
-      parseLaunchArgs(args, System.getProperty("user.dir"))?.let(viewerState::open)
+      when (val launch = parseLaunchArgs(args, System.getProperty("user.dir"))) {
+        LaunchArgs.None -> Unit
+        is LaunchArgs.Open -> viewerState.open(launch.repo, launch.base)
+        is LaunchArgs.Invalid -> viewerState.fail(launch.repo, ViewerError.InvalidLaunchArgs(launch.message))
+      }
     }
   }
   val review = remember { ReviewState(scope, Dispatchers.Default, Clock.System::now) }
