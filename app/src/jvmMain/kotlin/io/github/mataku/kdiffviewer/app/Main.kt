@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
@@ -38,6 +39,7 @@ import io.github.mataku.kdiffviewer.app.ui.LocalTitleBarRegions
 import io.github.mataku.kdiffviewer.app.ui.OpenRepositoryScreen
 import io.github.mataku.kdiffviewer.app.ui.TitleBarHeight
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
+import io.github.mataku.kdiffviewer.app.ui.markdown.SafeUriHandler
 import io.github.mataku.kdiffviewer.app.ui.resolveFontFamily
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.core.git.GitLocation
@@ -218,10 +220,12 @@ private fun runApplication(
       }
     }
     val fontFamily = remember(settings.fontFamily) { resolveFontFamily(settings.fontFamily) }
+    val safeUriHandler = SafeUriHandler(LocalUriHandler.current)
     CompositionLocalProvider(
       LocalTitleBarRegions provides titleBarRegions,
       LocalReviewActions provides review,
       LocalCodeHighlighter provides factory.codeHighlighter,
+      LocalUriHandler provides safeUriHandler,
     ) {
       KdvTheme(
         darkTheme = settings.appearance.isDark(),

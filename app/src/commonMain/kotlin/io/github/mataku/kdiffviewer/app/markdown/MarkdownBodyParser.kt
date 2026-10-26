@@ -54,6 +54,7 @@ private fun codePointToString(codePoint: Int): String = if (codePoint < 0x10000)
 }
 
 private fun isAllowedLinkUrl(url: String): Boolean {
+  if (url.any { it.isWhitespace() || it.isISOControl() }) return false
   val colon = url.indexOf(':')
   if (colon <= 0) return false
   val scheme = url.substring(0, colon).lowercase()

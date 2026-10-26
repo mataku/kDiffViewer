@@ -2,6 +2,7 @@ package io.github.mataku.kdiffviewer.app.markdown
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class MarkdownInlinesTest {
   private fun inline(src: String) = (parseMarkdown(src).single() as MdBlock.Paragraph).text
@@ -172,5 +173,29 @@ class MarkdownInlinesTest {
     val result = inline(src)
     assertEquals(true, result.text.contains("x"))
     assertEquals(true, result.spans.size <= 33)
+  }
+}
+
+class MarkdownLinkSafetyTest {
+  private fun spans(src: String) = (parseMarkdown(src).single() as MdBlock.Paragraph).text.spans
+
+  @Test
+  fun destinationWithSpaceIsPlainText() {
+    assertTrue(spans("[x](<https://e.com/a b>)").none { span -> span.url.orEmpty().any { it.isWhitespace() } })
+  }
+
+  @Test
+  fun destinationWithControlCharacterIsPlainText() {
+    assertEquals(emptyList(), spans("[x](<https://e.com/a\u0001b>)"))
+  }
+
+  @Test
+  fun mailtoWithSpaceIsPlainText() {
+    assertEquals(emptyList(), spans("[x](<mailto:a b@c.d>)"))
+  }
+
+  @Test
+  fun wellFormedLinkStillLinks() {
+    assertEquals(1, spans("[x](https://e.com/a)").size)
   }
 }
