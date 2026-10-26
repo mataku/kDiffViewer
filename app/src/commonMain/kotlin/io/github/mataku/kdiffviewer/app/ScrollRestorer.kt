@@ -5,21 +5,18 @@ import io.github.mataku.kdiffviewer.core.model.displayPath
 
 data class ScrollAnchor(val displayPath: String, val rowOffset: Int)
 
-fun scrollAnchorOf(state: ViewerUiState, firstVisibleIndex: Int): ScrollAnchor? {
-  val headers = state.fileHeaderRowIndex
-  if (headers.isEmpty()) return null
-  val search = headers.binarySearch(firstVisibleIndex)
-  val fileIndex = if (search >= 0) search else -search - 2
-  if (fileIndex < 0) return null
-  return ScrollAnchor(state.files[fileIndex].displayPath, firstVisibleIndex - headers[fileIndex])
+fun scrollAnchorOf(state: ViewerUiState, layout: DiffLayout, firstVisibleIndex: Int): ScrollAnchor? {
+  if (layout.fileCount == 0 || layout.visibleCount == 0) return null
+  val visibleIndex = firstVisibleIndex.coerceIn(0, layout.visibleCount - 1)
+  val fileIndex = layout.fileIndexOfVisible(visibleIndex)
+  return ScrollAnchor(state.files[fileIndex].displayPath, layout.rowIndexOf(visibleIndex) - layout.headerRowIndex(fileIndex))
 }
 
-fun restoreTargetOf(anchor: ScrollAnchor, state: ViewerUiState): Int? {
+fun restoreTargetOf(anchor: ScrollAnchor, state: ViewerUiState, layout: DiffLayout): Int? {
   val fileIndex = state.files.indexOfFirst { it.displayPath == anchor.displayPath }
-  if (fileIndex < 0) return null
-  val header = state.fileHeaderRowIndex[fileIndex]
-  val lastRow = state.fileHeaderRowIndex.getOrNull(fileIndex + 1)?.minus(1) ?: state.rows.lastIndex
-  return minOf(header + anchor.rowOffset, lastRow)
+  if (fileIndex < 0 || fileIndex >= layout.fileCount) return null
+  val header = layout.headerRowIndex(fileIndex)
+  return layout.visibleIndexOf(header + minOf(anchor.rowOffset, layout.bodyRowCount(fileIndex)))
 }
 
 class ScrollRestorer {
@@ -28,7 +25,7 @@ class ScrollRestorer {
   private var lastAnchor: ScrollAnchor? = null
   private var pending: ScrollAnchor? = null
 
-  fun next(state: ViewerUiState, firstVisibleIndex: Int): Int? {
+  fun next(state: ViewerUiState, layout: DiffLayout, firstVisibleIndex: Int): Int? {
     if (state.loadId != loadId) {
       pending = lastAnchor.takeIf { repo != null && state.repo == repo }
       lastAnchor = null
@@ -37,11 +34,11 @@ class ScrollRestorer {
     }
     val anchor = pending
     if (anchor != null) {
-      val target = restoreTargetOf(anchor, state)
+      val target = restoreTargetOf(anchor, state, layout)
       if (target != null || state.status != LoadStatus.Loading) pending = null
       return target
     }
-    lastAnchor = scrollAnchorOf(state, firstVisibleIndex)
+    lastAnchor = scrollAnchorOf(state, layout, firstVisibleIndex)
     return null
   }
 }

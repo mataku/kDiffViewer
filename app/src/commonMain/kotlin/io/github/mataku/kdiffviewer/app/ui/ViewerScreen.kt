@@ -42,6 +42,7 @@ import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ScrollRestorer
 import io.github.mataku.kdiffviewer.app.ViewerUiState
+import io.github.mataku.kdiffviewer.app.diffLayoutOf
 import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.visibleTree
 import io.github.mataku.kdiffviewer.core.model.DiffStats
@@ -60,9 +61,11 @@ fun ViewerScreen(
   val scope = rememberCoroutineScope()
   val currentState by rememberUpdatedState(state)
   val restorer = remember { ScrollRestorer() }
+  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed) { diffLayoutOf(state) }
+  val currentLayout by rememberUpdatedState(layout)
   LaunchedEffect(listState) {
-    snapshotFlow { currentState to listState.firstVisibleItemIndex }.collect { (ui, firstVisible) ->
-      restorer.next(ui, firstVisible)?.let { listState.scrollToItem(it) }
+    snapshotFlow { Triple(currentState, currentLayout, listState.firstVisibleItemIndex) }.collect { (ui, uiLayout, firstVisible) ->
+      restorer.next(ui, uiLayout, firstVisible)?.let { listState.scrollToItem(it) }
     }
   }
   var collapsed by remember(state.repo) { mutableStateOf(emptySet<String>()) }
