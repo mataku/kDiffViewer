@@ -39,6 +39,8 @@ class FileSettingsStorage(private val file: Path) : SettingsStorage {
 
 fun defaultSettingsFile(): Path = Path(System.getProperty("user.home"), "Library", "Application Support", "kDiffViewer", "settings.json")
 
+fun defaultWindowStateFile(): Path = defaultSettingsFile().resolveSibling("window-state.json")
+
 fun Path.displayPath(home: String = System.getProperty("user.home")): String {
   val text = toString()
   return if (text == home || text.startsWith("$home/")) "~" + text.removePrefix(home) else text

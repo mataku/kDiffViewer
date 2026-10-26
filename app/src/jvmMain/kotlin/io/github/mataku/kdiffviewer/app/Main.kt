@@ -11,14 +11,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import io.github.mataku.kdiffviewer.app.settings.FileSettingsStorage
 import io.github.mataku.kdiffviewer.app.settings.GitBackendController
 import io.github.mataku.kdiffviewer.app.settings.SettingsRepository
+import io.github.mataku.kdiffviewer.app.settings.WindowState
+import io.github.mataku.kdiffviewer.app.settings.WindowStateCodec
 import io.github.mataku.kdiffviewer.app.settings.defaultSettingsFile
+import io.github.mataku.kdiffviewer.app.settings.defaultWindowStateFile
+import io.github.mataku.kdiffviewer.app.settings.mainSizeOrNull
 import io.github.mataku.kdiffviewer.app.ui.ErrorScreen
 import io.github.mataku.kdiffviewer.app.ui.KdvTheme
 import io.github.mataku.kdiffviewer.app.ui.LocalTitleBarRegions
@@ -36,7 +43,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
 import java.awt.Desktop
+import java.awt.GraphicsEnvironment
+import androidx.compose.ui.window.WindowState as ComposeWindowState
 
 fun main(args: Array<String>) {
   System.setProperty("apple.awt.application.name", "kDiffViewer")
@@ -48,7 +58,32 @@ fun main(args: Array<String>) {
   )
   val location = GitLocator.locateOnHost(repository.settings.value.gitPath)
   val factory = GitBackendFactory(highlightEnabled = System.getProperty("kdv.highlight") != "false")
-  runApplication(args, repository, location, factory)
+  val windowStateStorage = FileSettingsStorage(defaultWindowStateFile())
+  val windowState = ComposeWindowState(size = loadInitialMainSize(windowStateStorage) ?: DpSize(800.dp, 600.dp))
+  runApplication(args, repository, location, factory, windowState)
+  saveMainSize(windowStateStorage, windowState)
+  runBlocking { repository.flush() }
+}
+
+private val MinMainSize = DpSize(640.dp, 400.dp)
+
+private fun loadInitialMainSize(storage: FileSettingsStorage): DpSize? = try {
+  val max = GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.let { DpSize(it.width.dp, it.height.dp) }
+  WindowStateCodec.decode(storage.read()).mainSizeOrNull(MinMainSize, max)
+} catch (e: Exception) {
+  e.printStackTrace()
+  null
+}
+
+private fun saveMainSize(storage: FileSettingsStorage, windowState: ComposeWindowState) {
+  if (windowState.placement != WindowPlacement.Floating || windowState.isMinimized) return
+  val size = windowState.size
+  if (!size.isSpecified) return
+  try {
+    storage.write(WindowStateCodec.encode(WindowState(size.width.value.toInt(), size.height.value.toInt())))
+  } catch (e: Exception) {
+    e.printStackTrace()
+  }
 }
 
 private fun runApplication(
@@ -56,6 +91,7 @@ private fun runApplication(
   repository: SettingsRepository,
   location: GitLocation,
   factory: GitBackendFactory,
+  windowState: ComposeWindowState,
 ) = application {
   val scope = remember { MainScope() }
   DisposableEffect(Unit) { onDispose { scope.cancel() } }
@@ -103,7 +139,16 @@ private fun runApplication(
     }
   }
 
-  Window(onCloseRequest = ::exitApplication, title = "kDiffViewer") {
+  DisposableEffect(Unit) {
+    val desktop = Desktop.getDesktop().takeIf { Desktop.isDesktopSupported() && it.isSupported(Desktop.Action.APP_QUIT_HANDLER) }
+    desktop?.setQuitHandler { _, response ->
+      response.cancelQuit()
+      exitApplication()
+    }
+    onDispose { desktop?.setQuitHandler(null) }
+  }
+
+  Window(onCloseRequest = ::exitApplication, title = "kDiffViewer", state = windowState) {
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     val titleBarRegions = remember { installCustomTitleBar(window, TitleBarHeight) }
     val titleBarInset = if (titleBarRegions != null) TitleBarHeight else 0.dp
