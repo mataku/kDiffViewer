@@ -256,6 +256,14 @@ class RunTest {
   }
 
   @Test
+  fun windowsWithoutLiveEntriesSaysSo() {
+    val p = FakePlatform(entries = listOf(entry(102, "/dead")))
+    val (code, out, _) = exec(p, "windows")
+    assertEquals(0, code)
+    assertEquals("No windows.\n", out)
+  }
+
+  @Test
   fun openUsesRealpathAndDefaultApp() {
     val p = FakePlatform()
     val (code, _, _) = exec(p, "/abs/dir")

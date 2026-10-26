@@ -42,7 +42,11 @@ private fun execute(command: Command, platform: CliPlatform, out: (String) -> Un
 
     is Command.Open -> open(command, platform)
 
-    is Command.Windows -> liveEntries(platform).forEach { out("${it.pid}  ${it.repoRoot ?: "(no repository)"}") }
+    is Command.Windows -> {
+      val entries = liveEntries(platform)
+      if (entries.isEmpty()) out("No windows.")
+      entries.forEach { out("${it.pid}  ${it.repoRoot ?: "(no repository)"}") }
+    }
 
     is Command.ThreadList -> {
       val params = encode(ThreadListParams.serializer(), ThreadListParams(command.all))
