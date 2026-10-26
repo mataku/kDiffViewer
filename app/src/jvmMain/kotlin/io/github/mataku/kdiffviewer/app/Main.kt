@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -31,6 +32,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 
+private val MAC_TITLE_BAR_HEIGHT = 28.dp
+
 fun main(args: Array<String>) {
   System.setProperty("apple.awt.application.appearance", "system")
   runApplication(args)
@@ -53,6 +56,7 @@ private fun runApplication(args: Array<String>) = application {
   val openFolder: () -> Unit = { pickFolder()?.let { state.open(RepoPath(it)) } }
 
   Window(onCloseRequest = ::exitApplication, title = "kDiffViewer") {
+    val titleBarInset = remember { if (mergeTitleBarIntoContent(window.rootPane)) MAC_TITLE_BAR_HEIGHT else 0.dp }
     MenuBar {
       Menu("File") {
         Item("Open…", shortcut = KeyShortcut(Key.O, meta = true), onClick = openFolder)
@@ -66,7 +70,7 @@ private fun runApplication(args: Array<String>) = application {
       when {
         uiState.repo == null -> OpenRepositoryScreen(onOpen = openFolder)
         status is LoadStatus.Failed -> ErrorScreen(status.error, onOpenAnother = openFolder)
-        else -> ViewerScreen(uiState, onReload = state::reload)
+        else -> ViewerScreen(uiState, onReload = state::reload, titleBarInset = titleBarInset)
       }
     }
   }
