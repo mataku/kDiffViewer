@@ -69,8 +69,8 @@ class ViewerScreenTest {
   fun showsFileHeaderAndLines() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(listOf(modified("src/a.kt"))), {}) }
     onNodeWithText("src/a.kt", useUnmergedTree = true).assertIsDisplayed()
-    onNodeWithText("+1").assertIsDisplayed()
-    onNodeWithText("−1").assertIsDisplayed()
+    onNodeWithTag("file-additions-0", useUnmergedTree = true).assertTextEquals("+1")
+    onNodeWithTag("file-deletions-0", useUnmergedTree = true).assertTextEquals("−1")
     onNodeWithText("TWO").assertIsDisplayed()
     onNodeWithText("@@ -1,1 +1,1 @@ fun main()").assertIsDisplayed()
   }
@@ -316,6 +316,51 @@ class ViewerScreenTest {
     waitForIdle()
     val loadingTop = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot.top
     assertEquals(doneTop, loadingTop)
+  }
+
+  @Test
+  fun treeShowsFileStatsFromTheDiff() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) }
+    onNodeWithTag("tree-additions-0", useUnmergedTree = true).assertTextEquals("+1")
+    onNodeWithTag("tree-deletions-0", useUnmergedTree = true).assertTextEquals("−1")
+  }
+
+  @Test
+  fun draggingDividerResizesTree() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(1000.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
+      }
+    }
+    val before = onNodeWithTag("file-tree").fetchSemanticsNode().boundsInRoot.width
+    onNodeWithTag("tree-divider").performMouseInput {
+      moveTo(center)
+      press()
+      moveBy(Offset(100f, 0f))
+      release()
+    }
+    waitForIdle()
+    val after = onNodeWithTag("file-tree").fetchSemanticsNode().boundsInRoot.width
+    assertTrue(after - before in 90f..110f, "before=$before after=$after")
+  }
+
+  @Test
+  fun treeWidthIsClampedAndNarrowTreeHidesStats() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(1000.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
+      }
+    }
+    onNodeWithTag("tree-divider").performMouseInput {
+      moveTo(center)
+      press()
+      moveBy(Offset(-1000f, 0f))
+      release()
+    }
+    waitForIdle()
+    val width = onNodeWithTag("file-tree").fetchSemanticsNode().boundsInRoot.width
+    assertEquals(with(density) { MinTreeWidth.toPx() }, width)
+    onNodeWithTag("tree-additions-0", useUnmergedTree = true).assertDoesNotExist()
   }
 
   @Test

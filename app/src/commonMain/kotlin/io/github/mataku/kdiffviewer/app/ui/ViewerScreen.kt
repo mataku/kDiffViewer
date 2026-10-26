@@ -29,6 +29,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -36,10 +37,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ScrollRestorer
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.visibleTree
+import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import kotlinx.coroutines.launch
 
@@ -61,6 +64,13 @@ fun ViewerScreen(
     }
   }
   var collapsed by remember(state.repo) { mutableStateOf(emptySet<String>()) }
+  var treeWidth by remember { mutableStateOf(DefaultTreeWidth) }
+  val density = LocalDensity.current
+  val rows = state.rows
+  val headerRowIndex = state.fileHeaderRowIndex
+  val statsOf: (Int) -> DiffStats? = remember(rows, headerRowIndex) {
+    { fileIndex -> (headerRowIndex.getOrNull(fileIndex)?.let(rows::getOrNull) as? DiffRow.FileHeader)?.stats }
+  }
   val treeEntries = remember(state.tree, collapsed) { visibleTree(state.tree, collapsed) }
   Row(modifier = modifier.fillMaxSize().background(colors.background)) {
     FileTreePanel(
@@ -70,8 +80,14 @@ fun ViewerScreen(
         scope.launch { listState.scrollToItem(state.fileHeaderRowIndex[fileIndex]) }
       },
       onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
+      statsOf = statsOf,
+      width = treeWidth,
     )
-    Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(colors.border))
+    PaneDivider(
+      onDrag = { delta ->
+        treeWidth = (treeWidth + with(density) { delta.toDp() }).coerceIn(MinTreeWidth, MaxTreeWidth)
+      },
+    )
     Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
       Row(
         modifier = Modifier

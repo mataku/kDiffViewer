@@ -26,6 +26,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.TreeEntry
+import io.github.mataku.kdiffviewer.core.model.DiffStats
+
+val DefaultTreeWidth = 280.dp
+val MinTreeWidth = 160.dp
+val MaxTreeWidth = 600.dp
+private val StatsVisibleWidth = 240.dp
 
 @Composable
 fun FileTreePanel(
@@ -34,11 +40,14 @@ fun FileTreePanel(
   onDirectoryToggle: (String) -> Unit,
   modifier: Modifier = Modifier,
   topInset: Dp = 0.dp,
+  statsOf: (Int) -> DiffStats? = { null },
+  width: Dp = DefaultTreeWidth,
 ) {
   val colors = LocalDiffColors.current
+  val showStats = width >= StatsVisibleWidth
   LazyColumn(
     modifier = modifier
-      .width(280.dp)
+      .width(width)
       .fillMaxHeight()
       .background(colors.fileHeaderBackground)
       .testTag("file-tree"),
@@ -85,6 +94,7 @@ fun FileTreePanel(
         )
         BasicText(
           text = row.name,
+          modifier = Modifier.weight(1f),
           style = TextStyle(
             color = if (fileIndex != null) colors.text else colors.mutedText,
             fontSize = 13.sp,
@@ -92,6 +102,19 @@ fun FileTreePanel(
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
         )
+        val stats = if (showStats && fileIndex != null) statsOf(fileIndex) else null
+        if (stats != null && (stats.additions > 0 || stats.deletions > 0)) {
+          BasicText(
+            text = "+${stats.additions}",
+            modifier = Modifier.testTag("tree-additions-$fileIndex").padding(start = 8.dp),
+            style = TextStyle(color = colors.addedText, fontSize = 11.sp),
+          )
+          BasicText(
+            text = "−${stats.deletions}",
+            modifier = Modifier.testTag("tree-deletions-$fileIndex").padding(start = 4.dp),
+            style = TextStyle(color = colors.removedText, fontSize = 11.sp),
+          )
+        }
       }
     }
   }
