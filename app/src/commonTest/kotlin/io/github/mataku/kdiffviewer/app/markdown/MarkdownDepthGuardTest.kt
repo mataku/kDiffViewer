@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app.markdown
 
+import kotlin.system.measureTimeMillis
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -47,6 +48,23 @@ class MarkdownDepthGuardTest {
   fun longIndentedCodeLineIsNotMistakenForNesting() {
     val block = parseMarkdown("para\n\n" + " ".repeat(300) + "code").single { it is MdBlock.CodeBlock }
     assertTrue(block is MdBlock.CodeBlock)
+  }
+
+  @Test
+  fun sourceAtTheCapIsParsed() {
+    val source = "*a* " + "b".repeat(65_536 - 4)
+    assertEquals(1, parseMarkdown(source).single().let { (it as MdBlock.Paragraph).text.spans.size })
+  }
+
+  @Test
+  fun sourceOverTheCapFallsBackToPlainText() {
+    assertPlainFallback("*a* ".repeat(16_385))
+  }
+
+  @Test
+  fun oneMebibyteOfOpenBracketsFallsBackQuickly() {
+    val elapsed = measureTimeMillis { assertPlainFallback("[".repeat(1_048_576)) }
+    assertTrue(elapsed < 1_000, "took $elapsed ms")
   }
 
   @Test

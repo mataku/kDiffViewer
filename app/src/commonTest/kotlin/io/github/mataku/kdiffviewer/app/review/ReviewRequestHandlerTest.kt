@@ -169,6 +169,35 @@ class ReviewRequestHandlerTest {
   }
 
   @Test
+  fun bodyAtTheCapIsAccepted() = runTest(StandardTestDispatcher()) {
+    val f = fixture()
+    f.addThread(0)
+    val response = Codec.decodeResponse(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "a".repeat(65_536))))
+    assertTrue(response.ok)
+  }
+
+  @Test
+  fun bodyOverTheCapIsBadRequest() = runTest(StandardTestDispatcher()) {
+    val f = fixture()
+    f.addThread(0)
+    val response = Codec.decodeResponse(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "a".repeat(65_537))))
+    assertFalse(response.ok)
+    assertEquals(ErrorCodes.BAD_REQUEST, response.error?.code)
+    assertEquals("Reply body exceeds 65536 characters", response.error?.message)
+    assertEquals(1, f.review.threads(true).single().comments.size)
+  }
+
+  @Test
+  fun deeplyNestedUnknownParamIsBadRequestNotOverflow() = runTest {
+    val f = fixture()
+    val nested = "[".repeat(100_000) + "]".repeat(100_000)
+    val line = """{"v":$PROTOCOL_VERSION,"method":"${Methods.THREAD_LIST}","params":{"all":true,"x":$nested}}"""
+    val response = Codec.decodeResponse(f.handler.handle(line))
+    assertFalse(response.ok)
+    assertEquals(ErrorCodes.BAD_REQUEST, response.error?.code)
+  }
+
+  @Test
   fun threadReplyUnknownThread() = runTest {
     val f = fixture()
     val response = Codec.decodeResponse(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t9", "body" to "x")))

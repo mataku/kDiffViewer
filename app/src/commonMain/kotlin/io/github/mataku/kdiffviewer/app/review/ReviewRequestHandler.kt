@@ -18,6 +18,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonElement
 
+const val MAX_REPLY_BODY_CHARS = 65_536
+
 private const val DEFAULT_AGENT = "agent"
 
 class ReviewRequestHandler(
@@ -53,7 +55,9 @@ class ReviewRequestHandler(
 
     Methods.THREAD_REPLY -> {
       val params = Codec.params<ThreadReplyParams>(request)
-      if (params.body.isBlank()) {
+      if (params.body.length > MAX_REPLY_BODY_CHARS) {
+        Codec.failure(ErrorCodes.BAD_REQUEST, "Reply body exceeds $MAX_REPLY_BODY_CHARS characters")
+      } else if (params.body.isBlank()) {
         Codec.failure(ErrorCodes.BAD_REQUEST, "Reply body is blank")
       } else {
         when (val result = review.reply(params.threadId, Author.Agent(params.author.ifBlank { DEFAULT_AGENT }), params.body)) {

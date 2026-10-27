@@ -16,6 +16,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 private const val MAX_NESTING = 8
 private const val MAX_INLINE_DEPTH = 32
+private const val MAX_SOURCE_CHARS = 65_536
 
 private val gfmParser = MarkdownParser(GFMFlavourDescriptor(), true, CancellationToken.NonCancellable)
 
@@ -68,6 +69,7 @@ class MarkdownBodyParser(
   fun parse(source: String): List<MdBlock> {
     val normalized = source.replace("\r\n", "\n").replace('\r', '\n')
     if (normalized.isBlank()) return emptyList()
+    if (normalized.length > MAX_SOURCE_CHARS) return plainFallback(normalized)
     if (exceedsContainerDepth(normalized)) return plainFallback(normalized)
     return try {
       val root = buildTree(normalized)
