@@ -41,4 +41,18 @@ class DiffSelectionStateTest {
     state.clear()
     assertNull(state.selection)
   }
+
+  @Test
+  fun resetForClearsOnlyWhenKeyChanges() {
+    val state = DiffSelectionState()
+    state.resetFor(1 to false)
+    state.start(TextPosition(1, 2))
+    state.resetFor(1 to false)
+    assertEquals(DiffSelection(TextPosition(1, 2), TextPosition(1, 2)), state.selection)
+    state.resetFor(2 to false)
+    assertNull(state.selection)
+    state.start(TextPosition(0, 0))
+    state.resetFor(2 to false)
+    assertEquals(DiffSelection(TextPosition(0, 0), TextPosition(0, 0)), state.selection)
+  }
 }

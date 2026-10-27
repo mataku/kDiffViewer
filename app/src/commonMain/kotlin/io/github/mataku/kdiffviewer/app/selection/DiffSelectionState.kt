@@ -27,6 +27,14 @@ class DiffSelectionState {
     selection = DiffSelection(anchor, focus)
   }
 
+  private var key: Any? = null
+
+  fun resetFor(key: Any) {
+    if (this.key == key) return
+    this.key = key
+    clear()
+  }
+
   fun clear() {
     if (selection != null) selection = null
   }

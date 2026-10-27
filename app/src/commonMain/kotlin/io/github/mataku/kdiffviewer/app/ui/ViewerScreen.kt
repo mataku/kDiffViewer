@@ -95,7 +95,7 @@ fun ViewerScreen(
   val currentLayout by rememberUpdatedState(layout)
   val coordinator = LocalTextSelectionCoordinator.current
   val diffSelection = remember { DiffSelectionState() }
-  LaunchedEffect(state.loadId, state.collapsed) { diffSelection.clear() }
+  diffSelection.resetFor(state.loadId to state.collapsed)
   val selectionSource = remember(diffSelection) {
     DiffSelectionSource(
       diffSelection,
