@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -96,23 +97,25 @@ fun Modifier.fileFrames(
   val half = strokeWidth / 2
   val left = margin
   val right = size.width - margin
-  val frames = fileFrames(layout, listState.layoutInfo.visibleItemsInfo, headerInset, size.height, painter.radius + strokeWidth)
-  for (frame in frames) {
-    if (frame.roundTop) {
-      drawCornerMask(painter.mask, background, left, frame.top, 0f)
-      drawCornerMask(painter.mask, background, right, frame.top, 90f)
+  clipRect {
+    val frames = fileFrames(layout, listState.layoutInfo.visibleItemsInfo, headerInset, size.height, painter.radius + strokeWidth)
+    for (frame in frames) {
+      if (frame.roundTop) {
+        drawCornerMask(painter.mask, background, left, frame.top, 0f)
+        drawCornerMask(painter.mask, background, right, frame.top, 90f)
+      }
+      if (frame.roundBottom) {
+        drawCornerMask(painter.mask, background, right, frame.bottom, 180f)
+        drawCornerMask(painter.mask, background, left, frame.bottom, 270f)
+      }
+      drawRoundRect(
+        color = border,
+        topLeft = Offset(left + half, frame.top + half),
+        size = Size(right - left - strokeWidth, frame.bottom - frame.top - strokeWidth),
+        cornerRadius = CornerRadius(painter.radius),
+        style = painter.stroke,
+      )
     }
-    if (frame.roundBottom) {
-      drawCornerMask(painter.mask, background, right, frame.bottom, 180f)
-      drawCornerMask(painter.mask, background, left, frame.bottom, 270f)
-    }
-    drawRoundRect(
-      color = border,
-      topLeft = Offset(left + half, frame.top + half),
-      size = Size(right - left - strokeWidth, frame.bottom - frame.top - strokeWidth),
-      cornerRadius = CornerRadius(painter.radius),
-      style = painter.stroke,
-    )
   }
 }
 

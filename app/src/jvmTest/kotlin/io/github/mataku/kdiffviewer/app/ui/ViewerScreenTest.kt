@@ -1193,6 +1193,23 @@ class ViewerScreenTest {
     waitForIdle()
     onNodeWithTag("file-header-0").assertIsDisplayed()
   }
+
+  @Test
+  fun fileFramesStayInsideListDuringHeaderHandoff() = runComposeUiTest {
+    setContent { Box(Modifier.size(800.dp, 600.dp)) { ViewerScreen(stateOf(listOf(modified("a.kt", 40), modified("b.kt", 40))), {}) } }
+    onNodeWithTag("diff-list").performScrollToIndex(41)
+    waitForIdle()
+    val pixels = onRoot().captureToImage().toPixelMap()
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val top = list.top.toInt()
+    val left = list.left.toInt()
+    for (y in (top - 30) until (top - 1)) {
+      for (x in (left + 15)..(left + 40)) {
+        val pixel = pixels[x, y]
+        assertTrue(pixel != LightDiffColors.border && pixel != LightDiffColors.background, "frame painted at ($x, $y) above the list")
+      }
+    }
+  }
 }
 
 private fun SemanticsNodeInteractionsProvider.assertPinnedAtTop(tag: String) {
