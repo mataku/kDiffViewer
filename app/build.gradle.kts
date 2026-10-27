@@ -1,4 +1,5 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
 
 plugins {
   alias(libs.plugins.kotlinMultiplatform)
@@ -88,8 +89,24 @@ compose.desktop {
 
       macOS {
         bundleID = "io.github.mataku.kdiffviewer"
+        iconFile.set(project.file("packaging/kDiffViewer.icns"))
+        infoPlist {
+          extraKeysRawXml = """
+            |  <key>CFBundleIconName</key>
+            |  <string>kDiffViewer</string>
+          """.trimMargin()
+        }
       }
     }
+  }
+}
+
+val macAppContentResources = layout.projectDirectory.dir("packaging/app-content/Resources")
+
+if (System.getProperty("os.name").startsWith("Mac")) {
+  tasks.withType<AbstractJPackageTask>().configureEach {
+    inputs.dir(macAppContentResources)
+    freeArgs.addAll("--app-content", macAppContentResources.asFile.absolutePath)
   }
 }
 
