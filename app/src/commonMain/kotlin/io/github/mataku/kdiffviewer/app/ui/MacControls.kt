@@ -177,7 +177,7 @@ fun MacPullDownTag(
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
       style = textStyle,
-      modifier = textModifier,
+      modifier = Modifier.weight(1f, fill = false).then(textModifier),
     )
     Chevron(colors.mutedText)
   }
@@ -200,7 +200,12 @@ fun MacInlineError(
       modifier = Modifier.size(12.dp),
       colorFilter = ColorFilter.tint(colors.removedText),
     )
-    BasicText(text = text, style = TextStyle(color = colors.removedText, fontSize = 12.sp))
+    BasicText(
+      text = text,
+      style = TextStyle(color = colors.removedText, fontSize = 12.sp),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
   }
 }
 

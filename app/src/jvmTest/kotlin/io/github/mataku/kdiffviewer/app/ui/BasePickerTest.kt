@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
@@ -24,6 +25,7 @@ import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import kotlinx.coroutines.CompletableDeferred
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
@@ -202,5 +204,85 @@ class BasePickerTest {
     onNodeWithTag("base-list-status").assertTextEquals("Could not list branches")
     onNodeWithTag("base-default").assertIsDisplayed()
     onNodeWithTag("base-filter").assertIsDisplayed()
+  }
+
+  private fun ComposeUiTest.rowText(tag: String, text: String) = onNode(hasText(text) and hasAnyAncestor(hasTestTag(tag)), useUnmergedTree = true)
+
+  @Test
+  fun checkMarkSitsInLeftGutterAndKeepsTextAligned() = runComposeUiTest {
+    show(Recorder(), BaseSpec.Ref("origin/develop"))
+    open()
+    val check = checkIn("base-item-remote-origin/develop").fetchSemanticsNode().boundsInRoot
+    val checkedText = rowText("base-item-remote-origin/develop", "origin/develop").fetchSemanticsNode().boundsInRoot
+    val uncheckedText = rowText("base-item-local-main", "main").fetchSemanticsNode().boundsInRoot
+    assertTrue(check.right <= checkedText.left, "check=$check text=$checkedText")
+    assertEquals(checkedText.left, uncheckedText.left)
+  }
+
+  @Test
+  fun secondPickWhileSwitchingIsIgnored() = runComposeUiTest {
+    val gate = CompletableDeferred<ViewerError?>()
+    val specs = mutableListOf<BaseSpec>()
+    setContent {
+      KdvTheme(darkTheme = false) {
+        BasePicker(
+          base,
+          BaseSpec.Default,
+          head,
+          { branches },
+          {
+            specs += it
+            gate.await()
+          },
+          TextStyle(fontSize = 12.sp),
+        )
+      }
+    }
+    open()
+    type("a")
+    onNodeWithTag("base-item-local-main").performClick()
+    waitForIdle()
+    onNodeWithTag("base-default").performClick()
+    enter()
+    gate.complete(null)
+    waitForIdle()
+    assertEquals(listOf<BaseSpec>(BaseSpec.Ref("main")), specs)
+    assertGone("base-popup")
+  }
+
+  @Test
+  fun guardIsReleasedAfterAnError() = runComposeUiTest {
+    val results = ArrayDeque<ViewerError?>(listOf(ViewerError.UnknownBase("x"), null))
+    var calls = 0
+    setContent {
+      KdvTheme(darkTheme = false) {
+        BasePicker(
+          base,
+          BaseSpec.Default,
+          head,
+          { branches },
+          {
+            calls++
+            results.removeFirst()
+          },
+          TextStyle(fontSize = 12.sp),
+        )
+      }
+    }
+    open()
+    type("x")
+    enter()
+    onNodeWithTag("base-error").assertExists()
+    enter()
+    assertEquals(2, calls)
+    assertGone("base-popup")
+  }
+
+  @Test
+  fun optionLikeTextDoesNotShowReturnHint() = runComposeUiTest {
+    show(Recorder())
+    open()
+    type("--x")
+    assertGone("base-list-status")
   }
 }

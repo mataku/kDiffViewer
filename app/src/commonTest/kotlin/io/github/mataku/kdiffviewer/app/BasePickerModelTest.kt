@@ -48,5 +48,6 @@ class BasePickerModelTest {
   fun pickerErrorTextMatchesSpecCopy() {
     assertEquals("Unknown revision 'foo'", pickerErrorText(ViewerError.UnknownBase("foo")))
     assertEquals("No common ancestor between 'foo' and HEAD", pickerErrorText(ViewerError.NoCommonAncestor("foo")))
+    assertEquals("fatal: a", pickerErrorText(ViewerError.GitFailed("fatal: a\nhint: b", 128)))
   }
 }

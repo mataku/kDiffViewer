@@ -288,10 +288,12 @@ class ViewerScreenTest {
         ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.Commit("origin/develop", "m1", "a1b2c3d"), head = HeadRef.Branch("feature/x")), {})
       }
     }
-    assertTrue(regions.isClientArea(onNodeWithTag("base-picker").fetchSemanticsNode().boundsInRoot.center))
+    assertTrue(regions.isClientArea(onNodeWithTag("base-picker").fetchSemanticsNode().boundsInWindow.center))
     onNodeWithTag("base-picker").performClick()
     waitForIdle()
-    assertTrue(regions.isClientArea(onNodeWithTag("base-popup").fetchSemanticsNode().boundsInRoot.center))
+    val popup = onNodeWithTag("base-popup").fetchSemanticsNode().boundsInWindow
+    assertTrue(regions.isClientArea(popup.center))
+    assertFalse(regions.isClientArea(Offset(popup.right + 20f, popup.center.y)))
   }
 
   @Test

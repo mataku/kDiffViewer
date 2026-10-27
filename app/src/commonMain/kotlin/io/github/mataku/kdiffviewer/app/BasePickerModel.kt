@@ -38,6 +38,6 @@ internal fun parseTypedRef(text: String): TypedRef {
 internal fun pickerErrorText(error: ViewerError): String = when (error) {
   is ViewerError.UnknownBase -> "Unknown revision '${error.ref}'"
   is ViewerError.NoCommonAncestor -> "No common ancestor between '${error.ref}' and HEAD"
-  is ViewerError.GitFailed -> error.stderr.trim().ifEmpty { "git failed" }
+  is ViewerError.GitFailed -> error.stderr.trim().lineSequence().first().ifEmpty { "git failed" }
   else -> "Could not switch base"
 }

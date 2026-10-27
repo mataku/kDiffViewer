@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -117,6 +118,8 @@ private fun BasePopupContent(
   val scope = rememberCoroutineScope()
   var query by remember { mutableStateOf("") }
   var errorText by remember { mutableStateOf<String?>(null) }
+  var switching by remember { mutableStateOf(false) }
+  val currentRef = (baseSpec as? BaseSpec.Ref)?.ref
   var branches by remember { mutableStateOf<Result<List<BranchRef>>?>(null) }
   val focusRequester = remember { FocusRequester() }
   LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -133,9 +136,15 @@ private fun BasePopupContent(
   val sections = remember(loaded, head, query) { loaded?.let { sectionBranches(it, head, query) } }
 
   fun switchTo(spec: BaseSpec) {
+    if (switching) return
+    switching = true
     scope.launch {
-      val error = onSwitch(spec)
-      if (error == null) close() else errorText = pickerErrorText(error)
+      try {
+        val error = onSwitch(spec)
+        if (error == null) close() else errorText = pickerErrorText(error)
+      } finally {
+        switching = false
+      }
     }
   }
 
@@ -152,7 +161,7 @@ private fun BasePopupContent(
 
     loaded == null -> "Could not list branches"
 
-    sections != null && sections.local.isEmpty() && sections.remote.isEmpty() && query.isNotBlank() ->
+    sections != null && sections.local.isEmpty() && sections.remote.isEmpty() && parseTypedRef(query) is TypedRef.Valid ->
       "Press Return to use \"${query.trim()}\" as the base"
 
     else -> null
@@ -204,6 +213,7 @@ private fun BasePopupContent(
           text = defaultEntryLabel(base, baseSpec),
           tag = "base-default",
           checked = baseSpec == BaseSpec.Default,
+          enabled = !switching,
           textStyle = textStyle,
         ) { switchTo(BaseSpec.Default) }
       }
@@ -220,7 +230,7 @@ private fun BasePopupContent(
         if (sections.local.isNotEmpty()) {
           item(key = "header/local") { SectionHeader("Local", "base-section-local", textStyle) }
           items(sections.local, key = { "local/${it.name}" }) { ref ->
-            BasePickerRow(ref.name, "base-item-local-${ref.name}", baseSpec == BaseSpec.Ref(ref.name), textStyle) {
+            BasePickerRow(ref.name, "base-item-local-${ref.name}", ref.name == currentRef, !switching, textStyle) {
               switchTo(BaseSpec.Ref(ref.name))
             }
           }
@@ -228,7 +238,7 @@ private fun BasePopupContent(
         if (sections.remote.isNotEmpty()) {
           item(key = "header/remote") { SectionHeader("Remote", "base-section-remote", textStyle) }
           items(sections.remote, key = { "remote/${it.name}" }) { ref ->
-            BasePickerRow(ref.name, "base-item-remote-${ref.name}", baseSpec == BaseSpec.Ref(ref.name), textStyle) {
+            BasePickerRow(ref.name, "base-item-remote-${ref.name}", ref.name == currentRef, !switching, textStyle) {
               switchTo(BaseSpec.Ref(ref.name))
             }
           }
@@ -249,16 +259,27 @@ private fun SectionHeader(text: String, tag: String, textStyle: TextStyle) {
 }
 
 @Composable
-private fun BasePickerRow(text: String, tag: String, checked: Boolean, textStyle: TextStyle, onClick: () -> Unit) {
+private fun BasePickerRow(text: String, tag: String, checked: Boolean, enabled: Boolean, textStyle: TextStyle, onClick: () -> Unit) {
   val colors = LocalDiffColors.current
   Row(
     modifier = Modifier
       .testTag(tag)
       .fillMaxWidth()
-      .clickable(onClick = onClick)
+      .clickable(enabled = enabled, onClick = onClick)
       .padding(horizontal = 10.dp, vertical = 5.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
+    if (checked) {
+      Image(
+        imageVector = KdvIcons.CheckCircle,
+        contentDescription = null,
+        modifier = Modifier.testTag("base-check").size(12.dp),
+        colorFilter = ColorFilter.tint(colors.accent),
+      )
+    } else {
+      Spacer(Modifier.size(12.dp))
+    }
+    Spacer(Modifier.width(6.dp))
     BasicText(
       text = text,
       style = textStyle,
@@ -266,13 +287,5 @@ private fun BasePickerRow(text: String, tag: String, checked: Boolean, textStyle
       overflow = TextOverflow.Ellipsis,
       modifier = Modifier.weight(1f),
     )
-    if (checked) {
-      Image(
-        imageVector = KdvIcons.CheckCircle,
-        contentDescription = null,
-        modifier = Modifier.testTag("base-check").padding(start = 6.dp).size(12.dp),
-        colorFilter = ColorFilter.tint(colors.accent),
-      )
-    }
   }
 }
