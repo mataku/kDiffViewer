@@ -218,7 +218,7 @@ private fun BasePopupContent(
       }
       if (sections != null) {
         if (sections.local.isNotEmpty()) {
-          item(key = "header/local") { SectionHeader("Local branches", "base-section-local", textStyle) }
+          item(key = "header/local") { SectionHeader("Local", "base-section-local", textStyle) }
           items(sections.local, key = { "local/${it.name}" }) { ref ->
             BasePickerRow(ref.name, "base-item-local-${ref.name}", baseSpec == BaseSpec.Ref(ref.name), textStyle) {
               switchTo(BaseSpec.Ref(ref.name))
@@ -226,7 +226,7 @@ private fun BasePopupContent(
           }
         }
         if (sections.remote.isNotEmpty()) {
-          item(key = "header/remote") { SectionHeader("Remote branches", "base-section-remote", textStyle) }
+          item(key = "header/remote") { SectionHeader("Remote", "base-section-remote", textStyle) }
           items(sections.remote, key = { "remote/${it.name}" }) { ref ->
             BasePickerRow(ref.name, "base-item-remote-${ref.name}", baseSpec == BaseSpec.Ref(ref.name), textStyle) {
               switchTo(BaseSpec.Ref(ref.name))
