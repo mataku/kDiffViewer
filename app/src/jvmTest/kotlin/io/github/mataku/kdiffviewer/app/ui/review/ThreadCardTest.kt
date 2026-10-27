@@ -3,6 +3,7 @@ package io.github.mataku.kdiffviewer.app.ui.review
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
@@ -15,10 +16,15 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.withKeyDown
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
+import io.github.mataku.kdiffviewer.app.selection.ClipboardWriter
+import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
+import io.github.mataku.kdiffviewer.app.selection.SelectionSource
+import io.github.mataku.kdiffviewer.app.selection.TextSelectionCoordinator
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.core.review.Comment
@@ -26,6 +32,7 @@ import io.github.mataku.kdiffviewer.core.review.ReviewThread
 import io.github.mataku.kdiffviewer.core.review.Side
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 @OptIn(ExperimentalTestApi::class)
@@ -64,6 +71,93 @@ class ThreadCardTest {
       Comment("c2", Author.Agent("claude"), "agent body", at),
     ),
   ) = ReviewThread("t1", anchor, comments, resolved, outdated)
+
+  private class FakeClipboard : ClipboardWriter {
+    val writes = mutableListOf<String>()
+
+    override fun write(text: String) {
+      writes += text
+    }
+  }
+
+  private class FakeSource : SelectionSource {
+    var clears = 0
+    override val hasSelection = true
+
+    override fun selectedText() = "diff"
+
+    override fun clear() {
+      clears++
+    }
+  }
+
+  private val clipboard = FakeClipboard()
+  private var copyOnSelect = false
+  private val coordinator = TextSelectionCoordinator(clipboard) { copyOnSelect }
+  private val helloThread = thread(comments = listOf(Comment("c1", Author.User, "hello world", at)))
+
+  private fun androidx.compose.ui.test.ComposeUiTest.setCard(content: ReviewThread = helloThread, actions: ReviewActions = FakeActions()) {
+    setContent {
+      CompositionLocalProvider(LocalReviewActions provides actions, LocalTextSelectionCoordinator provides coordinator) {
+        ThreadCard(content, null)
+      }
+    }
+  }
+
+  private fun androidx.compose.ui.test.ComposeUiTest.dragAcrossBody() {
+    onNodeWithText("hello world").performMouseInput {
+      moveTo(Offset(0f, height / 2f))
+      press()
+      moveTo(Offset(width + 40f, height / 2f))
+      release()
+    }
+  }
+
+  @Test
+  fun bodyTextIsSelectableAndCopies() = runComposeUiTest {
+    setCard()
+    dragAcrossBody()
+    waitForIdle()
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("hello world"), clipboard.writes)
+  }
+
+  @Test
+  fun pressInCardClearsDiffSource() = runComposeUiTest {
+    val diff = FakeSource()
+    setCard()
+    coordinator.activate(diff)
+    onNodeWithText("hello world").performMouseInput {
+      moveTo(Offset(2f, height / 2f))
+      press()
+      release()
+    }
+    assertEquals(1, diff.clears)
+  }
+
+  @Test
+  fun linkStillClicks() = runComposeUiTest {
+    val actions = FakeActions()
+    setCard(thread(), actions)
+    onNodeWithText("Edit").performClick()
+    assertEquals(listOf("start:Edit(commentId=c1)"), actions.calls)
+  }
+
+  @Test
+  fun copyOnSelectWritesOnReleaseInCard() = runComposeUiTest {
+    copyOnSelect = true
+    setCard()
+    onNodeWithText("hello world").performMouseInput {
+      moveTo(Offset(0f, height / 2f))
+      press()
+      moveTo(Offset(width / 2f, height / 2f))
+      moveTo(Offset(width + 40f, height / 2f))
+      assertEquals(emptyList(), clipboard.writes)
+      release()
+    }
+    waitForIdle()
+    assertEquals(listOf("hello world"), clipboard.writes)
+  }
 
   @Test
   fun resolvedThreadWithReplyDraftIsShownExpanded() = runComposeUiTest {

@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app.ui.review
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,7 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.LocalTextContextMenu
+import androidx.compose.foundation.text.selection.DisableSelection
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.selection.SelectionState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,7 +25,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +40,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
+import io.github.mataku.kdiffviewer.app.selection.LocalNativeContextMenu
+import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.ui.DiffColors
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffTypography
@@ -48,6 +64,7 @@ private class CardStyles(colors: DiffColors) {
   val outdatedBadge = badge(colors.outdatedBadge)
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
   val colors = LocalDiffColors.current
@@ -73,36 +90,68 @@ fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
     return
   }
   val actions = LocalReviewActions.current
-  Column(
-    modifier = cardModifier.testTag("thread-${thread.id}").padding(12.dp),
-    verticalArrangement = Arrangement.spacedBy(8.dp),
+  val selectionState = remember(thread.id) { SelectionState() }
+  val source = remember(selectionState) { CardSelectionSource(selectionState) }
+  val coordinator = LocalTextSelectionCoordinator.current
+  DisposableEffect(source, coordinator) { onDispose { coordinator?.release(source) } }
+  val nativeMenu = LocalNativeContextMenu.current
+  val density = LocalDensity.current
+  var originInWindow by remember { mutableStateOf(Offset.Zero) }
+  val textContextMenu = remember(nativeMenu, density) {
+    nativeMenu?.let { NativeTextContextMenu(it, { originInWindow }, density) }
+  }
+  CompositionLocalProvider(
+    *listOfNotNull(textContextMenu?.let { LocalTextContextMenu provides it }).toTypedArray(),
   ) {
-    if (thread.outdated) {
-      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Badge("Outdated", colors.outdatedBadge, styles.outdatedBadge)
-        val snapshot = (thread.anchor as? Anchor.Lines)?.snapshot.orEmpty()
-        val code = LocalDiffTypography.current.code
-        snapshot.forEach { line -> BasicText(text = line, style = code) }
-      }
-    }
-    thread.comments.forEach { comment ->
-      val editing = draftTarget is DraftTarget.Edit && draftTarget.commentId == comment.id
-      CommentView(comment, editing, actions, styles, colors)
-    }
-    if (draftTarget is DraftTarget.Reply && draftTarget.threadId == thread.id && actions != null) {
-      CommentComposer(
-        submitLabel = "Reply",
-        onTextChange = actions::updateDraft,
-        onSubmit = actions::submitDraft,
-        onCancel = actions::cancelDraft,
-      )
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      MacPushButton("Reply", onClick = { actions?.startDraft(DraftTarget.Reply(thread.id)) })
-      if (thread.resolved) {
-        MacPushButton("Unresolve", onClick = { actions?.setResolved(thread.id, false) })
-      } else {
-        MacPushButton("Resolve", onClick = { actions?.setResolved(thread.id, true) })
+    SelectionContainer(
+      state = selectionState,
+      modifier = cardModifier
+        .testTag("thread-${thread.id}")
+        .onGloballyPositioned { originInWindow = it.positionInWindow() }
+        .pointerInput(source, coordinator) {
+          awaitPointerEventScope {
+            while (true) {
+              val event = awaitPointerEvent(PointerEventPass.Initial)
+              when (event.type) {
+                PointerEventType.Press -> coordinator?.activate(source)
+                PointerEventType.Release -> if (source.hasSelection) coordinator?.onSelectionFinished(source)
+              }
+            }
+          }
+        }
+        .padding(12.dp),
+    ) {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (thread.outdated) {
+          Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            DisableSelection { Badge("Outdated", colors.outdatedBadge, styles.outdatedBadge) }
+            val snapshot = (thread.anchor as? Anchor.Lines)?.snapshot.orEmpty()
+            val code = LocalDiffTypography.current.code
+            snapshot.forEach { line -> BasicText(text = line, style = code) }
+          }
+        }
+        thread.comments.forEach { comment ->
+          val editing = draftTarget is DraftTarget.Edit && draftTarget.commentId == comment.id
+          CommentView(comment, editing, actions, styles, colors)
+        }
+        DisableSelection {
+          if (draftTarget is DraftTarget.Reply && draftTarget.threadId == thread.id && actions != null) {
+            CommentComposer(
+              submitLabel = "Reply",
+              onTextChange = actions::updateDraft,
+              onSubmit = actions::submitDraft,
+              onCancel = actions::cancelDraft,
+            )
+          }
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MacPushButton("Reply", onClick = { actions?.startDraft(DraftTarget.Reply(thread.id)) })
+            if (thread.resolved) {
+              MacPushButton("Unresolve", onClick = { actions?.setResolved(thread.id, false) })
+            } else {
+              MacPushButton("Resolve", onClick = { actions?.setResolved(thread.id, true) })
+            }
+          }
+        }
       }
     }
   }
@@ -118,34 +167,38 @@ internal fun DraftTarget?.touches(thread: ReviewThread): Boolean = when (val tar
 private fun CommentView(comment: Comment, editing: Boolean, actions: ReviewActions?, styles: CardStyles, colors: DiffColors) {
   val isOwn = comment.author == Author.User
   Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-      when (val author = comment.author) {
-        Author.User -> BasicText("You", style = styles.author)
+    DisableSelection {
+      Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        when (val author = comment.author) {
+          Author.User -> BasicText("You", style = styles.author)
 
-        is Author.Agent -> {
-          BasicText(author.name, style = styles.author)
-          Badge("Agent", colors.agentBadge, styles.agentBadge)
+          is Author.Agent -> {
+            BasicText(author.name, style = styles.author)
+            Badge("Agent", colors.agentBadge, styles.agentBadge)
+          }
         }
-      }
-      if (isOwn) {
-        var confirmingDelete by remember(comment.id) { mutableStateOf(false) }
-        if (confirmingDelete) {
-          BasicText("Delete?", style = styles.collapsed)
-          LinkText("Delete", styles.link) { actions?.delete(comment.id) }
-          LinkText("Cancel", styles.link) { confirmingDelete = false }
-        } else {
-          LinkText("Edit", styles.link) { actions?.startDraft(DraftTarget.Edit(comment.id)) }
-          LinkText("Delete", styles.link) { confirmingDelete = true }
+        if (isOwn) {
+          var confirmingDelete by remember(comment.id) { mutableStateOf(false) }
+          if (confirmingDelete) {
+            BasicText("Delete?", style = styles.collapsed)
+            LinkText("Delete", styles.link) { actions?.delete(comment.id) }
+            LinkText("Cancel", styles.link) { confirmingDelete = false }
+          } else {
+            LinkText("Edit", styles.link) { actions?.startDraft(DraftTarget.Edit(comment.id)) }
+            LinkText("Delete", styles.link) { confirmingDelete = true }
+          }
         }
       }
     }
     if (editing && actions != null) {
-      CommentComposer(
-        submitLabel = "Save",
-        onTextChange = actions::updateDraft,
-        onSubmit = actions::submitDraft,
-        onCancel = actions::cancelDraft,
-      )
+      DisableSelection {
+        CommentComposer(
+          submitLabel = "Save",
+          onTextChange = actions::updateDraft,
+          onSubmit = actions::submitDraft,
+          onCancel = actions::cancelDraft,
+        )
+      }
     } else {
       MarkdownBody(comment.body)
     }
