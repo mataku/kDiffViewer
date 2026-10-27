@@ -20,9 +20,11 @@ import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpOffset
@@ -88,6 +90,7 @@ internal fun Modifier.diffSelectionGesture(
   val coordinator = LocalTextSelectionCoordinator.current
   val contextMenu = LocalNativeContextMenu.current
   val density = LocalDensity.current
+  val focusManager = LocalFocusManager.current
   val gesture = remember(listState, selection, selectionSource, layouts) { DiffSelectionGesture(listState, selection, selectionSource, layouts) }
   SideEffect {
     gesture.rows = rows
@@ -97,6 +100,7 @@ internal fun Modifier.diffSelectionGesture(
     gesture.codeStartX = codeStartX
     gesture.tabWidth = tabWidth
     gesture.density = density
+    gesture.focusManager = focusManager
   }
   return onGloballyPositioned { gesture.coordinates = it }.pointerInput(gesture) { gesture.run { handleGestures() } }
 }
@@ -115,6 +119,7 @@ internal class DiffSelectionGesture(
   var tabWidth = 1
   var density = Density(1f)
   var coordinates: LayoutCoordinates? = null
+  var focusManager: FocusManager? = null
 
   private var pointer = Offset.Zero
   private var viewportHeight = 0
@@ -134,6 +139,7 @@ internal class DiffSelectionGesture(
       if (!buttons.isPrimaryPressed) return@awaitEachGesture
       val hit = hitTest(down.position, press = true) ?: return@awaitEachGesture
       coordinator?.activate(source)
+      focusManager?.clearFocus()
       val shift = event.keyboardModifiers.isShiftPressed
       val clicks = counter.onPress(down.uptimeMillis, down.position)
       when {

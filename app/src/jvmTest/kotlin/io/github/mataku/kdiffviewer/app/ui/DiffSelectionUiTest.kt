@@ -11,6 +11,8 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.onNodeWithTag
@@ -249,6 +251,30 @@ class DiffSelectionUiTest {
     waitForIdle()
     onNodeWithTag("comment-composer").assertIsDisplayed()
     assertFalse(coordinator.hasSelection)
+  }
+
+  @Test
+  fun dragInDiffTakesFocusFromComposer() = runComposeUiTest {
+    val ui = stateOf()
+    val review = ReviewState(CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined) { Instant.fromEpochSeconds(0) }.also { it.onViewerState(ui) }
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(
+        LocalTextSelectionCoordinator provides coordinator,
+        LocalNativeContextMenu provides menu,
+        LocalReviewActions provides review,
+      ) {
+        ViewerScreen(ui, {}, review = snapshot)
+      }
+    }
+    onNodeWithText("alpha beta").performMouseInput { moveTo(center) }
+    waitForIdle()
+    onNodeWithTag("add-comment").performClick()
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertIsFocused()
+    drag(codePosition("alpha beta", 6), codePosition("delta", 2))
+    assertTrue(coordinator.hasSelection)
+    onNodeWithTag("comment-composer").assertIsNotFocused()
   }
 
   @Test
