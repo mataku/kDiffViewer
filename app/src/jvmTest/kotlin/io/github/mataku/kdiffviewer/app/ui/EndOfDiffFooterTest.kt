@@ -1,6 +1,10 @@
 package io.github.mataku.kdiffviewer.app.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.onNodeWithTag
@@ -31,8 +35,27 @@ class EndOfDiffFooterTest {
   }
 
   @Test
-  fun artIsOneHundredFiftyDpWide() = runComposeUiTest {
+  fun artIsOneHundredEightyDpWide() = runComposeUiTest {
     setContent { KdvTheme(darkTheme = false) { EndOfDiffFooter() } }
-    onNodeWithTag("end-of-diff-art").assertWidthIsEqualTo(150.dp)
+    onNodeWithTag("end-of-diff-art").assertWidthIsEqualTo(180.dp)
+  }
+
+  @Test
+  fun artKeepsTheImageAspectRatio() = runComposeUiTest {
+    setContent { KdvTheme(darkTheme = false) { EndOfDiffFooter() } }
+    onNodeWithTag("end-of-diff-art").assertHeightIsEqualTo((180f * 172f / 270f).dp)
+  }
+
+  @Test
+  fun artHiddenWhenFooterIsNarrowerThanArt() = runComposeUiTest {
+    setContent { KdvTheme(darkTheme = false) { Box(Modifier.width(179.dp)) { EndOfDiffFooter() } } }
+    onNodeWithTag("end-of-diff-art").assertDoesNotExist()
+    onNodeWithText("It fits. You're done.").assertIsDisplayed()
+  }
+
+  @Test
+  fun artShownWhenFooterFitsArt() = runComposeUiTest {
+    setContent { KdvTheme(darkTheme = false) { Box(Modifier.width(180.dp)) { EndOfDiffFooter() } } }
+    onNodeWithTag("end-of-diff-art").assertIsDisplayed()
   }
 }
