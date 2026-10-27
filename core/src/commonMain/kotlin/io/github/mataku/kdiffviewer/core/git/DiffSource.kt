@@ -54,7 +54,7 @@ class GitDiffSource(
       ResolvedBase.EmptyTree -> EMPTY_TREE
     }
     val diffArgs = listOf(
-      "-c", "core.quotePath=false", "diff", baseId,
+      "-c", "core.quotePath=false", "-c", "core.fsmonitor=false", "diff", baseId,
       "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "-M", "--submodule=short",
     )
     emitAll(
@@ -66,7 +66,7 @@ class GitDiffSource(
       },
     )
 
-    val lsArgs = listOf("ls-files", "--others", "--exclude-standard", "-z")
+    val lsArgs = listOf("-c", "core.fsmonitor=false", "ls-files", "--others", "--exclude-standard", "-z")
     val ls = runner.run(root, lsArgs)
     if (ls.exitCode != 0) throw DiffLoadException.GitFailed(lsArgs, ls.exitCode, ls.stderr)
     for (path in ls.stdout.split('\u0000')) {

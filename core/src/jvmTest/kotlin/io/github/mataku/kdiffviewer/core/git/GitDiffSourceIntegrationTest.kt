@@ -93,6 +93,21 @@ class GitDiffSourceIntegrationTest {
   }
 
   @Test
+  fun fsmonitorHookDoesNotRunDuringLoad() {
+    initRepo()
+    write("a.txt", "a\n")
+    commitAll()
+    val marker = File(repo, "hook-ran")
+    val hook = writeScript(newTempDir(), "fsmonitor", "touch '${marker.path}'; echo '/'")
+    runGit(repo, "config", "core.fsmonitor", hook.path)
+    write("a.txt", "b\n")
+    write("new.txt", "n\n")
+    val files = load()
+    assertEquals(listOf("a.txt", "new.txt"), files.map { it.displayPath })
+    assertFalse(marker.exists(), "fsmonitor hook ran")
+  }
+
+  @Test
   fun renameIsDetected() {
     initRepo()
     write("a.txt", "one\ntwo\nthree\nfour\nfive\n")

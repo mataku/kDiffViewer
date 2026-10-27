@@ -27,10 +27,10 @@ class GitDiffSourceTest {
 
   private val toplevel = listOf("rev-parse", "--show-toplevel")
   private val verifyHead = listOf("rev-parse", "--verify", "HEAD")
-  private val lsFiles = listOf("ls-files", "--others", "--exclude-standard", "-z")
+  private val lsFiles = listOf("-c", "core.fsmonitor=false", "ls-files", "--others", "--exclude-standard", "-z")
 
   private fun diffArgs(base: String) = listOf(
-    "-c", "core.quotePath=false", "diff", base,
+    "-c", "core.quotePath=false", "-c", "core.fsmonitor=false", "diff", base,
     "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "-M", "--submodule=short",
   )
 
