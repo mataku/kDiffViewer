@@ -3,6 +3,8 @@
   extends: [
     'github>mataku/renovate-config:default.json5',
   ],
+  automerge: true,
+  platformAutomerge: true,
   hostRules: [
     {
       // Maven Central rate-limits by source IP and the Mend runners share theirs.
