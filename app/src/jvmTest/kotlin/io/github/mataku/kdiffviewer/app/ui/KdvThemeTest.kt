@@ -55,4 +55,17 @@ class KdvThemeTest {
     assertSame(DarkSyntaxTheme, dark)
     assertSame(LightSyntaxTheme, light)
   }
+
+  @Test
+  fun providesDarkThemeFlag() = runComposeUiTest {
+    var dark: Boolean? = null
+    var light: Boolean? = null
+    setContent {
+      KdvTheme(darkTheme = true) { dark = LocalDarkTheme.current }
+      KdvTheme(darkTheme = false) { light = LocalDarkTheme.current }
+    }
+    waitForIdle()
+    assertEquals(true, dark)
+    assertEquals(false, light)
+  }
 }
