@@ -115,8 +115,8 @@ fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
               val event = awaitPointerEvent(PointerEventPass.Initial)
               when (event.type) {
                 PointerEventType.Press -> {
-                  coordinator?.activate(source)
                   primaryGesture = event.buttons.isPrimaryPressed && !event.keyboardModifiers.isCtrlPressed
+                  if (primaryGesture) coordinator?.activate(source)
                 }
 
                 PointerEventType.Release -> if (primaryGesture && event.buttons.isPrimaryPressed.not()) {

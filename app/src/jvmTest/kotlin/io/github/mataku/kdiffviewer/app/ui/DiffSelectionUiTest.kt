@@ -440,4 +440,31 @@ class DiffSelectionUiTest {
     waitForIdle()
     assertEquals(1, menu.shown.size)
   }
+
+  @Test
+  fun rightClickInsideCardKeepsDiffSelection() = runComposeUiTest {
+    val ui = stateOf()
+    val review = ReviewState(CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined) { Instant.fromEpochSeconds(0) }.also { it.onViewerState(ui) }
+    review.startDraft(DraftTarget.NewThread(Anchor.Lines("a.kt", Side.New, 1, 1, listOf("alpha beta")), Placement.OnLine(LineLocation(0, 0, 0))))
+    review.updateDraft("hello world")
+    review.submitDraft()
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(
+        LocalTextSelectionCoordinator provides coordinator,
+        LocalNativeContextMenu provides menu,
+        LocalReviewActions provides review,
+      ) {
+        ViewerScreen(ui, {}, review = snapshot)
+      }
+    }
+    waitForIdle()
+    drag(codePosition("delta", 0), codePosition("delta", 3))
+    assertTrue(coordinator.hasSelection)
+    onNodeWithText("hello world").performMouseInput { rightClick(Offset(10f, height / 2f)) }
+    waitForIdle()
+    assertTrue(coordinator.hasSelection)
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("del"), clipboard.writes)
+  }
 }
