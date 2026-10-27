@@ -256,7 +256,7 @@ private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment
       horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       BasicText(
-        text = row.file.headerTitle(),
+        text = remember(row.file) { row.file.headerTitle() },
         modifier = Modifier.weight(1f, fill = false),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
