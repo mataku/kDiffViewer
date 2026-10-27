@@ -25,6 +25,9 @@ import io.github.mataku.kdiffviewer.app.review.ReviewRequestHandler
 import io.github.mataku.kdiffviewer.app.review.ReviewState
 import io.github.mataku.kdiffviewer.app.review.SessionRegistry
 import io.github.mataku.kdiffviewer.app.review.processAlive
+import io.github.mataku.kdiffviewer.app.selection.LocalNativeContextMenu
+import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
+import io.github.mataku.kdiffviewer.app.selection.TextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.settings.FileSettingsStorage
 import io.github.mataku.kdiffviewer.app.settings.GitBackendController
 import io.github.mataku.kdiffviewer.app.settings.SettingsRepository
@@ -208,12 +211,17 @@ private fun runApplication(
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     val titleBarRegions = remember { installCustomTitleBar(window, TitleBarHeight) }
     val titleBarInset = if (titleBarRegions != null) TitleBarHeight else 0.dp
+    val coordinator = remember { TextSelectionCoordinator(AwtClipboardWriter) { repository.settings.value.copyOnSelect } }
+    val nativeMenu = remember(window) { AwtNativeContextMenu(window) }
     MenuBar {
       Menu("File") {
         Item("Open…", shortcut = KeyShortcut(Key.O, meta = true), onClick = openFolder)
         if (!nativePreferences) {
           Item("Settings…", shortcut = KeyShortcut(Key.Comma, meta = true), onClick = { openSettings() })
         }
+      }
+      Menu("Edit") {
+        Item("Copy", shortcut = KeyShortcut(Key.C, meta = true), enabled = coordinator.hasSelection, onClick = { coordinator.copy() })
       }
       Menu("View") {
         Item("Reload", shortcut = KeyShortcut(Key.R, meta = true), onClick = state::reload)
@@ -227,6 +235,8 @@ private fun runApplication(
       LocalReviewActions provides review,
       LocalCodeHighlighter provides factory.codeHighlighter,
       LocalUriHandler provides safeUriHandler,
+      LocalTextSelectionCoordinator provides coordinator,
+      LocalNativeContextMenu provides nativeMenu,
     ) {
       KdvTheme(
         darkTheme = settings.appearance.isDark(),
