@@ -14,6 +14,7 @@ class DiffColorsTest {
   fun accentIsSystemBlue() {
     assertEquals(Color(0xFF007AFF), LightDiffColors.accent)
     assertEquals(Color(0xFF0A84FF), DarkDiffColors.accent)
+    assertEquals(Color(0xFF0A84FF), DimDiffColors.accent)
   }
 
   @Test
@@ -22,5 +23,10 @@ class DiffColorsTest {
     assertEquals(Color(0xFF0969DA), LightDiffColors.renamedText)
     assertEquals(Color(0xFFD29922), DarkDiffColors.modifiedText)
     assertEquals(Color(0xFF58A6FF), DarkDiffColors.renamedText)
+  }
+
+  @Test
+  fun dimBackgroundIsDarkBlueRatherThanNearBlack() {
+    assertEquals(Color(0xFF15202B), DimDiffColors.background)
   }
 }

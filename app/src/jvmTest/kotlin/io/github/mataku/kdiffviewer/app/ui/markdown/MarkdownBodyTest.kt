@@ -31,6 +31,7 @@ import io.github.mataku.kdiffviewer.app.highlight.CodeHighlighter
 import io.github.mataku.kdiffviewer.app.highlight.LanguageId
 import io.github.mataku.kdiffviewer.app.highlight.LanguageResolver
 import io.github.mataku.kdiffviewer.app.highlight.LocalCodeHighlighter
+import io.github.mataku.kdiffviewer.app.ui.ColorTheme
 import io.github.mataku.kdiffviewer.app.ui.KdvTheme
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -58,7 +59,7 @@ class MarkdownBodyTest {
 
   @Composable
   private fun Themed(handler: UriHandler = FakeUriHandler(), content: @Composable () -> Unit) {
-    KdvTheme(darkTheme = false) {
+    KdvTheme(colorTheme = ColorTheme.Light) {
       CompositionLocalProvider(LocalUriHandler provides handler, content = content)
     }
   }

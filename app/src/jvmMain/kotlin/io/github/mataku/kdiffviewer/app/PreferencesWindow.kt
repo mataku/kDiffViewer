@@ -43,7 +43,7 @@ fun PreferencesWindow(
     resizable = true,
     state = rememberWindowState(size = DpSize(640.dp, 760.dp)),
   ) {
-    LaunchedEffect(window) { window.minimumSize = Dimension(520, 480) }
+    LaunchedEffect(window) { window.minimumSize = Dimension(600, 480) }
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     LaunchedEffect(focusRequests) { window.toFront() }
     val fontFamilies by produceState<List<String>?>(null) {
@@ -53,7 +53,7 @@ fun PreferencesWindow(
     }
     val scope = rememberCoroutineScope()
     val settingsFile = remember { defaultSettingsFile() }
-    KdvTheme(darkTheme = settings.appearance.isDark()) {
+    KdvTheme(colorTheme = settings.appearance.colorTheme()) {
       PreferencesScreen(
         settings = settings,
         load = load,

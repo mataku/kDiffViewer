@@ -247,7 +247,7 @@ private fun runApplication(
       LocalNativeContextMenu provides nativeMenu,
     ) {
       KdvTheme(
-        darkTheme = settings.appearance.isDark(),
+        colorTheme = settings.appearance.colorTheme(),
         fontFamily = fontFamily,
         fontSize = settings.fontSize,
         tabWidth = settings.tabWidth,

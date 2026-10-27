@@ -19,6 +19,10 @@ class SettingsCodecTest {
     assertEquals(13, decodeSettings("""{"future":1,"fontSize":13}""")!!.fontSize)
   }
 
+  @Test fun decodesDimAppearance() {
+    assertEquals(Appearance.Dim, decodeSettings("""{"appearance":"Dim"}""")!!.appearance)
+  }
+
   @Test fun unknownEnumValueFallsBackToDefault() {
     assertEquals(Settings(fontSize = 14), decodeSettings("""{"appearance":"Blue","fontSize":14}"""))
   }

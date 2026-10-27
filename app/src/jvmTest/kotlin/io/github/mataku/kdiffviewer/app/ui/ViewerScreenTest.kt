@@ -133,7 +133,7 @@ class ViewerScreenTest {
   fun expandsTabsWithConfiguredTabWidth() = runComposeUiTest {
     val line = DiffLine(LineKind.Added, "\tx", null, 1)
     val file = FileDiff(null, "t.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", listOf(line)))))
-    setContent { KdvTheme(darkTheme = false, tabWidth = 4) { ViewerScreen(stateOf(listOf(file)), {}) } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Light, tabWidth = 4) { ViewerScreen(stateOf(listOf(file)), {}) } }
     onNodeWithText("    x").assertIsDisplayed()
   }
 
@@ -557,7 +557,7 @@ class ViewerScreenTest {
   fun highlightedLineUsesSyntaxColors() = runComposeUiTest {
     val file = keywordFile()
     val slot = HighlightSlot().apply { value = keywordHighlight() }
-    setContent { KdvTheme(darkTheme = false) { ViewerScreen(stateOf(listOf(file)).copy(highlights = listOf(slot)), {}) } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Light) { ViewerScreen(stateOf(listOf(file)).copy(highlights = listOf(slot)), {}) } }
     val ranges = lineText("fun x").spanStyles
     assertEquals(1, ranges.size)
     assertEquals(0, ranges[0].start)
@@ -569,7 +569,7 @@ class ViewerScreenTest {
   fun slotWriteRecolorsVisibleLine() = runComposeUiTest {
     val file = keywordFile()
     val slot = HighlightSlot()
-    setContent { KdvTheme(darkTheme = false) { ViewerScreen(stateOf(listOf(file)).copy(highlights = listOf(slot)), {}) } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Light) { ViewerScreen(stateOf(listOf(file)).copy(highlights = listOf(slot)), {}) } }
     assertEquals(emptyList(), lineText("fun x").spanStyles)
     slot.value = keywordHighlight()
     waitForIdle()
@@ -580,14 +580,14 @@ class ViewerScreenTest {
 
   @Test
   fun lineWithoutSpansStaysPlain() = runComposeUiTest {
-    setContent { KdvTheme(darkTheme = false) { ViewerScreen(stateOf(listOf(keywordFile())), {}) } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Light) { ViewerScreen(stateOf(listOf(keywordFile())), {}) } }
     assertEquals(emptyList(), lineText("fun x").spanStyles)
   }
 
   @Test
   fun headerPathGrowsWithFontSize() = runComposeUiTest {
     var fontSize by mutableStateOf(12)
-    setContent { KdvTheme(darkTheme = false, fontSize = fontSize) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Light, fontSize = fontSize) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }
     val small = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot.height
     fontSize = 24
     waitForIdle()
@@ -598,7 +598,7 @@ class ViewerScreenTest {
   @Test
   fun lineNumberColumnWidensWithFontSize() = runComposeUiTest {
     var fontSize by mutableStateOf(24)
-    setContent { KdvTheme(darkTheme = false, fontSize = fontSize) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Light, fontSize = fontSize) { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) } }
     onAllNodesWithText("1", useUnmergedTree = true)[0].assertWidthIsEqualTo(90.dp)
     fontSize = 12
     waitForIdle()

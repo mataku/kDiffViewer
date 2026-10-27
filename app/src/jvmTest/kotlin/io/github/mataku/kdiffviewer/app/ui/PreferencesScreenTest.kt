@@ -57,7 +57,7 @@ class PreferencesScreenTest {
     families: List<String>? = listOf("Menlo", "Monaco", "Arial"),
   ) {
     setContent {
-      KdvTheme(darkTheme = false) {
+      KdvTheme(colorTheme = ColorTheme.Light) {
         PreferencesScreen(
           settings = settings,
           load = load,
@@ -82,6 +82,14 @@ class PreferencesScreenTest {
   }
 
   @Test
+  fun dimSelectionUpdatesSettings() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    onNodeWithTag("appearance-Dim").performClick()
+    assertEquals(Appearance.Dim, h.last().appearance)
+  }
+
+  @Test
   fun clickingPreviewCardSelectsAppearance() = runComposeUiTest {
     val h = Harness()
     show(h)
@@ -92,7 +100,7 @@ class PreferencesScreenTest {
   @Test
   fun allPreviewCardsAreShown() = runComposeUiTest {
     show(Harness())
-    listOf("System", "Light", "Dark").forEach {
+    listOf("System", "Light", "Dark", "Dim").forEach {
       onNodeWithTag("appearance-preview-$it", useUnmergedTree = true).assertExists()
     }
   }
@@ -251,7 +259,7 @@ class PreferencesScreenTest {
     var visible by mutableStateOf(true)
     setContent {
       if (visible) {
-        KdvTheme(darkTheme = false) {
+        KdvTheme(colorTheme = ColorTheme.Light) {
           PreferencesScreen(
             settings = Settings(),
             load = SettingsLoad.Ok,
@@ -278,7 +286,7 @@ class PreferencesScreenTest {
     var visible by mutableStateOf(true)
     setContent {
       if (visible) {
-        KdvTheme(darkTheme = false) {
+        KdvTheme(colorTheme = ColorTheme.Light) {
           PreferencesScreen(
             settings = Settings(),
             load = SettingsLoad.Ok,
