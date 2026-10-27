@@ -51,7 +51,7 @@ Diffs can have thousands of files and hundreds of thousands of rows, so CPU and 
 ## macOS UI
 
 - Follow macOS conventions (Apple HIG) over Material. Material3 is theme plumbing here; do not adopt its visual idioms (outlined/filled text fields, floating labels, red error borders, snackbars, FABs).
-- Build buttons, popup buttons, segmented controls, steppers and text fields from the `Mac*` composables in `app/src/commonMain/kotlin/io/github/mataku/kdiffviewer/app/ui/MacControls.kt`; add a missing control there instead of reaching for a Material widget.
+- Build buttons, popup buttons, segmented controls, steppers, text fields and search fields from the `Mac*` composables in `app/src/commonMain/kotlin/io/github/mataku/kdiffviewer/app/ui/mac/` (one file per control family); add a missing control there instead of reaching for a Material widget. `app/ui/` holds screens and composables with no platform idiom; `app/ui/mac/` holds the macOS-idiom controls.
 - Validation feedback goes inline next to the control as a small icon plus one short line of text; do not block with alerts for input errors.
 - Settings live under the application menu (`Settings…`, ⌘,) and apply immediately; no Save/Apply buttons.
 - Use standard macOS shortcuts and menu placement, and follow the system appearance by default.
