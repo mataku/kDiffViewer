@@ -9,10 +9,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
@@ -23,8 +21,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -138,10 +136,12 @@ fun MacSearchField(
     if (value.isNotEmpty()) {
       Image(
         imageVector = KdvIcons.XCircle,
-        contentDescription = null,
+        contentDescription = "Clear",
         modifier = Modifier
           .testTag("search-clear")
+          .focusProperties { canFocus = false }
           .clickable(indication = null, interactionSource = clearInteractionSource, role = Role.Button) { onValueChange("") }
+          .padding(2.dp)
           .size(12.dp),
         colorFilter = ColorFilter.tint(colors.mutedText),
       )
@@ -201,8 +201,10 @@ fun MacInlineError(
   }
 }
 
+private val CapsuleShape = RoundedCornerShape(50)
+
 private fun Modifier.fieldChrome(colors: DiffColors, focused: Boolean, capsule: Boolean): Modifier {
-  val shape = if (capsule) RoundedCornerShape(50) else ControlShape
+  val shape = if (capsule) CapsuleShape else ControlShape
   val ringColor = colors.accent.copy(alpha = 0.5f)
   return drawBehind {
     if (focused) {

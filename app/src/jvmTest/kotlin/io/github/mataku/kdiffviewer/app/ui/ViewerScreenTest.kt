@@ -708,6 +708,7 @@ class ViewerScreenTest {
     onNodeWithTag("tree-file-1").assertIsDisplayed()
     onNodeWithTag("tree-file-0").assertDoesNotExist()
     onNodeWithTag("tree-file-2").assertDoesNotExist()
+    onNodeWithTag("file-header-0").assertExists()
   }
 
   @Test

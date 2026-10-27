@@ -157,9 +157,10 @@ fun ViewerScreen(
     { fileIndex -> (headerRowIndex.getOrNull(fileIndex)?.let(rows::getOrNull) as? DiffRow.FileHeader)?.file?.gitStatus() }
   }
   var treeQuery by remember(state.repo) { mutableStateOf("") }
-  val filtering = treeQuery.isNotBlank()
-  val treeEntries = remember(state.tree, state.files, collapsed, treeQuery) {
-    if (filtering) visibleTree(filterTree(state.tree, state.files, treeQuery), emptySet()) else visibleTree(state.tree, collapsed)
+  val needle = treeQuery.trim()
+  val filtering = needle.isNotEmpty()
+  val treeEntries = remember(state.tree, state.files, collapsed, needle) {
+    if (filtering) visibleTree(filterTree(state.tree, state.files, needle), emptySet()) else visibleTree(state.tree, collapsed)
   }
   Row(modifier = modifier.fillMaxSize().background(colors.background)) {
     FileTreePanel(

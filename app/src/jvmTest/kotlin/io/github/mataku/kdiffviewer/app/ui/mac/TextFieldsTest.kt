@@ -13,6 +13,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -51,6 +52,7 @@ class TextFieldsTest {
     onNodeWithTag("search-clear").assertDoesNotExist()
     onNodeWithTag("search").performTextInput("abc")
     onNodeWithTag("search-clear").assertIsDisplayed().performClick()
+    onNodeWithTag("search").assertIsFocused()
     assertEquals("", value)
     onNodeWithTag("search-clear").assertDoesNotExist()
   }
