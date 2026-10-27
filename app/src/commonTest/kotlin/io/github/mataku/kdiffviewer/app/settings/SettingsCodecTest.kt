@@ -75,6 +75,15 @@ class SettingsCodecTest {
     assertEquals(20, decodeSettings("""{"treeFontSize":99}""")!!.treeFontSize)
   }
 
+  @Test fun copyOnSelectDefaultsToFalse() {
+    assertEquals(false, decodeSettings("{}")!!.copyOnSelect)
+  }
+
+  @Test fun copyOnSelectRoundTrips() {
+    val settings = Settings(copyOnSelect = true)
+    assertEquals(settings, decodeSettings(SettingsCodec.encode(settings)))
+  }
+
   @Test fun encodeWritesEveryField() {
     val text = SettingsCodec.encode(Settings())
     assertTrue(text.contains("\"gitPath\": null"), text)

@@ -18,6 +18,7 @@ data class Settings(
   val tabWidth: Int = 8,
   val appearance: Appearance = Appearance.System,
   val treeFontSize: Int = 13,
+  val copyOnSelect: Boolean = false,
 )
 
 fun Settings.normalized(): Settings = copy(
