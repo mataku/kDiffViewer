@@ -62,9 +62,24 @@ class MarkdownDepthGuardTest {
   }
 
   @Test
-  fun oneMebibyteOfOpenBracketsFallsBackQuickly() {
-    val elapsed = measureTimeMillis { assertPlainFallback("[".repeat(1_048_576)) }
-    assertTrue(elapsed < 1_000, "took $elapsed ms")
+  fun oneMebibyteSourceFallsBackAtTheLengthCheck() {
+    assertPlainFallback("[".repeat(1_048_576))
+  }
+
+  @Test
+  fun pathologicalSourceAtTheCapParsesQuickly() {
+    val sources = listOf(
+      "[".repeat(65_536),
+      "-\n".repeat(32_768),
+      "[a](".repeat(16_384),
+      "*a".repeat(32_768),
+    )
+    for (source in sources) {
+      var blocks = emptyList<MdBlock>()
+      val elapsed = measureTimeMillis { blocks = parseMarkdown(source) }
+      assertTrue(elapsed < 1_000, "input starting ${source.take(8)} took $elapsed ms")
+      assertTrue(blocks.isNotEmpty(), "input starting ${source.take(8)} produced no blocks")
+    }
   }
 
   @Test
