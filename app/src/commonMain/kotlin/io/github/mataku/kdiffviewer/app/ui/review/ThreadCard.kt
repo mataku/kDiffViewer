@@ -29,6 +29,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
@@ -96,9 +98,8 @@ fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
   DisposableEffect(source, coordinator) { onDispose { coordinator?.release(source) } }
   val nativeMenu = LocalNativeContextMenu.current
   val density = LocalDensity.current
-  var originInWindow by remember { mutableStateOf(Offset.Zero) }
   val textContextMenu = remember(nativeMenu, density) {
-    nativeMenu?.let { NativeTextContextMenu(it, { originInWindow }, density) }
+    nativeMenu?.let { NativeTextContextMenu(it, density) }
   }
   CompositionLocalProvider(
     *listOfNotNull(textContextMenu?.let { LocalTextContextMenu provides it }).toTypedArray(),
@@ -107,14 +108,21 @@ fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
       state = selectionState,
       modifier = cardModifier
         .testTag("thread-${thread.id}")
-        .onGloballyPositioned { originInWindow = it.positionInWindow() }
         .pointerInput(source, coordinator) {
           awaitPointerEventScope {
+            var primaryGesture = false
             while (true) {
               val event = awaitPointerEvent(PointerEventPass.Initial)
               when (event.type) {
-                PointerEventType.Press -> coordinator?.activate(source)
-                PointerEventType.Release -> if (source.hasSelection) coordinator?.onSelectionFinished(source)
+                PointerEventType.Press -> {
+                  coordinator?.activate(source)
+                  primaryGesture = event.buttons.isPrimaryPressed && !event.keyboardModifiers.isCtrlPressed
+                }
+
+                PointerEventType.Release -> if (primaryGesture && event.buttons.isPrimaryPressed.not()) {
+                  primaryGesture = false
+                  if (source.hasSelection) coordinator?.onSelectionFinished(source)
+                }
               }
             }
           }

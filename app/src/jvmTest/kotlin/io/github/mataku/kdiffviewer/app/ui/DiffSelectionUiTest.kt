@@ -30,6 +30,7 @@ import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.buildFileTree
 import io.github.mataku.kdiffviewer.app.fingerprint
 import io.github.mataku.kdiffviewer.app.flattenRows
+import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewState
 import io.github.mataku.kdiffviewer.app.selection.ClipboardWriter
 import io.github.mataku.kdiffviewer.app.selection.ContextMenuItem
@@ -46,6 +47,10 @@ import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.displayPath
+import io.github.mataku.kdiffviewer.core.review.Anchor
+import io.github.mataku.kdiffviewer.core.review.LineLocation
+import io.github.mataku.kdiffviewer.core.review.Placement
+import io.github.mataku.kdiffviewer.core.review.Side
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlin.test.Test
@@ -385,5 +390,28 @@ class DiffSelectionUiTest {
     assertEquals(listOf("Copy"), items.map { it.label })
     assertFalse(items.single().enabled)
     assertFalse(coordinator.hasSelection)
+  }
+
+  @Test
+  fun rightClickInsideCardOpensOnlyTheCardMenu() = runComposeUiTest {
+    val ui = stateOf()
+    val review = ReviewState(CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined) { Instant.fromEpochSeconds(0) }.also { it.onViewerState(ui) }
+    review.startDraft(DraftTarget.NewThread(Anchor.Lines("a.kt", Side.New, 1, 1, listOf("alpha beta")), Placement.OnLine(LineLocation(0, 0, 0))))
+    review.updateDraft("hello world")
+    review.submitDraft()
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(
+        LocalTextSelectionCoordinator provides coordinator,
+        LocalNativeContextMenu provides menu,
+        LocalReviewActions provides review,
+      ) {
+        ViewerScreen(ui, {}, review = snapshot)
+      }
+    }
+    waitForIdle()
+    onNodeWithText("hello world").performMouseInput { rightClick(Offset(10f, height / 2f)) }
+    waitForIdle()
+    assertEquals(1, menu.shown.size)
   }
 }
