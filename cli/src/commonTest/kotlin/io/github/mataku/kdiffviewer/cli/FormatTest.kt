@@ -70,4 +70,10 @@ class FormatTest {
     assertEquals("No open threads.", formatThreads(emptyList(), all = false))
     assertEquals("No threads.", formatThreads(emptyList(), all = true))
   }
+
+  @Test
+  fun controlCharactersInPathAndSnapshotArePrintedVisibly() {
+    val thread = ThreadDto("t5", "a\nb.kt", "new", 1, 1, listOf("x\u001B[31m", "r‮l"), false, false, listOf(comment("c1", AuthorDto("agent", "bot\u0007"), "hi\u0008there")))
+    assertEquals("t5  a␊b.kt:1 (new)\n    │ x␛[31m\n    │ r�l\n  bot␇: hi␈there", formatThreads(listOf(thread), all = false))
+  }
 }
