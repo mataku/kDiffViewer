@@ -4,11 +4,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
@@ -128,5 +130,51 @@ class FileTreePanelTest {
     waitForIdle()
     val large = onNodeWithTag("tree-dir-0").getUnclippedBoundsInRoot().height
     assertTrue(large > small, "$large should exceed $small")
+  }
+
+  @Test
+  fun searchFieldSitsBelowTopInsetAndAboveRows() = runComposeUiTest {
+    setContent { FileTreePanel(entries, {}, {}, topInset = 30.dp) }
+    val field = onNodeWithTag("tree-filter").fetchSemanticsNode().boundsInRoot
+    val row = onNodeWithTag("tree-dir-0").fetchSemanticsNode().boundsInRoot
+    assertTrue(field.top >= with(density) { 30.dp.toPx() }, "field=$field")
+    assertTrue(row.top >= field.bottom, "row=$row field=$field")
+  }
+
+  @Test
+  fun typingReportsQueryChanges() = runComposeUiTest {
+    val changes = mutableListOf<String>()
+    setContent { FileTreePanel(entries, {}, {}, onQueryChange = { changes += it }) }
+    onNodeWithTag("tree-filter").performTextInput("ab")
+    assertEquals("ab", changes.last())
+  }
+
+  @Test
+  fun filteringHidesChevronsAndDisablesDirectoryToggle() = runComposeUiTest {
+    val toggled = mutableListOf<String>()
+    setContent { FileTreePanel(entries, {}, { toggled += it }, query = "a", filtering = true) }
+    onNodeWithTag("tree-chevron-0", useUnmergedTree = true).assertDoesNotExist()
+    onNodeWithTag("tree-folder-icon-0", useUnmergedTree = true).assertIsDisplayed()
+    onNodeWithTag("tree-dir-0").assertHasNoClickAction()
+    onNodeWithTag("tree-dir-0").performClick()
+    assertTrue(toggled.isEmpty())
+  }
+
+  @Test
+  fun filteringKeepsFileRowsClickable() = runComposeUiTest {
+    val clicked = mutableListOf<Int>()
+    setContent { FileTreePanel(entries, { clicked += it }, {}, query = "a", filtering = true) }
+    onNodeWithTag("tree-file-0").performClick()
+    assertEquals(listOf(0), clicked)
+  }
+
+  @Test
+  fun noMatchLineShownOnlyWhileFiltering() = runComposeUiTest {
+    var filtering by mutableStateOf(true)
+    setContent { FileTreePanel(emptyList(), {}, {}, query = if (filtering) "zzz" else "", filtering = filtering) }
+    onNodeWithTag("tree-empty").assertTextEquals("No matching files")
+    filtering = false
+    waitForIdle()
+    onNodeWithTag("tree-empty").assertDoesNotExist()
   }
 }

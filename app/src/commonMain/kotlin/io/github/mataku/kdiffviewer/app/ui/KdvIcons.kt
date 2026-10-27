@@ -95,6 +95,12 @@ object KdvIcons {
     lineTo(9.5f, 4.5f)
     lineTo(12.5f, 4.5f)
   }
+
+  val Search: ImageVector = outlineIcon("Search") {
+    circle(7f, 7f, 4f)
+    moveTo(10f, 10f)
+    lineTo(13.5f, 13.5f)
+  }
 }
 
 private fun PathBuilder.circle(centerX: Float, centerY: Float, radius: Float) {

@@ -44,6 +44,11 @@ import io.github.mataku.kdiffviewer.app.settings.Appearance
 import io.github.mataku.kdiffviewer.app.settings.GitStatus
 import io.github.mataku.kdiffviewer.app.settings.Settings
 import io.github.mataku.kdiffviewer.app.settings.SettingsLoad
+import io.github.mataku.kdiffviewer.app.ui.mac.MacPushButton
+import io.github.mataku.kdiffviewer.app.ui.mac.MacSegmented
+import io.github.mataku.kdiffviewer.app.ui.mac.MacSlider
+import io.github.mataku.kdiffviewer.app.ui.mac.MacSwitch
+import io.github.mataku.kdiffviewer.app.ui.mac.MacTextField
 
 private const val NOT_USABLE_MESSAGE = "Not a usable git executable"
 private const val NOT_FOUND_MESSAGE = "git was not found"

@@ -50,12 +50,16 @@ import io.github.mataku.kdiffviewer.app.ScrollRestorer
 import io.github.mataku.kdiffviewer.app.ViewerError
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.diffLayoutOf
+import io.github.mataku.kdiffviewer.app.filterTree
 import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.notesFiles
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
+import io.github.mataku.kdiffviewer.app.ui.mac.TAG_FILL_ALPHA
+import io.github.mataku.kdiffviewer.app.ui.mac.TagPadding
+import io.github.mataku.kdiffviewer.app.ui.mac.TagShape
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftFocusRequests
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftText
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
@@ -152,7 +156,12 @@ fun ViewerScreen(
   val statusOf: (Int) -> GitFileStatus? = remember(rows, headerRowIndex) {
     { fileIndex -> (headerRowIndex.getOrNull(fileIndex)?.let(rows::getOrNull) as? DiffRow.FileHeader)?.file?.gitStatus() }
   }
-  val treeEntries = remember(state.tree, collapsed) { visibleTree(state.tree, collapsed) }
+  var treeQuery by remember(state.repo) { mutableStateOf("") }
+  val needle = treeQuery.trim()
+  val filtering = needle.isNotEmpty()
+  val treeEntries = remember(state.tree, state.files, collapsed, needle) {
+    if (filtering) visibleTree(filterTree(state.tree, state.files, needle), emptySet()) else visibleTree(state.tree, collapsed)
+  }
   Row(modifier = modifier.fillMaxSize().background(colors.background)) {
     FileTreePanel(
       entries = treeEntries,
@@ -165,6 +174,9 @@ fun ViewerScreen(
       statsOf = statsOf,
       statusOf = statusOf,
       width = treeWidth,
+      query = treeQuery,
+      onQueryChange = { treeQuery = it },
+      filtering = filtering,
     )
     PaneDivider(
       onDrag = { delta ->
