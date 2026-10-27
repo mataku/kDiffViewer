@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import io.github.mataku.kdiffviewer.app.ui.mac.MacPopupButton
 
 private val PopupShape = RoundedCornerShape(8.dp)
 

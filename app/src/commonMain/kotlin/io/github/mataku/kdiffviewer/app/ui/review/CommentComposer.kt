@@ -38,9 +38,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
-import io.github.mataku.kdiffviewer.app.ui.MacPushButton
-import io.github.mataku.kdiffviewer.app.ui.MacSegmented
-import io.github.mataku.kdiffviewer.app.ui.MacTextArea
+import io.github.mataku.kdiffviewer.app.ui.mac.MacPushButton
+import io.github.mataku.kdiffviewer.app.ui.mac.MacSegmented
+import io.github.mataku.kdiffviewer.app.ui.mac.MacTextArea
 import io.github.mataku.kdiffviewer.app.ui.markdown.MarkdownBody
 
 private enum class ComposerMode(val label: String, val tag: String) {

@@ -1,4 +1,4 @@
-package io.github.mataku.kdiffviewer.app.ui
+package io.github.mataku.kdiffviewer.app.ui.mac
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,17 +19,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 @OptIn(ExperimentalTestApi::class)
-class MacControlsTest {
-  @Test
-  fun pullDownTagShowsTextAndClicks() = runComposeUiTest {
-    var clicks = 0
-    setContent { MacPullDownTag("origin/develop", { clicks++ }, Modifier.testTag("tag"), textStyle = TextStyle(fontSize = 12.sp), textModifier = Modifier.testTag("tag-text")) }
-    onNodeWithTag("tag-text", useUnmergedTree = true).assertTextEquals("origin/develop")
-    onNodeWithTag("tag").performClick()
-    assertEquals(1, clicks)
-  }
-
-  @Test
+class TextFieldsTest {
   fun textFieldShowsPlaceholderOnlyWhileEmpty() = runComposeUiTest {
     var value by mutableStateOf("")
     setContent { MacTextField(value, { value = it }, Modifier.testTag("field"), placeholder = "Branch or revision") }

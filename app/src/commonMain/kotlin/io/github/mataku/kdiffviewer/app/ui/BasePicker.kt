@@ -52,6 +52,9 @@ import io.github.mataku.kdiffviewer.app.defaultEntryLabel
 import io.github.mataku.kdiffviewer.app.parseTypedRef
 import io.github.mataku.kdiffviewer.app.pickerErrorText
 import io.github.mataku.kdiffviewer.app.sectionBranches
+import io.github.mataku.kdiffviewer.app.ui.mac.MacInlineError
+import io.github.mataku.kdiffviewer.app.ui.mac.MacPullDownTag
+import io.github.mataku.kdiffviewer.app.ui.mac.MacTextField
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.HeadRef
