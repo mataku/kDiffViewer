@@ -17,6 +17,7 @@ import io.github.mataku.kdiffviewer.core.git.ContentSession
 import io.github.mataku.kdiffviewer.core.git.ContentSource
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
+import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -51,6 +52,7 @@ class HighlightEndToEndTest {
     override fun load(repo: RepoPath, base: ResolvedBase): Flow<FileDiff> = files.asFlow()
 
     override suspend fun head(repo: RepoPath): HeadRef? = null
+    override suspend fun branches(repo: RepoPath): List<BranchRef> = emptyList()
   }
 
   private class InMemoryContentSource(

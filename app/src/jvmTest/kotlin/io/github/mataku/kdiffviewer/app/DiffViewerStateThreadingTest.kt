@@ -2,6 +2,7 @@ package io.github.mataku.kdiffviewer.app
 
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
+import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.FileDiff
@@ -36,6 +37,7 @@ class DiffViewerStateThreadingTest {
     }
 
     override suspend fun head(repo: RepoPath): HeadRef? = null
+    override suspend fun branches(repo: RepoPath): List<BranchRef> = emptyList()
   }
 
   @Test

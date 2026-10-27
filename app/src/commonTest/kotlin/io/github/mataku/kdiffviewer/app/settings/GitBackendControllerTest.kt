@@ -4,6 +4,7 @@ import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.git.GitInfo
 import io.github.mataku.kdiffviewer.core.git.GitLocation
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
+import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
@@ -27,6 +28,7 @@ private object NoopDiffSource : DiffSource {
   override fun load(repo: RepoPath, base: ResolvedBase): Flow<FileDiff> = emptyFlow()
 
   override suspend fun head(repo: RepoPath): HeadRef? = null
+  override suspend fun branches(repo: RepoPath): List<BranchRef> = emptyList()
 }
 
 private fun info(path: String) = GitInfo(path, "git version 2.0 ($path)")

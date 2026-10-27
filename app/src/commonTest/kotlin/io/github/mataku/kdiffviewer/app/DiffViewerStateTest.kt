@@ -9,6 +9,7 @@ import io.github.mataku.kdiffviewer.app.highlight.textFile
 import io.github.mataku.kdiffviewer.core.git.DiffLoadException
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
+import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -91,6 +92,7 @@ class DiffViewerStateTest {
       return block(calls++)
     }
     override suspend fun head(repo: RepoPath): HeadRef? = heads.getOrNull(headCalls++)
+    override suspend fun branches(repo: RepoPath): List<BranchRef> = emptyList()
     override suspend fun root(repo: RepoPath): RepoPath? {
       rootCalls++
       return roots[repo]
@@ -320,6 +322,7 @@ class DiffViewerStateTest {
       override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase = ResolvedBase.EmptyTree
       override fun load(repo: RepoPath, base: ResolvedBase): Flow<FileDiff> = flow { emit(file("a")) }
       override suspend fun head(repo: RepoPath): HeadRef? = throw IllegalStateException("boom")
+      override suspend fun branches(repo: RepoPath): List<BranchRef> = emptyList()
     }
     val state = stateFor(source)
     state.open(repo)

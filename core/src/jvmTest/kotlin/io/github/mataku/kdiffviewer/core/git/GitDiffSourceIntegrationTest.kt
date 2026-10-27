@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.core.git
 
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
+import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.FileDiff
@@ -276,5 +277,13 @@ class GitDiffSourceIntegrationTest {
     write("a.txt", "1\n")
     commitAll()
     assertFailsWith<DiffLoadException.UnknownBase> { resolve(BaseSpec.Ref("HEAD:a.txt")) }
+  }
+
+  @Test
+  fun branchesListsLocalAndRemoteWithoutOriginHead() {
+    branchOffOriginMain()
+    runGit(repo, "branch", "topic")
+    val branches = runBlocking { source.branches(RepoPath(repo.path)) }
+    assertEquals(setOf(BranchRef("main", false), BranchRef("feature", false), BranchRef("topic", false), BranchRef("origin/main", true)), branches.toSet())
   }
 }
