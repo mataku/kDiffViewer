@@ -73,7 +73,7 @@ class FormatTest {
 
   @Test
   fun controlCharactersInPathAndSnapshotArePrintedVisibly() {
-    val thread = ThreadDto("t5", "a\nb.kt", "new", 1, 1, listOf("x\u001B[31m", "r‮l"), false, false, listOf(comment("c1", AuthorDto("agent", "bot\u0007"), "hi\u0008there")))
-    assertEquals("t5  a␊b.kt:1 (new)\n    │ x␛[31m\n    │ r�l\n  bot␇: hi␈there", formatThreads(listOf(thread), all = false))
+    val thread = ThreadDto("t5", "a\nb.kt", "new", 1, 1, listOf("x\u001B[31m", "r\u202El"), false, false, listOf(comment("c1", AuthorDto("agent", "bot\u0007"), "hi\u0008there")))
+    assertEquals("t5  a\u240Ab.kt:1 (new)\n    │ x\u241B[31m\n    │ r\uFFFDl\n  bot\u2407: hi\u2408there", formatThreads(listOf(thread), all = false))
   }
 }

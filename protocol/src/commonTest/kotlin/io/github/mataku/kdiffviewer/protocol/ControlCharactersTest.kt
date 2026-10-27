@@ -7,19 +7,19 @@ import kotlin.test.assertSame
 class ControlCharactersTest {
   @Test
   fun c0ControlsBecomeControlPictures() {
-    assertEquals("a␛b␀c␡", markControls("a\u001Bb\u0000c\u007F"))
+    assertEquals("a\u241Bb\u2400c\u2421", markControls("a\u001Bb\u0000c\u007F"))
   }
 
   @Test
   fun tabAndNewlineAreMarkedOrKeptAsSpecified() {
     assertEquals("a\tb", markControls("a\tb"))
-    assertEquals("a␊b", markControls("a\nb"))
+    assertEquals("a\u240Ab", markControls("a\nb"))
   }
 
   @Test
   fun bidiAndC1ControlsBecomeReplacementCharacter() {
-    val input = "x‮y⁦z؜‎‏\u0085"
-    assertEquals("x�y�z����", markControls(input))
+    val input = "x\u202Ey\u2066z\u061C\u200E\u200F\u0085"
+    assertEquals("x\uFFFDy\uFFFDz\uFFFD\uFFFD\uFFFD\uFFFD", markControls(input))
   }
 
   @Test
@@ -30,7 +30,7 @@ class ControlCharactersTest {
 
   @Test
   fun lengthIsPreserved() {
-    val input = "\u0001‪⁩\t\u009F"
+    val input = "\u0001\u202A\u2069\t\u009F"
     assertEquals(input.length, markControls(input).length)
   }
 }
