@@ -47,6 +47,7 @@ import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ScrollRestorer
+import io.github.mataku.kdiffviewer.app.ViewerError
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.diffLayoutOf
 import io.github.mataku.kdiffviewer.app.gitStatus
@@ -63,6 +64,8 @@ import io.github.mataku.kdiffviewer.app.ui.review.draftPlacement
 import io.github.mataku.kdiffviewer.app.ui.review.fileIndexOrNull
 import io.github.mataku.kdiffviewer.app.ui.review.revealIndex
 import io.github.mataku.kdiffviewer.app.visibleTree
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
+import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
@@ -79,6 +82,8 @@ fun ViewerScreen(
   onToggleFile: (Int) -> Unit = {},
   onExpandFile: (Int) -> Unit = {},
   review: ReviewSnapshot = ReviewSnapshot.Empty,
+  loadBranches: suspend () -> List<BranchRef> = { emptyList() },
+  onSwitchBase: suspend (BaseSpec) -> ViewerError? = { null },
 ) {
   val colors = LocalDiffColors.current
   val listState = rememberLazyListState()
@@ -190,7 +195,7 @@ fun ViewerScreen(
             Row(modifier = Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
               if (base != null) {
                 val uncommittedOnly = base.label == "HEAD"
-                BaseLabel(base, uncommittedOnly, labelStyle, Modifier.weight(1f, fill = false))
+                BasePicker(base, state.baseSpec, head, loadBranches, onSwitchBase, labelStyle, Modifier.weight(1f, fill = false).titleBarClientRegion("base-picker"))
                 if (head != null) {
                   BasicText(text = if (uncommittedOnly) "·" else "...", modifier = Modifier.padding(horizontal = 6.dp), style = labelStyle)
                 }
@@ -271,30 +276,5 @@ fun ViewerScreen(
         }
       }
     }
-  }
-}
-
-@Composable
-private fun BaseLabel(base: ResolvedBase.Commit, uncommittedOnly: Boolean, style: TextStyle, modifier: Modifier) {
-  val colors = LocalDiffColors.current
-  Row(
-    modifier = modifier.clip(TagShape).background(colors.text.copy(alpha = TAG_FILL_ALPHA)).padding(TagPadding),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    if (!uncommittedOnly) {
-      Image(
-        imageVector = KdvIcons.Branch,
-        contentDescription = null,
-        modifier = Modifier.padding(end = 4.dp).size(12.dp),
-        colorFilter = ColorFilter.tint(colors.mutedText),
-      )
-    }
-    BasicText(
-      text = if (uncommittedOnly) "Uncommitted changes" else base.label,
-      modifier = Modifier.testTag("base-label"),
-      style = style,
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis,
-    )
   }
 }

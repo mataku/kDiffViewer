@@ -258,6 +258,8 @@ private fun runApplication(
             onToggleFile = state::toggleCollapsed,
             onExpandFile = state::expand,
             review = reviewSnapshot,
+            loadBranches = state::branches,
+            onSwitchBase = state::switchBase,
           )
         }
       }
