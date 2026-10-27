@@ -485,4 +485,37 @@ class DiffSelectionUiTest {
     assertTrue(coordinator.copy())
     assertEquals(listOf("del"), clipboard.writes)
   }
+
+  private fun ComposeUiTest.footerPosition(): Offset {
+    val bounds = onNodeWithTag("end-of-diff").fetchSemanticsNode().boundsInRoot
+    val list = listBounds()
+    return Offset(bounds.center.x - list.left, bounds.center.y - list.top)
+  }
+
+  @Test
+  fun pressOnFooterStartsNoSelection() = runComposeUiTest {
+    show(stateOf())
+    onNodeWithTag("diff-list").performMouseInput { click(footerPosition()) }
+    waitForIdle()
+    assertFalse(coordinator.hasSelection)
+  }
+
+  @Test
+  fun doubleClickOnFooterStartsNoSelection() = runComposeUiTest {
+    show(stateOf())
+    onNodeWithTag("diff-list").performMouseInput { doubleClick(footerPosition()) }
+    waitForIdle()
+    assertFalse(coordinator.hasSelection)
+  }
+
+  @Test
+  fun dragOntoFooterSelectsThroughLastLine() = runComposeUiTest {
+    show(stateOf())
+    drag(codePosition("alpha beta", 6), footerPosition())
+    assertTrue(coordinator.hasSelection)
+    assertTrue(coordinator.copy())
+    val copied = clipboard.writes.single()
+    assertTrue(copied.startsWith("beta\n\tgamma\ndelta"), copied)
+    assertTrue(copied.endsWith("epsilon"), copied)
+  }
 }
