@@ -698,6 +698,85 @@ class ViewerScreenTest {
 
   private val reviewUi get() = stateOf(listOf(modified("a.kt"))).copy(loadId = 1)
 
+  private val threeFiles get() = listOf(modified("src/a.kt"), modified("src/b.kt"), modified("README.md"))
+
+  @Test
+  fun typingInTreeFilterHidesNonMatchingRows() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(threeFiles), {}) }
+    onNodeWithTag("tree-filter").performTextInput("b.kt")
+    onNodeWithTag("tree-dir-0").assertIsDisplayed()
+    onNodeWithTag("tree-file-1").assertIsDisplayed()
+    onNodeWithTag("tree-file-0").assertDoesNotExist()
+    onNodeWithTag("tree-file-2").assertDoesNotExist()
+  }
+
+  @Test
+  fun whitespaceQueryDoesNotFilter() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(threeFiles), {}) }
+    onNodeWithTag("tree-filter").performTextInput("  ")
+    onNodeWithTag("tree-file-0").assertIsDisplayed()
+    onNodeWithTag("tree-file-2").assertIsDisplayed()
+    onNodeWithTag("tree-chevron-0", useUnmergedTree = true).assertIsDisplayed()
+  }
+
+  @Test
+  fun clearingTreeFilterRestoresCollapseState() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(threeFiles), {}) }
+    onNodeWithTag("tree-dir-0").performClick()
+    onNodeWithTag("tree-file-0").assertDoesNotExist()
+    onNodeWithTag("tree-filter").performTextInput("a.kt")
+    onNodeWithTag("tree-file-0").assertIsDisplayed()
+    onNodeWithTag("tree-dir-0").performClick()
+    onNodeWithTag("tree-file-0").assertIsDisplayed()
+    onNodeWithTag("search-clear").performClick()
+    onNodeWithTag("tree-file-0").assertDoesNotExist()
+    onNodeWithTag("tree-file-2").assertIsDisplayed()
+  }
+
+  @Test
+  fun noMatchShowsEmptyLine() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(threeFiles), {}) }
+    onNodeWithTag("tree-filter").performTextInput("zzz")
+    onNodeWithTag("tree-empty").assertTextEquals("No matching files")
+  }
+
+  @Test
+  fun clickingFilteredRowExpandsThatFile() = runComposeUiTest {
+    val expanded = mutableListOf<Int>()
+    setContent { ViewerScreen(stateOf(threeFiles), {}, onExpandFile = { expanded += it }) }
+    onNodeWithTag("tree-filter").performTextInput("README")
+    onNodeWithTag("tree-file-2").performClick()
+    assertEquals(listOf(2), expanded)
+  }
+
+  @Test
+  fun filterAppliesToRowsThatStreamInLater() = runComposeUiTest {
+    var ui by mutableStateOf(stateOf(listOf(modified("src/a.kt")), LoadStatus.Loading))
+    setContent { ViewerScreen(ui, {}) }
+    onNodeWithTag("tree-filter").performTextInput("b")
+    onNodeWithTag("tree-file-0").assertDoesNotExist()
+    ui = stateOf(listOf(modified("src/a.kt"), modified("src/b.kt"), modified("c.kt")))
+    waitForIdle()
+    onNodeWithTag("tree-file-1").assertIsDisplayed()
+    onNodeWithTag("tree-file-0").assertDoesNotExist()
+    onNodeWithTag("tree-file-2").assertDoesNotExist()
+  }
+
+  @Test
+  fun treeFilterSurvivesReloadAndResetsOnRepoChange() = runComposeUiTest {
+    var ui by mutableStateOf(stateOf(threeFiles).copy(loadId = 1))
+    setContent { ViewerScreen(ui, {}) }
+    onNodeWithTag("tree-filter").performTextInput("README")
+    ui = stateOf(threeFiles).copy(loadId = 2)
+    waitForIdle()
+    onNodeWithTag("tree-file-0").assertDoesNotExist()
+    onNodeWithTag("tree-file-2").assertIsDisplayed()
+    ui = stateOf(threeFiles).copy(repo = RepoPath("/other"), loadId = 3)
+    waitForIdle()
+    onNodeWithTag("tree-file-0").assertIsDisplayed()
+    onNodeWithTag("tree-chevron-0", useUnmergedTree = true).assertIsDisplayed()
+  }
+
   @Test
   fun hoveringSingleLineRowDoesNotShiftRows() = runComposeUiTest {
     val ui = stateOf(listOf(modified("a.kt", lines = 3))).copy(loadId = 1)
