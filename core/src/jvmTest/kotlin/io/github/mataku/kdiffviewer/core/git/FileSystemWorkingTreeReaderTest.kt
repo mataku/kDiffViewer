@@ -47,4 +47,30 @@ class FileSystemWorkingTreeReaderTest {
   fun missingFileIsUnreadable() = runBlocking<Unit> {
     assertEquals(UntrackedEntry.Unreadable, reader.read(root.path, "nope", 100))
   }
+
+  @Test
+  fun parentTraversalIsUnreadable() = runBlocking<Unit> {
+    File(root.parentFile, "outside-${root.name}.txt").apply {
+      writeText("secret")
+      deleteOnExit()
+    }
+    assertEquals(UntrackedEntry.Unreadable, reader.read(root.path, "../outside-${root.name}.txt", 100))
+  }
+
+  @Test
+  fun absolutePathIsUnreadable() = runBlocking<Unit> {
+    assertEquals(UntrackedEntry.Unreadable, reader.read(root.path, "/etc/hosts", 1_000_000))
+  }
+
+  @Test
+  fun rootItselfIsUnreadable() = runBlocking<Unit> {
+    assertEquals(UntrackedEntry.Unreadable, reader.read(root.path, ".", 100))
+  }
+
+  @Test
+  fun dotDotInsideRootIsRead() = runBlocking<Unit> {
+    File(root, "d").mkdir()
+    File(root, "a.txt").writeBytes(byteArrayOf(7))
+    assertIs<UntrackedEntry.Regular>(reader.read(root.path, "d/../a.txt", 100))
+  }
 }
