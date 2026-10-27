@@ -22,7 +22,7 @@ import io.github.mataku.kdiffviewer.app.generated.resources.box_cat_light
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 
-private val ArtWidth = 200.dp
+private val ArtWidth = 150.dp
 private val ArtHeight = ArtWidth * 172 / 270
 private const val CAPTION = "It fits. You're done."
 
@@ -41,7 +41,7 @@ fun EndOfDiffFooter(modifier: Modifier = Modifier) {
     Image(
       painter = painterResource(endOfDiffArt(LocalDarkTheme.current)),
       contentDescription = null,
-      modifier = Modifier.size(ArtWidth, ArtHeight),
+      modifier = Modifier.size(ArtWidth, ArtHeight).testTag("end-of-diff-art"),
       contentScale = ContentScale.FillWidth,
     )
     Spacer(Modifier.height(8.dp))

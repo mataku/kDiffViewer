@@ -2,9 +2,11 @@ package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import io.github.mataku.kdiffviewer.app.generated.resources.Res
 import io.github.mataku.kdiffviewer.app.generated.resources.box_cat_dark
 import io.github.mataku.kdiffviewer.app.generated.resources.box_cat_light
@@ -26,5 +28,11 @@ class EndOfDiffFooterTest {
     onNodeWithText("It fits. You're done.").assertIsDisplayed()
     val footer = onNodeWithTag("end-of-diff").fetchSemanticsNode().size
     assertTrue(footer.height > 0)
+  }
+
+  @Test
+  fun artIsOneHundredFiftyDpWide() = runComposeUiTest {
+    setContent { KdvTheme(darkTheme = false) { EndOfDiffFooter() } }
+    onNodeWithTag("end-of-diff-art").assertWidthIsEqualTo(150.dp)
   }
 }
