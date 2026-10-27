@@ -12,6 +12,7 @@ core/   KMP library (jvm target). Diff model, streaming unified diff parser, unt
 protocol/ KMP library (jvm + macosArm64). Wire types shared by the app and the CLI, and the control-character marking both print.
 cli/    Kotlin/Native executable (macosArm64) producing `kdv`, which talks to running app windows over a Unix socket.
 app/    Compose Desktop app (jvm target). commonMain holds state holders and Compose UI; jvmMain holds main(), the folder picker, and packaging config.
+        Bundled images live only under commonMain/composeResources/ (density-qualified PNG); app/art/ holds the SVG originals they are exported from and is not packaged.
 scripts/ large-diff generator for manual performance checks.
 ```
 
