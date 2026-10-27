@@ -234,4 +234,31 @@ class DiffLayoutTest {
     assertEquals(1, layout.visibleCount)
     assertEquals(-1, layout.rowIndexOf(0))
   }
+
+  @Test
+  fun lastVisibleIndexEndsEachFile() {
+    val layout = diffLayoutOf(state(listOf(a, b, c)))
+    assertEquals(layout.headerVisibleIndex(1) - 1, layout.lastVisibleIndex(0))
+    assertEquals(layout.headerVisibleIndex(2) - 1, layout.lastVisibleIndex(1))
+    assertEquals(layout.visibleCount - 1, layout.lastVisibleIndex(2))
+  }
+
+  @Test
+  fun lastVisibleIndexSkipsEndItem() {
+    val layout = diffLayoutOf(state(listOf(a, b)), hasEnd = true)
+    assertEquals(layout.visibleCount - 2, layout.lastVisibleIndex(1))
+  }
+
+  @Test
+  fun lastVisibleIndexOfCollapsedFileIsItsHeader() {
+    val layout = diffLayoutOf(state(listOf(a, b), setOf(0)))
+    assertEquals(layout.headerVisibleIndex(0), layout.lastVisibleIndex(0))
+  }
+
+  @Test
+  fun lastVisibleIndexIncludesNotesItem() {
+    val plain = diffLayoutOf(state(listOf(a, b)))
+    val layout = diffLayoutOf(state(listOf(a, b)), notesFiles = setOf(0))
+    assertEquals(plain.lastVisibleIndex(0) + 1, layout.lastVisibleIndex(0))
+  }
 }

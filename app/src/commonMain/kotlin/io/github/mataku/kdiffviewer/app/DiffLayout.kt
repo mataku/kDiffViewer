@@ -16,6 +16,8 @@ class DiffLayout internal constructor(
 
   fun headerVisibleIndex(fileIndex: Int): Int = headerVisible[fileIndex]
 
+  fun lastVisibleIndex(fileIndex: Int): Int = if (fileIndex + 1 < headerVisible.size) headerVisible[fileIndex + 1] - 1 else visibleCount - 1 - (if (hasEndItem) 1 else 0)
+
   fun isCollapsed(fileIndex: Int): Boolean = collapsed[fileIndex]
 
   fun hasNotes(fileIndex: Int): Boolean = notes[fileIndex]
