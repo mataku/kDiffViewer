@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app
 
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.displayPath
 
@@ -22,15 +23,29 @@ fun restoreTargetOf(anchor: ScrollAnchor, state: ViewerUiState, layout: DiffLayo
 class ScrollRestorer {
   private var loadId: Long? = null
   private var repo: RepoPath? = null
+  private var baseSpec: BaseSpec? = null
   private var lastAnchor: ScrollAnchor? = null
   private var pending: ScrollAnchor? = null
+  private var pendingTop = false
 
   fun next(state: ViewerUiState, layout: DiffLayout, firstVisibleIndex: Int): Int? {
     if (state.loadId != loadId) {
-      pending = lastAnchor.takeIf { repo != null && state.repo == repo }
+      val sameRepo = repo != null && state.repo == repo
+      val baseChanged = sameRepo && state.baseSpec != baseSpec
+      pendingTop = baseChanged
+      pending = lastAnchor.takeIf { sameRepo && !baseChanged }
       lastAnchor = null
       loadId = state.loadId
       repo = state.repo
+      baseSpec = state.baseSpec
+    }
+    if (pendingTop) {
+      if (layout.visibleCount > 0) {
+        pendingTop = false
+        return 0
+      }
+      if (state.status != LoadStatus.Loading) pendingTop = false
+      return null
     }
     val anchor = pending
     if (anchor != null) {

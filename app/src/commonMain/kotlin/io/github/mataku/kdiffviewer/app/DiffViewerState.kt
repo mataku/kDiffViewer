@@ -8,11 +8,13 @@ import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.core.git.DiffLoadException
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
+import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.displayPath
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -27,6 +29,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -124,9 +127,9 @@ class DiffViewerState(
       return loadId
     }
     val previous = mutableUiState.value
-    val keepPrevious = previous.repo == repo && previous.baseSpec == base && previous.status !is LoadStatus.Failed
+    val keepPrevious = previous.repo == repo && previous.status !is LoadStatus.Failed
     mutableUiState.value = if (keepPrevious) {
-      previous.copy(status = LoadStatus.Loading)
+      previous.copy(status = LoadStatus.Loading, baseSpec = base, base = previous.base.takeIf { previous.baseSpec == base })
     } else {
       ViewerUiState(
         repo = repo,
@@ -205,6 +208,29 @@ class DiffViewerState(
   fun reload(): Long? {
     val repo = mutableUiState.value.repo ?: return null
     return open(repo, mutableUiState.value.baseSpec)
+  }
+
+  suspend fun switchBase(spec: BaseSpec): ViewerError? {
+    val repo = mutableUiState.value.repo
+    val diffSource = source
+    if (repo == null || diffSource == null) return missingSourceError
+    if (spec is BaseSpec.Ref && spec.ref.startsWith("-")) return ViewerError.UnknownBase(spec.ref)
+    try {
+      withContext(loadContext) { diffSource.resolveBase(repo, spec) }
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      return e.toViewerError()
+    }
+    open(repo, spec)
+    return null
+  }
+
+  suspend fun branches(): List<BranchRef> {
+    val diffSource = source
+    val repo = mutableUiState.value.repo
+    if (diffSource == null || repo == null) return emptyList()
+    return withContext(loadContext) { diffSource.branches(repo) }
   }
 
   fun setBackend(source: DiffSource?, highlightPipeline: HighlightPipeline<*>?, missingSourceError: ViewerError = ViewerError.GitNotFound) {

@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app
 
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -29,12 +30,13 @@ class ScrollRestorerTest {
     status: LoadStatus = LoadStatus.Done,
     repoPath: RepoPath = repo,
     collapsedIndices: Set<Int> = emptySet(),
+    baseSpec: BaseSpec = BaseSpec.Default,
   ): ViewerUiState {
     val rows = flattenRows(files)
     val headers = rows.mapIndexedNotNull { index, row -> if (row is DiffRow.FileHeader) index else null }
     val fingerprints = files.map { it.fingerprint() }
     val collapsed = collapsedIndices.map { CollapsedFile(files[it].displayPath, fingerprints[it]) }.toSet()
-    return ViewerUiState(repoPath, status, files, rows, headers, buildFileTree(files), loadId, fingerprints = fingerprints, collapsed = collapsed)
+    return ViewerUiState(repoPath, status, files, rows, headers, buildFileTree(files), loadId, fingerprints = fingerprints, collapsed = collapsed, baseSpec = baseSpec)
   }
 
   private fun anchorOf(ui: ViewerUiState, firstVisibleIndex: Int) = scrollAnchorOf(ui, diffLayoutOf(ui), firstVisibleIndex)
@@ -124,5 +126,30 @@ class ScrollRestorerTest {
   fun targetAfterCollapsedFileIsShifted() {
     val ui = state(listOf(a, b, c), 2, collapsedIndices = setOf(1))
     assertEquals(7, targetOf(ScrollAnchor("c.kt", 1), ui))
+  }
+
+  @Test
+  fun baseChangeScrollsToTopWhenTheNewLoadArrives() {
+    val restorer = ScrollRestorer()
+    assertNull(restorer.nextFor(state(listOf(a, b), 1), 8))
+    assertNull(restorer.nextFor(state(listOf(a, b), 1, LoadStatus.Loading, baseSpec = BaseSpec.Ref("x")), 8))
+    assertEquals(0, restorer.nextFor(state(listOf(c, b), 2, baseSpec = BaseSpec.Ref("x")), 8))
+    assertNull(restorer.nextFor(state(listOf(c, b), 2, baseSpec = BaseSpec.Ref("x")), 0))
+  }
+
+  @Test
+  fun baseChangeWaitsForRowsBeforeScrollingToTop() {
+    val restorer = ScrollRestorer()
+    restorer.nextFor(state(listOf(a, b), 1), 8)
+    assertNull(restorer.nextFor(state(emptyList(), 2, LoadStatus.Loading, baseSpec = BaseSpec.Ref("x")), 0))
+    assertEquals(0, restorer.nextFor(state(listOf(c), 2, LoadStatus.Loading, baseSpec = BaseSpec.Ref("x")), 0))
+    assertNull(restorer.nextFor(state(listOf(c, b), 2, baseSpec = BaseSpec.Ref("x")), 0))
+  }
+
+  @Test
+  fun sameBaseReloadStillRestoresByPath() {
+    val restorer = ScrollRestorer()
+    restorer.nextFor(state(listOf(a, b), 1, baseSpec = BaseSpec.Ref("x")), 8)
+    assertEquals(7, restorer.nextFor(state(listOf(c, b), 2, baseSpec = BaseSpec.Ref("x")), 0))
   }
 }
