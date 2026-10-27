@@ -135,6 +135,50 @@ class DisplayTextTest {
   }
 
   @Test
+  fun noTabsIsIdentity() {
+    assertEquals(2, displayToSource("abc", 2, 4))
+    assertEquals(2, sourceToDisplay("abc", 2, 4))
+  }
+
+  @Test
+  fun sourceToDisplayExpandsTab() {
+    val text = "a\tb"
+    assertEquals(4, sourceToDisplay(text, 2, 4))
+    assertEquals(5, sourceToDisplay(text, 3, 4))
+  }
+
+  @Test
+  fun displayInsideTabSnapsByHalf() {
+    val text = "a\tb"
+    assertEquals(1, displayToSource(text, 1, 4))
+    assertEquals(1, displayToSource(text, 2, 4))
+    assertEquals(2, displayToSource(text, 3, 4))
+    assertEquals(2, displayToSource(text, 4, 4))
+  }
+
+  @Test
+  fun lineEndingInTab() {
+    assertEquals(2, displayToSource("a\t", 4, 4))
+  }
+
+  @Test
+  fun roundTrip() {
+    val text = "\tx\t\ty"
+    for (index in 0..text.length) {
+      assertEquals(index, displayToSource(text, sourceToDisplay(text, index, 8), 8))
+    }
+  }
+
+  @Test
+  fun clampsOutOfRange() {
+    assertEquals(2, displayToSource("ab", 99, 4))
+    assertEquals(0, displayToSource("ab", -1, 4))
+    assertEquals(3, displayToSource("a\tb", 99, 4))
+    assertEquals(5, sourceToDisplay("a\tb", 99, 4))
+    assertEquals(0, sourceToDisplay("a\tb", -1, 4))
+  }
+
+  @Test
   fun displayTextOffsetsFollowTabWidth() {
     val result = displayText("\tfun", listOf(HighlightSpan(1, 4, "keyword")), theme, 4)
     assertEquals(listOf(AnnotatedString.Range(red, 4, 7)), result.spanStyles)

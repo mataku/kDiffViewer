@@ -22,6 +22,34 @@ fun expandTabs(text: String, tabWidth: Int): String {
   return builder.toString()
 }
 
+fun displayToSource(text: String, displayOffset: Int, tabWidth: Int): Int {
+  if ('\t' !in text) return displayOffset.coerceIn(0, text.length)
+  var column = 0
+  for (index in text.indices) {
+    if (displayOffset <= column) return index
+    if (text[index] == '\t') {
+      val width = tabWidth - column % tabWidth
+      if (displayOffset < column + width) {
+        return if (displayOffset - column < width / 2.0) index else index + 1
+      }
+      column += width
+    } else {
+      column++
+    }
+  }
+  return text.length
+}
+
+fun sourceToDisplay(text: String, sourceOffset: Int, tabWidth: Int): Int {
+  val end = sourceOffset.coerceIn(0, text.length)
+  if ('\t' !in text) return end
+  var column = 0
+  for (index in 0 until end) {
+    column += if (text[index] == '\t') tabWidth - column % tabWidth else 1
+  }
+  return column
+}
+
 fun displayText(
   text: String,
   spans: List<HighlightSpan>,

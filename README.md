@@ -58,6 +58,10 @@ kdv ./ --base HEAD
 
 Comment bodies render as GitHub-style Markdown: headings, emphasis, lists, task lists, block quotes, links, and code blocks, with fenced code in the bundled languages syntax-highlighted. Tables and images are not rendered. The comment composer has Write / Preview; press ⌘⇧P to switch between them.
 
+## Selecting and copying
+
+Drag over the diff to select code; double-click selects a word, triple-click a line, and Shift-click extends the selection. Copy with ⌘C, Edit ▸ Copy, or the right-click menu. Only the code text is copied, without line numbers or `+`/`-` markers. Text in comment bodies can be selected and copied the same way. To copy as soon as a selection is made, turn on Copy on select in Settings (off by default).
+
 ## Coding agents
 
 Review comments left in the app can be read and answered from the terminal through `kdv thread`. Run `kdv agent-guide` for the instructions to give a coding agent.

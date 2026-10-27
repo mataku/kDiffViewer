@@ -209,6 +209,14 @@ class PreferencesScreenTest {
   }
 
   @Test
+  fun copyOnSelectSwitchUpdatesSettings() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    onNodeWithTag("copy-on-select").performClick()
+    assertEquals(true, h.last().copyOnSelect)
+  }
+
+  @Test
   fun enterInGitFieldCommits() = runComposeUiTest {
     val h = Harness()
     show(h)

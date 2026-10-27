@@ -31,6 +31,7 @@ data class DiffColors(
   val threadBorder: Color,
   val agentBadge: Color,
   val outdatedBadge: Color,
+  val selectionBackground: Color,
 )
 
 val LightDiffColors = DiffColors(
@@ -58,6 +59,7 @@ val LightDiffColors = DiffColors(
   threadBorder = Color(0xFFD0D7DE),
   agentBadge = Color(0xFF8250DF),
   outdatedBadge = Color(0xFF9A6700),
+  selectionBackground = Color(0xFFB3D7FF),
 )
 
 val DarkDiffColors = DiffColors(
@@ -85,6 +87,7 @@ val DarkDiffColors = DiffColors(
   threadBorder = Color(0xFF30363D),
   agentBadge = Color(0xFFA371F7),
   outdatedBadge = Color(0xFFD29922),
+  selectionBackground = Color(0xFF3F638B),
 )
 
 val LocalDiffColors: ProvidableCompositionLocal<DiffColors> = staticCompositionLocalOf { LightDiffColors }

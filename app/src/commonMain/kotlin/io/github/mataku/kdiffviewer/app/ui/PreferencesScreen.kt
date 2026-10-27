@@ -121,6 +121,15 @@ fun PreferencesScreen(
         )
       }
     }
+    Section("Selection") {
+      SettingRow("Copy on select", "Copy selected text to the clipboard automatically") {
+        MacSwitch(
+          checked = settings.copyOnSelect,
+          onCheckedChange = { value -> onUpdate { it.copy(copyOnSelect = value) } },
+          modifier = Modifier.testTag("copy-on-select"),
+        )
+      }
+    }
     Section("File tree") {
       SettingRow("Font size") {
         FontSizeSlider(

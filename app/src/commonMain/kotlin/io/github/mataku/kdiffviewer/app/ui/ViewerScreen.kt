@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -52,6 +53,8 @@ import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.notesFiles
+import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
+import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftFocusRequests
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftText
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
@@ -90,6 +93,19 @@ fun ViewerScreen(
     diffLayoutOf(state, notesFiles, hasOrphans)
   }
   val currentLayout by rememberUpdatedState(layout)
+  val coordinator = LocalTextSelectionCoordinator.current
+  val diffSelection = remember { DiffSelectionState() }
+  diffSelection.resetFor(state.loadId to state.collapsed)
+  val selectionSource = remember(diffSelection) {
+    DiffSelectionSource(
+      diffSelection,
+      { currentState.rows },
+      { row -> !currentLayout.isCollapsed(currentLayout.fileIndexOfVisible(currentLayout.visibleIndexOf(row))) },
+    )
+  }
+  DisposableEffect(coordinator, selectionSource) {
+    onDispose { coordinator?.release(selectionSource) }
+  }
   val focusRequests = remember { mutableIntStateOf(0) }
   var revealRequests by remember { mutableIntStateOf(0) }
   val baseActions = LocalReviewActions.current
@@ -239,6 +255,8 @@ fun ViewerScreen(
               placements = review.placements,
               draftTarget = draftTarget,
               loadId = state.loadId,
+              selection = diffSelection,
+              selectionSource = selectionSource,
               onHeaderClick = { fileIndex ->
                 val header = layout.headerVisibleIndex(fileIndex)
                 val pinned = listState.firstVisibleItemIndex >= header
