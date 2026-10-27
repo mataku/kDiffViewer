@@ -3,6 +3,7 @@ package io.github.mataku.kdiffviewer.app.ui
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -23,6 +24,7 @@ class DiffTypography(
   val headerBadge: TextStyle,
   val headerAdditions: TextStyle,
   val headerDeletions: TextStyle,
+  val controlMarker: SpanStyle,
   val lineNumberWidth: Dp,
   val tabWidth: Int,
 )
@@ -51,6 +53,7 @@ fun diffTypography(
     headerBadge = TextStyle(color = colors.mutedText, fontSize = 11.sp),
     headerAdditions = TextStyle(color = colors.addedText, fontSize = 12.sp, fontFeatureSettings = "tnum"),
     headerDeletions = TextStyle(color = colors.removedText, fontSize = 12.sp, fontFeatureSettings = "tnum"),
+    controlMarker = SpanStyle(background = colors.controlMarkerBackground),
     lineNumberWidth = (48 * fontSize / 12f).dp,
     tabWidth = tabWidth,
   )

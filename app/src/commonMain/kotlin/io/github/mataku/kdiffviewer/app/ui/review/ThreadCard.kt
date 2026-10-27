@@ -54,6 +54,7 @@ import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.core.review.Comment
 import io.github.mataku.kdiffviewer.core.review.ReviewThread
+import io.github.mataku.kdiffviewer.protocol.markControls
 
 private val CardShape = RoundedCornerShape(6.dp)
 
@@ -140,7 +141,7 @@ fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
             DisableSelection { Badge("Outdated", colors.outdatedBadge, styles.outdatedBadge) }
             val snapshot = (thread.anchor as? Anchor.Lines)?.snapshot.orEmpty()
             val code = LocalDiffTypography.current.code
-            snapshot.forEach { line -> BasicText(text = line, style = code) }
+            snapshot.forEach { line -> BasicText(text = markControls(line), style = code) }
           }
         }
         thread.comments.forEach { comment ->

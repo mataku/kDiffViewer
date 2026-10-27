@@ -88,4 +88,10 @@ class FileTreeBuilderTest {
     assertSame(first, builder.rows())
     assertSame(first, builder.rowsIfDue())
   }
+
+  @Test
+  fun namesAreMarkedForHiddenControls() {
+    val rows = buildFileTree(listOf(file("d\u202E/x\u0001.kt")))
+    assertEquals(listOf(TreeRow(0, "d\uFFFD", null), TreeRow(1, "x\u2401.kt", 0)), rows)
+  }
 }

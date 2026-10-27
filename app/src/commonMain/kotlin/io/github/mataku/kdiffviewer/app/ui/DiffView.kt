@@ -44,6 +44,7 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,6 +72,7 @@ import io.github.mataku.kdiffviewer.core.review.LineLocation
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.anchorOf
 import io.github.mataku.kdiffviewer.core.review.anchorPath
+import io.github.mataku.kdiffviewer.protocol.markControls
 
 private val FileHeaderTopMargin = 12.dp
 private val FileChevronSize = 12.dp
@@ -210,9 +212,13 @@ fun DiffView(
 
 private fun keyAt(listState: LazyListState, y: Float): String? = listState.layoutInfo.visibleItemsInfo.firstOrNull { y >= it.offset && y < it.offset + it.size }?.key as? String
 
-private fun FileDiff.headerTitle(): String = when {
-  change == ChangeType.Renamed && oldPath != null && newPath != null -> "$oldPath → $newPath"
-  else -> newPath ?: oldPath.orEmpty()
+private fun FileDiff.headerTitle(): String {
+  val old = oldPath
+  val new = newPath
+  return when {
+    change == ChangeType.Renamed && old != null && new != null -> "${markControls(old)} → ${markControls(new)}"
+    else -> markControls(new ?: old.orEmpty())
+  }
 }
 
 private fun FileDiff.badge(): String = if (isUntracked) "Untracked" else change.name
@@ -287,14 +293,17 @@ private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment
 private fun HunkHeaderRow(row: DiffRow.HunkHeader) {
   val colors = LocalDiffColors.current
   val typography = LocalDiffTypography.current
-  BasicText(
-    text = remember(row.hunk, typography.tabWidth) { expandTabs(hunkHeaderLabel(row.hunk), typography.tabWidth) },
-    modifier = Modifier
-      .fillMaxWidth()
-      .background(colors.hunkBackground)
-      .padding(horizontal = 12.dp, vertical = 2.dp),
-    style = typography.hunkHeader,
-  )
+  val text = remember(row.hunk, typography.tabWidth, typography.controlMarker) {
+    plainDisplayText(hunkHeaderLabel(row.hunk), typography.tabWidth, typography.controlMarker)
+  }
+  val modifier = Modifier
+    .fillMaxWidth()
+    .background(colors.hunkBackground)
+    .padding(horizontal = 12.dp, vertical = 2.dp)
+  when (text) {
+    is AnnotatedString -> BasicText(text = text, modifier = modifier, style = typography.hunkHeader)
+    else -> BasicText(text = text.toString(), modifier = modifier, style = typography.hunkHeader)
+  }
 }
 
 @Composable
@@ -347,6 +356,7 @@ private fun LineRow(
     onDispose { layoutState.value?.let { layouts.unregister(rowIndex, it) } }
   }
   val tabWidth = typography.tabWidth
+  val controlStyle = typography.controlMarker
   val selectionColor = colors.selectionBackground
   Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
     LineNumberCell(line.oldLineNo, numberBackground, typography, row, if (hovered) onAddComment else null)
@@ -373,11 +383,14 @@ private fun LineRow(
     val spans = slot?.value?.spans?.getOrNull(row.hunkIndex)?.getOrNull(row.lineIndex)
     if (spans != null) {
       val theme = LocalSyntaxTheme.current
-      val text = remember(line, spans, theme, tabWidth) { displayText(line.text, spans, theme, tabWidth) }
+      val text = remember(line, spans, theme, tabWidth, controlStyle) { displayText(line.text, spans, theme, tabWidth, controlStyle) }
       BasicText(text = text, modifier = contentModifier, style = typography.code, onTextLayout = onTextLayout)
     } else {
-      val text = remember(line.text, tabWidth) { expandTabs(line.text, tabWidth) }
-      BasicText(text = text, modifier = contentModifier, style = typography.code, onTextLayout = onTextLayout)
+      val text = remember(line.text, tabWidth, controlStyle) { plainDisplayText(line.text, tabWidth, controlStyle) }
+      when (text) {
+        is AnnotatedString -> BasicText(text = text, modifier = contentModifier, style = typography.code, onTextLayout = onTextLayout)
+        else -> BasicText(text = text.toString(), modifier = contentModifier, style = typography.code, onTextLayout = onTextLayout)
+      }
     }
   }
 }

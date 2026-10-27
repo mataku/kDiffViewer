@@ -3,6 +3,7 @@ package io.github.mataku.kdiffviewer.app
 import androidx.compose.runtime.Immutable
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.displayPath
+import io.github.mataku.kdiffviewer.protocol.markControls
 
 @Immutable
 data class TreeRow(val depth: Int, val name: String, val fileIndex: Int?)
@@ -43,11 +44,11 @@ class FileTreeBuilder {
       val name = segments[i]
       node = node.directoryByName[name] ?: TreeNode().also { child ->
         node.directoryByName[name] = child
-        node.directories += name to child
+        node.directories += markControls(name) to child
         node.unsorted = true
       }
     }
-    node.files += segments.last() to fileIndex
+    node.files += markControls(segments.last()) to fileIndex
     node.unsorted = true
   }
 
