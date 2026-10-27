@@ -531,7 +531,7 @@ class ViewerScreenTest {
         ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
       }
     }
-    val tree = onNodeWithTag("file-tree").fetchSemanticsNode().boundsInRoot
+    val tree = onNodeWithTag("tree-panel").fetchSemanticsNode().boundsInRoot
     val header = onNodeWithTag("repo-header").fetchSemanticsNode().boundsInRoot
     val reload = onNodeWithTag("reload-button").fetchSemanticsNode().boundsInRoot
     val root = onRoot().fetchSemanticsNode().boundsInRoot
