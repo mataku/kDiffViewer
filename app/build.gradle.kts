@@ -36,6 +36,7 @@ kotlin {
       implementation(libs.composeSyntaxHighlight.typescript)
       implementation(libs.composeSyntaxHighlight.markdown)
       implementation(libs.jetbrains.markdown)
+      implementation(compose.components.resources)
     }
     jvmMain.dependencies {
       implementation(compose.desktop.currentOs)
@@ -51,6 +52,10 @@ kotlin {
       implementation(compose.desktop.currentOs)
     }
   }
+}
+
+compose.resources {
+  packageOfResClass = "io.github.mataku.kdiffviewer.app.generated.resources"
 }
 
 val prepareKdvResources by tasks.registering(Sync::class) {
