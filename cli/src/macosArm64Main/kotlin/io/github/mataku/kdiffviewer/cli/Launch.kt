@@ -3,11 +3,11 @@
 package io.github.mataku.kdiffviewer.cli
 
 import io.github.mataku.kdiffviewer.cli.spawn.kdv_environ
+import io.github.mataku.kdiffviewer.cli.spawn.posix_spawn
 import io.github.mataku.kdiffviewer.cli.spawn.posix_spawn_file_actions_addopen
 import io.github.mataku.kdiffviewer.cli.spawn.posix_spawn_file_actions_destroy
 import io.github.mataku.kdiffviewer.cli.spawn.posix_spawn_file_actions_init
 import io.github.mataku.kdiffviewer.cli.spawn.posix_spawn_file_actions_tVar
-import io.github.mataku.kdiffviewer.cli.spawn.posix_spawnp
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.IntVar
 import kotlinx.cinterop.addressOf
@@ -34,7 +34,7 @@ internal fun posixLaunchApp(app: String, path: String, base: String?): Boolean =
   posix_spawn_file_actions_init(actions.ptr)
   posix_spawn_file_actions_addopen(actions.ptr, 1, "/dev/null", O_WRONLY, 0u)
   posix_spawn_file_actions_addopen(actions.ptr, 2, "/dev/null", O_WRONLY, 0u)
-  val spawned = posix_spawnp(pid.ptr, "open", actions.ptr, null, argv, kdv_environ())
+  val spawned = posix_spawn(pid.ptr, "/usr/bin/open", actions.ptr, null, argv, kdv_environ())
   posix_spawn_file_actions_destroy(actions.ptr)
   if (spawned != 0) return@memScoped false
   val status = alloc<IntVar>()
