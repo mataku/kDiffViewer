@@ -8,6 +8,7 @@ class DiffLayout internal constructor(
   private val rowCount: Int,
   val visibleCount: Int,
   val hasOrphanItem: Boolean = false,
+  val hasEndItem: Boolean = false,
 ) {
   val fileCount: Int get() = headerRows.size
 
@@ -29,6 +30,7 @@ class DiffLayout internal constructor(
   fun rowIndexOf(visibleIndex: Int): Int {
     if (headerRows.isEmpty()) return -1
     if (hasOrphanItem && visibleIndex == 0) return headerRows[0]
+    if (hasEndItem && visibleIndex == visibleCount - 1) return rowCount
     val fileIndex = fileIndexOfVisible(visibleIndex)
     val offset = visibleIndex - headerVisible[fileIndex]
     if (!notes[fileIndex]) return headerRows[fileIndex] + offset
@@ -49,7 +51,7 @@ class DiffLayout internal constructor(
   }
 }
 
-fun diffLayoutOf(state: ViewerUiState, notesFiles: Set<Int> = emptySet(), hasOrphans: Boolean = false): DiffLayout {
+fun diffLayoutOf(state: ViewerUiState, notesFiles: Set<Int> = emptySet(), hasOrphans: Boolean = false, hasEnd: Boolean = false): DiffLayout {
   val headerRows = state.fileHeaderRowIndex
   val fileCount = headerRows.size
   val rowCount = state.rows.size
@@ -67,5 +69,6 @@ fun diffLayoutOf(state: ViewerUiState, notesFiles: Set<Int> = emptySet(), hasOrp
     notes[fileIndex] = !collapsed[fileIndex] && fileIndex in notesFiles
     visible += if (collapsed[fileIndex]) 1 else end - header + if (notes[fileIndex]) 1 else 0
   }
-  return DiffLayout(headerRowArray, headerVisible, collapsed, notes, rowCount, visible, hasOrphans)
+  if (hasEnd) visible++
+  return DiffLayout(headerRowArray, headerVisible, collapsed, notes, rowCount, visible, hasOrphans, hasEnd)
 }
