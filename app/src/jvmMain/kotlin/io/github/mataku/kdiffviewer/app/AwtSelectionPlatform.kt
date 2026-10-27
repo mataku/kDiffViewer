@@ -26,7 +26,7 @@ class AwtNativeContextMenu(private val window: java.awt.Window) : NativeContextM
     items.forEach { item ->
       val menuItem = MenuItem(item.label)
       menuItem.isEnabled = item.enabled
-      if (item.label == "Copy") menuItem.shortcut = MenuShortcut(KeyEvent.VK_C)
+      item.shortcut?.let { menuItem.shortcut = MenuShortcut(KeyEvent.getExtendedKeyCodeForChar(it.code)) }
       menuItem.addActionListener {
         item.onClick()
         if (current === popup) dismiss()

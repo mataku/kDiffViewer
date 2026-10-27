@@ -271,6 +271,6 @@ internal class DiffSelectionGesture(
     val menu = contextMenu ?: return
     val root = coordinates?.takeIf { it.isAttached }?.localToRoot(position) ?: position
     val at = with(density) { DpOffset(root.x.toDp(), root.y.toDp()) }
-    menu.show(at, listOf(ContextMenuItem("Copy", coordinator?.hasSelection == true) { coordinator?.copy() }))
+    menu.show(at, listOf(ContextMenuItem("Copy", coordinator?.hasSelection == true, shortcut = 'C') { coordinator?.copy() }))
   }
 }

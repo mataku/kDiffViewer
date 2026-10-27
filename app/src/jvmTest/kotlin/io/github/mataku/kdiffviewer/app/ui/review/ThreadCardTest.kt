@@ -208,6 +208,36 @@ class ThreadCardTest {
   }
 
   @Test
+  fun rightClickInInCardComposerKeepsCutPasteAndSelectAll() = runComposeUiTest {
+    val menu = RecordingMenu()
+    setContent {
+      CompositionLocalProvider(
+        LocalReviewActions provides FakeActions(),
+        LocalTextSelectionCoordinator provides coordinator,
+        LocalNativeContextMenu provides menu,
+        LocalDraftText provides mutableStateOf("draft text"),
+      ) {
+        ThreadCard(helloThread, DraftTarget.Reply("t1"))
+      }
+    }
+    onNodeWithTag("comment-composer").performMouseInput { rightClick(Offset(10f, height / 2f)) }
+    waitForIdle()
+    val labels = menu.shown.single().second.map { it.label }
+    assertTrue("Paste" in labels, "labels=$labels")
+    assertTrue("Select All" in labels, "labels=$labels")
+    assertEquals(listOf('C'), menu.shown.single().second.filter { it.label == "Copy" }.map { it.shortcut })
+  }
+
+  @Test
+  fun rightClickInBodyOffersOnlyCopy() = runComposeUiTest {
+    val menu = RecordingMenu()
+    setCardWithMenu(menu)
+    onNodeWithText("hello world").performMouseInput { rightClick(Offset(10f, height / 2f)) }
+    waitForIdle()
+    assertEquals(listOf("Copy"), menu.shown.single().second.map { it.label })
+  }
+
+  @Test
   fun rightClickKeepsSelectionAndEnablesCopy() = runComposeUiTest {
     val menu = RecordingMenu()
     setCardWithMenu(menu)
