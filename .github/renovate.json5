@@ -1,0 +1,40 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'github>mataku/renovate-config:default.json5',
+  ],
+  hostRules: [
+    {
+      // Maven Central rate-limits by source IP and the Mend runners share theirs.
+      // Renovate gives up when Retry-After exceeds 60s, which aborts the whole run.
+      matchHost: 'repo.maven.apache.org',
+      concurrentRequestLimit: 4,
+      maxRequestsPerSecond: 4,
+      maxRetryAfter: 180,
+    },
+  ],
+  packageRules: [
+    {
+      groupName: 'test',
+      matchPackageNames: [
+        '/test/',
+        // Shares its version with kotlinx-coroutines-core; splitting them would edit the same version.ref in two PRs.
+        '!org.jetbrains.kotlinx:kotlinx-coroutines-test',
+      ],
+    },
+    {
+      // Listed after `test` so kotlin-test and compose ui-test, which share these version.refs, stay in this group.
+      groupName: 'kotlin-compose',
+      matchPackageNames: [
+        'org.jetbrains.kotlin{.,:}**',
+        'org.jetbrains.compose{.,:}**',
+      ],
+    },
+    {
+      groupName: 'compose-syntax-highlight',
+      matchPackageNames: [
+        'io.github.mataku:compose-syntax-highlight-*',
+      ],
+    },
+  ],
+}
