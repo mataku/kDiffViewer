@@ -215,6 +215,7 @@ class DiffViewerState(
     val diffSource = source
     if (repo == null || diffSource == null) return missingSourceError
     if (spec is BaseSpec.Ref && spec.ref.startsWith("-")) return ViewerError.UnknownBase(spec.ref)
+    val generation = nextLoadId
     try {
       withContext(loadContext) { diffSource.resolveBase(repo, spec) }
     } catch (e: CancellationException) {
@@ -222,7 +223,7 @@ class DiffViewerState(
     } catch (e: Exception) {
       return e.toViewerError()
     }
-    open(repo, spec)
+    if (nextLoadId == generation) open(repo, spec)
     return null
   }
 

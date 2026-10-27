@@ -442,6 +442,25 @@ class DiffViewerStateTest {
   }
 
   @Test
+  fun switchBaseFinishingAfterANewerOpenDoesNotReopen() = runTest(StandardTestDispatcher()) {
+    val otherRepo = RepoPath("/other")
+    val source = FakeSource(bases = { i, _ -> if (i == 1) delay(100).let { headBase } else headBase }) { flow { emit(file("a")) } }
+    val state = stateFor(source)
+    state.open(repo)
+    advanceUntilIdle()
+    var result: ViewerError? = ViewerError.GitNotFound
+    launch { result = state.switchBase(BaseSpec.Ref("x")) }
+    runCurrent()
+    state.open(otherRepo)
+    advanceUntilIdle()
+    assertNull(result)
+    assertEquals(otherRepo, state.uiState.value.repo)
+    assertEquals(BaseSpec.Default, state.uiState.value.baseSpec)
+    assertEquals(2, source.calls)
+    assertEquals(listOf<BaseSpec>(BaseSpec.Default, BaseSpec.Ref("x"), BaseSpec.Default), source.specs)
+  }
+
+  @Test
   fun switchBaseRejectsOptionLikeRefWithoutGit() = runTest(StandardTestDispatcher()) {
     val source = FakeSource { flow {} }
     val state = stateFor(source)
