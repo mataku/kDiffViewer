@@ -88,6 +88,7 @@ fun ViewerScreen(
   review: ReviewSnapshot = ReviewSnapshot.Empty,
   loadBranches: suspend () -> List<BranchRef> = { emptyList() },
   onSwitchBase: suspend (BaseSpec) -> ViewerError? = { null },
+  scrollJumps: ScrollJumps? = null,
 ) {
   val colors = LocalDiffColors.current
   val listState = rememberLazyListState()
@@ -103,6 +104,12 @@ fun ViewerScreen(
     diffLayoutOf(state, notesFiles, hasOrphans, hasEnd)
   }
   val currentLayout by rememberUpdatedState(layout)
+  LaunchedEffect(scrollJumps, listState) {
+    scrollJumps?.requests?.collect { jump ->
+      val count = currentLayout.visibleCount
+      if (count > 0) listState.requestScrollToItem(if (jump == ScrollJump.Top) 0 else count - 1)
+    }
+  }
   val coordinator = LocalTextSelectionCoordinator.current
   val diffSelection = remember { DiffSelectionState() }
   diffSelection.resetFor(state.loadId to state.collapsed)

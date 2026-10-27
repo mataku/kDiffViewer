@@ -1228,6 +1228,41 @@ class ViewerScreenTest {
     val noNewline = onNodeWithText("No newline at end of file", useUnmergedTree = true).fetchSemanticsNode().size.height
     assertEquals(code, noNewline)
   }
+
+  @Test
+  fun scrollJumpBottomShowsFooter() = runComposeUiTest {
+    val jumps = ScrollJumps()
+    setContent { ViewerScreen(stateOf((0 until 30).map { modified("f$it.kt", 20) }), {}, scrollJumps = jumps) }
+    waitForIdle()
+    jumps.request(ScrollJump.Bottom)
+    waitForIdle()
+    onNodeWithTag("end-of-diff").assertIsDisplayed()
+  }
+
+  @Test
+  fun scrollJumpTopReturnsToFirstItem() = runComposeUiTest {
+    val jumps = ScrollJumps()
+    setContent { ViewerScreen(stateOf((0 until 30).map { modified("f$it.kt", 20) }), {}, scrollJumps = jumps) }
+    waitForIdle()
+    jumps.request(ScrollJump.Bottom)
+    waitForIdle()
+    onNodeWithTag("file-header-0").assertDoesNotExist()
+    jumps.request(ScrollJump.Top)
+    waitForIdle()
+    onNodeWithTag("file-header-0").assertIsDisplayed()
+  }
+
+  @Test
+  fun scrollJumpOnNoChangesIsNoOp() = runComposeUiTest {
+    val jumps = ScrollJumps()
+    setContent { ViewerScreen(stateOf(emptyList()), {}, scrollJumps = jumps) }
+    waitForIdle()
+    jumps.request(ScrollJump.Bottom)
+    waitForIdle()
+    jumps.request(ScrollJump.Top)
+    waitForIdle()
+    onNodeWithText("No changes").assertIsDisplayed()
+  }
 }
 
 private fun SemanticsNodeInteractionsProvider.assertPinnedAtTop(tag: String) {

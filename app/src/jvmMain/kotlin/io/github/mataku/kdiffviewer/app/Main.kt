@@ -40,11 +40,13 @@ import io.github.mataku.kdiffviewer.app.ui.ErrorScreen
 import io.github.mataku.kdiffviewer.app.ui.KdvTheme
 import io.github.mataku.kdiffviewer.app.ui.LocalTitleBarRegions
 import io.github.mataku.kdiffviewer.app.ui.OpenRepositoryScreen
+import io.github.mataku.kdiffviewer.app.ui.ScrollJumps
 import io.github.mataku.kdiffviewer.app.ui.TitleBarHeight
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
 import io.github.mataku.kdiffviewer.app.ui.markdown.SafeUriHandler
 import io.github.mataku.kdiffviewer.app.ui.resolveFontFamily
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
+import io.github.mataku.kdiffviewer.app.ui.scrollJumpOf
 import io.github.mataku.kdiffviewer.core.git.GitLocation
 import io.github.mataku.kdiffviewer.core.git.GitLocator
 import io.github.mataku.kdiffviewer.core.git.locateOnHost
@@ -207,7 +209,13 @@ private fun runApplication(
     onDispose { desktop?.setQuitHandler(null) }
   }
 
-  Window(onCloseRequest = shutdown, title = "kDiffViewer", state = windowState) {
+  val scrollJumps = remember { ScrollJumps() }
+  Window(
+    onCloseRequest = shutdown,
+    title = "kDiffViewer",
+    state = windowState,
+    onKeyEvent = { event -> scrollJumpOf(event)?.let(scrollJumps::request) ?: false },
+  ) {
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     val titleBarRegions = remember { installCustomTitleBar(window, TitleBarHeight) }
     val titleBarInset = if (titleBarRegions != null) TitleBarHeight else 0.dp
@@ -260,6 +268,7 @@ private fun runApplication(
             review = reviewSnapshot,
             loadBranches = state::branches,
             onSwitchBase = state::switchBase,
+            scrollJumps = scrollJumps,
           )
         }
       }
