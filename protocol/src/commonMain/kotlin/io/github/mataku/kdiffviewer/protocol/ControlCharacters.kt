@@ -5,7 +5,7 @@ private const val REPLACEMENT_CHARACTER = '\uFFFD'
 fun isHiddenControl(c: Char): Boolean = when (c) {
   '\t' -> false
   in '\u0000'..'\u001F', '\u007F', in '\u0080'..'\u009F' -> true
-  '\u061C', '\u200E', '\u200F', in '\u202A'..'\u202E', in '\u2066'..'\u2069' -> true
+  '\u061C', '\u200E', '\u200F', '\u2028', '\u2029', in '\u202A'..'\u202E', in '\u2066'..'\u2069' -> true
   else -> false
 }
 

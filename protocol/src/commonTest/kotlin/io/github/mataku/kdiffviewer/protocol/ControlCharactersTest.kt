@@ -33,4 +33,9 @@ class ControlCharactersTest {
     val input = "\u0001\u202A\u2069\t\u009F"
     assertEquals(input.length, markControls(input).length)
   }
+
+  @Test
+  fun lineAndParagraphSeparatorsBecomeReplacementCharacter() {
+    assertEquals("a\uFFFDb\uFFFDc", markControls("a\u2028b\u2029c"))
+  }
 }
