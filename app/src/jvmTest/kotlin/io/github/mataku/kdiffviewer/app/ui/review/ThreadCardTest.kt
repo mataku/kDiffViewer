@@ -170,6 +170,18 @@ class ThreadCardTest {
     assertEquals(listOf("hello world"), clipboard.writes)
   }
 
+  @Test
+  fun clickingButtonInCardDoesNotWriteAgain() = runComposeUiTest {
+    copyOnSelect = true
+    setCard()
+    dragAcrossBody()
+    waitForIdle()
+    assertEquals(1, clipboard.writes.size)
+    onNodeWithText("Resolve").performClick()
+    waitForIdle()
+    assertEquals(1, clipboard.writes.size)
+  }
+
   private class RecordingMenu : NativeContextMenu {
     val shown = mutableListOf<Pair<DpOffset, List<ContextMenuItem>>>()
 

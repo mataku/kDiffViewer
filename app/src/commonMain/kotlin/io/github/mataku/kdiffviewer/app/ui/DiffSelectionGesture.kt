@@ -9,6 +9,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEvent
@@ -20,7 +21,6 @@ import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
-import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -148,7 +148,6 @@ internal class DiffSelectionGesture(
         shift -> selection.extendTo(hit)
         else -> selection.start(hit)
       }
-      if (clicks > 1) coordinator?.onSelectionFinished(source)
       moved = false
       viewportHeight = size.height
       try {
@@ -170,7 +169,7 @@ internal class DiffSelectionGesture(
       val current = selection.selection
       if (clicks == 1 && !shift && !moved) {
         selection.clear()
-      } else if (current != null && !current.isEmpty && (clicks == 1 || moved)) {
+      } else if (current != null && !current.isEmpty) {
         coordinator?.onSelectionFinished(source)
       }
     }

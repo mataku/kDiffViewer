@@ -36,6 +36,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -111,17 +112,21 @@ fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
         .pointerInput(source, coordinator) {
           awaitPointerEventScope {
             var primaryGesture = false
+            var textsAtPress: List<AnnotatedString> = emptyList()
             while (true) {
               val event = awaitPointerEvent(PointerEventPass.Initial)
               when (event.type) {
                 PointerEventType.Press -> {
                   primaryGesture = event.buttons.isPrimaryPressed && !event.keyboardModifiers.isCtrlPressed
-                  if (primaryGesture) coordinator?.activate(source)
+                  if (primaryGesture) {
+                    coordinator?.activate(source)
+                    textsAtPress = selectionState.selectedTexts.toList()
+                  }
                 }
 
                 PointerEventType.Release -> if (primaryGesture && event.buttons.isPrimaryPressed.not()) {
                   primaryGesture = false
-                  if (source.hasSelection) coordinator?.onSelectionFinished(source)
+                  if (source.hasSelection && selectionState.selectedTexts != textsAtPress) coordinator?.onSelectionFinished(source)
                 }
               }
             }

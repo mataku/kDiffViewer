@@ -408,6 +408,24 @@ class DiffSelectionUiTest {
   }
 
   @Test
+  fun doubleClickThenDragWritesOnce() = runComposeUiTest {
+    copyOnSelect = true
+    show(stateOf())
+    val word = codePosition("alpha beta", 7)
+    val to = codePosition("delta", 2)
+    onNodeWithTag("diff-list").performMouseInput {
+      click(word)
+      advanceEventTime(50)
+      press()
+      moveTo(to)
+      moveTo(to + Offset(1f, 0f))
+      release()
+    }
+    waitForIdle()
+    assertEquals(1, clipboard.writes.size, clipboard.writes.toString())
+  }
+
+  @Test
   fun secondaryPressDoesNotSelect() = runComposeUiTest {
     show(stateOf())
     onNodeWithTag("diff-list").performMouseInput { rightClick(codePosition("alpha beta", 2)) }
