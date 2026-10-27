@@ -56,6 +56,10 @@ kdv ./ --base HEAD
 
 The base can also be changed from the toolbar: click the base tag to open a popup that lists local and remote branches and accepts a typed revision.
 
+## Opening untrusted repositories
+
+kDiffViewer runs git, and git reads the repository's own `.git/config` and `.gitattributes`, so a directory that was not cloned (a zip, a tarball, a copied `.git`, a nested submodule) can run commands through git's clean filters, exactly as `git status` would. kDiffViewer disables the fsmonitor hook and never runs external diff, textconv or hooks, but it cannot disable filters. Open such directories only after inspecting `.git/config` and `.gitattributes`.
+
 ## Review comments
 
 Comment bodies render as GitHub-style Markdown: headings, emphasis, lists, task lists, block quotes, links, and code blocks, with fenced code in the bundled languages syntax-highlighted. Tables and images are not rendered. The comment composer has Write / Preview; press ⌘⇧P to switch between them.

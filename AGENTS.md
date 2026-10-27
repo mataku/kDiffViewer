@@ -9,7 +9,7 @@ kDiffViewer is a desktop git diff viewer built with Kotlin Multiplatform and Com
 ```
 core/   KMP library (jvm target). Diff model, streaming unified diff parser, untracked-file synthesis, GitDiffSource.
         commonMain holds all logic; jvmMain holds only OS-specific implementations (process spawning, file reading, git lookup).
-protocol/ KMP library (jvm + macosArm64). Wire types shared by the app and the CLI.
+protocol/ KMP library (jvm + macosArm64). Wire types shared by the app and the CLI, and the control-character marking both print.
 cli/    Kotlin/Native executable (macosArm64) producing `kdv`, which talks to running app windows over a Unix socket.
 app/    Compose Desktop app (jvm target). commonMain holds state holders and Compose UI; jvmMain holds main(), the folder picker, and packaging config.
 scripts/ large-diff generator for manual performance checks.
@@ -34,6 +34,7 @@ scripts/generate-large-diff.sh <dir> [ext]   # create a large repository for man
 
 - The build and the bundled runtime use the JetBrains Runtime (JBR) 25 toolchain (`JvmVendorSpec.JETBRAINS` in both modules; the foojay resolver in `settings.gradle.kts` downloads it when missing). The app relies on the JBR API (`com.jetbrains:jbr-api`) for the custom title bar, and falls back to the system title bar when `JBR.isWindowDecorationsSupported()` is false. Never package with Homebrew's OpenJDK and never set `compose.desktop.packaging.checkJdkVendor=false`: Homebrew's JDK links `libfontmanager.dylib` against Homebrew's harfbuzz and freetype, so the bundled runtime breaks when those formulae change ([Compose issue #3107](https://github.com/JetBrains/compose-multiplatform/issues/3107)). After packaging changes, check with `otool -L` that no dylib under the app's `Contents/runtime` references `/opt/homebrew` or `/usr/local`.
 - git output must not depend on the user's git configuration. `GitDiffSource` passes `-c core.quotePath=false`, `-c core.fsmonitor=false` (also on `ls-files`, so a repository's configured fsmonitor hook never runs), `--no-color`, `--no-ext-diff`, `--no-textconv`, `--src-prefix=a/`, `--dst-prefix=b/`, `-M`, and `--submodule=short`; keep those flags when touching the diff command, and add one when a new config can change the output format.
+- Untrusted .git directories carry git's own command-execution risk through filters; the README says so, and this is one motivation for a libgit2 backend.
 - Formatting is 2-space indent via `.editorconfig` and ktlint (Spotless).
 
 ## Performance, memory and security
