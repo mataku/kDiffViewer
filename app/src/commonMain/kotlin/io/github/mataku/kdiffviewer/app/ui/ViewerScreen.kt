@@ -274,10 +274,6 @@ fun ViewerScreen(
   }
 }
 
-private val TagShape = RoundedCornerShape(4.dp)
-private const val TAG_FILL_ALPHA = 0.08f
-private val TagPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-
 @Composable
 private fun BaseLabel(base: ResolvedBase.Commit, uncommittedOnly: Boolean, style: TextStyle, modifier: Modifier) {
   val colors = LocalDiffColors.current
