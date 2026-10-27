@@ -36,16 +36,17 @@ scripts/generate-large-diff.sh <dir> [ext]   # create a large repository for man
 - git output must not depend on the user's git configuration. `GitDiffSource` passes `-c core.quotePath=false`, `--no-color`, `--no-ext-diff`, `--no-textconv`, `--src-prefix=a/`, `--dst-prefix=b/`, `-M`, and `--submodule=short`; keep those flags when touching the diff command, and add one when a new config can change the output format.
 - Formatting is 2-space indent via `.editorconfig` and ktlint (Spotless).
 
-## Performance and memory
+## Performance, memory and security
 
 Diffs can have thousands of files and hundreds of thousands of rows, so CPU and memory cost is a design input, not a later fix.
 
-- Review cost at every stage without being asked: list each option's cost when proposing a design (work per update, recomposition scope, retained memory), put a "Performance and memory review" section in every plan, and have task and final reviews check it. Do not pick a slower or heavier option for simplicity alone; if one is chosen anyway, record why.
+- Review cost at every stage without being asked: list each option's cost when proposing a design (work per update, recomposition scope, retained memory), put a "Performance, memory and security review" section in every plan, and have task and final reviews check it. Do not pick a slower or heavier option for simplicity alone; if one is chosen anyway, record why.
 - Keep the EDT free of blocking work (process spawns, file I/O, font enumeration); run it on `Dispatchers.IO` or before `application {}`.
 - `LazyColumn` diff rows: key by index (the same path can appear twice), append incrementally, and add no per-row allocation (build `TextStyle`s once and provide them through a static CompositionLocal), no per-row test tags or semantics nodes, and complete `remember` keys.
 - Avoid work proportional to the whole diff per batch, and avoid eager composition of large lists (e.g. Material `DropdownMenu`); use lazy lists.
 - Reuse expensive resources across swaps (grammars, highlighters), and release window-scoped resources when the window closes.
 - Inputs that do not change state must be no-ops (no reload, no probe, no write); conflate bursts of writes.
+- Review security at every stage as well: the security part of each plan's review names every input boundary (what user-controlled text reaches a git argv, stdin, a file path, or the clipboard), confirms that spawns stay shell-free with user input placed after `--end-of-options` and option-like values rejected, and confirms that output does not depend on the user's git configuration; task and final reviews check it.
 
 ## macOS UI
 
