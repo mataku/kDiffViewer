@@ -1210,6 +1210,24 @@ class ViewerScreenTest {
       }
     }
   }
+
+  @Test
+  fun hunkHeaderMatchesCodeLineHeight() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) }
+    val code = onNodeWithText("TWO", useUnmergedTree = true).fetchSemanticsNode().size.height
+    val hunk = onNodeWithText("@@ -1,1 +1,1 @@ fun main()", useUnmergedTree = true).fetchSemanticsNode().size.height
+    assertEquals(code, hunk)
+  }
+
+  @Test
+  fun noNewlineRowMatchesCodeLineHeight() = runComposeUiTest {
+    val body = listOf(DiffLine(LineKind.Added, "x", null, 1), DiffLine(LineKind.NoNewlineAtEof, "", null, null))
+    val file = FileDiff(null, "n.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", body))))
+    setContent { ViewerScreen(stateOf(listOf(file)), {}) }
+    val code = onNodeWithText("x", useUnmergedTree = true).fetchSemanticsNode().size.height
+    val noNewline = onNodeWithText("No newline at end of file", useUnmergedTree = true).fetchSemanticsNode().size.height
+    assertEquals(code, noNewline)
+  }
 }
 
 private fun SemanticsNodeInteractionsProvider.assertPinnedAtTop(tag: String) {

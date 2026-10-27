@@ -311,7 +311,7 @@ private fun HunkHeaderRow(row: DiffRow.HunkHeader) {
   val modifier = Modifier
     .fillMaxWidth()
     .background(colors.hunkBackground)
-    .padding(horizontal = 12.dp, vertical = 2.dp)
+    .padding(horizontal = 12.dp)
   when (text) {
     is AnnotatedString -> BasicText(text = text, modifier = modifier, style = typography.hunkHeader)
     else -> BasicText(text = text.toString(), modifier = modifier, style = typography.hunkHeader)
