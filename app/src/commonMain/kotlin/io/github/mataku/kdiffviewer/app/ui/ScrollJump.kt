@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app.ui
 
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -8,6 +9,7 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -35,3 +37,5 @@ class ScrollJumps {
 
   fun request(jump: ScrollJump): Boolean = flow.tryEmit(jump)
 }
+
+fun Modifier.keepScrollJumps(): Modifier = onKeyEvent { event -> scrollJumpOf(event) != null }

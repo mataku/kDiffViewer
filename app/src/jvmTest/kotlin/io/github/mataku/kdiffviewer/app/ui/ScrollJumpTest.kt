@@ -4,6 +4,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,13 +18,18 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.KeyInjectionScope
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.withKeyDown
 import androidx.compose.ui.test.withKeysDown
 import androidx.compose.ui.unit.dp
+import io.github.mataku.kdiffviewer.app.ui.mac.MacSearchField
+import io.github.mataku.kdiffviewer.app.ui.mac.MacTextArea
+import io.github.mataku.kdiffviewer.app.ui.mac.MacTextField
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -112,5 +118,70 @@ class ScrollJumpTest {
     val jumps = ScrollJumps()
     assertTrue(jumps.request(ScrollJump.Top))
     assertTrue(jumps.request(ScrollJump.Bottom))
+  }
+
+  private val jumpKeys: List<KeyInjectionScope.() -> Unit> = listOf(
+    { withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionUp) } },
+    { withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionDown) } },
+    { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveHome) } },
+    { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveEnd) } },
+  )
+
+  private fun leaksFrom(control: @Composable () -> Unit): List<ScrollJump> {
+    val outer = mutableListOf<ScrollJump>()
+    runComposeUiTest {
+      setContent {
+        KdvTheme(darkTheme = false) {
+          Box(
+            Modifier.onKeyEvent { event ->
+              scrollJumpOf(event)?.let(outer::add)
+              false
+            },
+          ) { control() }
+        }
+      }
+      val field = onNode(hasSetTextAction())
+      field.performClick()
+      waitForIdle()
+      for (keys in jumpKeys) field.performKeyInput(keys)
+      waitForIdle()
+    }
+    return outer
+  }
+
+  @Test
+  fun macTextFieldKeepsAllJumpKeys() {
+    assertEquals(emptyList(), leaksFrom { MacTextField("one", {}) })
+  }
+
+  @Test
+  fun macSearchFieldKeepsAllJumpKeys() {
+    assertEquals(emptyList(), leaksFrom { MacSearchField("one", {}) })
+  }
+
+  @Test
+  fun macTextAreaKeepsAllJumpKeys() {
+    assertEquals(emptyList(), leaksFrom { MacTextArea("one\ntwo", {}) })
+  }
+
+  @Test
+  fun keepScrollJumpsStopsJumpKeysFromAFocusedElement() = runComposeUiTest {
+    val outer = mutableListOf<ScrollJump>()
+    setContent {
+      val focus = remember { FocusRequester() }
+      Box(
+        Modifier.onKeyEvent { event ->
+          scrollJumpOf(event)?.let(outer::add)
+          false
+        },
+      ) {
+        Box(Modifier.size(10.dp).testTag("pane").focusRequester(focus).keepScrollJumps().focusable())
+      }
+      LaunchedEffect(Unit) { focus.requestFocus() }
+    }
+    waitForIdle()
+    for (keys in jumpKeys) onNodeWithTag("pane").performKeyInput(keys)
+    waitForIdle()
+    assertEquals(emptyList(), outer)
   }
 }
