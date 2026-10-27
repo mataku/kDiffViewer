@@ -1090,6 +1090,51 @@ class ViewerScreenTest {
     waitForIdle()
     onNodeWithTag("add-comment").assertDoesNotExist()
   }
+
+  @Test
+  fun footerShowsAfterLastFileWhenDone() = runComposeUiTest {
+    val files = (0 until 30).map { modified("f$it.kt", 20) }
+    setContent { ViewerScreen(stateOf(files), {}) }
+    onNodeWithTag("diff-list").performScrollToNode(hasTestTag("end-of-diff"))
+    onNodeWithTag("end-of-diff").assertIsDisplayed()
+    onNodeWithText("It fits. You're done.").assertIsDisplayed()
+  }
+
+  @Test
+  fun footerHiddenWhileLoading() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt")), status = LoadStatus.Loading), {}) }
+    onNodeWithTag("end-of-diff").assertDoesNotExist()
+  }
+
+  @Test
+  fun footerHiddenOnNoChanges() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()), {}) }
+    onNodeWithText("No changes").assertIsDisplayed()
+    onNodeWithTag("end-of-diff").assertDoesNotExist()
+  }
+
+  @Test
+  fun footerStaysAfterCollapsingLastFile() = runComposeUiTest {
+    val state = stateOf(listOf(modified("a.kt"), modified("b.kt"))).toggled(1)
+    setContent { ViewerScreen(state, {}) }
+    onNodeWithTag("end-of-diff").assertIsDisplayed()
+  }
+
+  @Test
+  fun footerHidesOnReloadAndReturnsOnDone() = runComposeUiTest {
+    val files = (0 until 30).map { modified("f$it.kt", 20) }
+    var ui by mutableStateOf(stateOf(files).copy(loadId = 1))
+    setContent { ViewerScreen(ui, {}) }
+    onNodeWithTag("diff-list").performScrollToNode(hasTestTag("end-of-diff"))
+    onNodeWithTag("end-of-diff").assertIsDisplayed()
+    ui = ui.copy(status = LoadStatus.Loading, loadId = 2)
+    waitForIdle()
+    onNodeWithTag("end-of-diff").assertDoesNotExist()
+    ui = stateOf(files).copy(loadId = 2)
+    waitForIdle()
+    onNodeWithTag("diff-list").performScrollToNode(hasTestTag("end-of-diff"))
+    onNodeWithTag("end-of-diff").assertIsDisplayed()
+  }
 }
 
 private fun SemanticsNodeInteractionsProvider.assertPinnedAtTop(tag: String) {

@@ -87,6 +87,8 @@ private const val PLACEHOLDER_CONTENT_TYPE = 3
 private const val NOTES_CONTENT_TYPE = 4
 private const val ORPHANS_CONTENT_TYPE = 5
 private const val ORPHANS_KEY = "orphans"
+private const val END_CONTENT_TYPE = 6
+private const val END_KEY = "end"
 
 private fun DiffRow.contentType(): Int = when (this) {
   is DiffRow.FileHeader -> HEADER_CONTENT_TYPE
@@ -206,6 +208,9 @@ fun DiffView(
           }
         }
       }
+    }
+    if (layout.hasEndItem) {
+      item(key = END_KEY, contentType = END_CONTENT_TYPE) { EndOfDiffFooter() }
     }
   }
 }

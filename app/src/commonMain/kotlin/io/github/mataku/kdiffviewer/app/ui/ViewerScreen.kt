@@ -98,8 +98,9 @@ fun ViewerScreen(
   val draftText = rememberUpdatedState(review.draft?.text.orEmpty())
   val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(draftTarget) else emptySet() }
   val hasOrphans = shown && (review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
-  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, notesFiles, hasOrphans) {
-    diffLayoutOf(state, notesFiles, hasOrphans)
+  val hasEnd = state.status == LoadStatus.Done && state.files.isNotEmpty()
+  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, notesFiles, hasOrphans, hasEnd) {
+    diffLayoutOf(state, notesFiles, hasOrphans, hasEnd)
   }
   val currentLayout by rememberUpdatedState(layout)
   val coordinator = LocalTextSelectionCoordinator.current
