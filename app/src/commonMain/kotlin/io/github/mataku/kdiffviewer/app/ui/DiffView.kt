@@ -87,6 +87,8 @@ private const val PLACEHOLDER_CONTENT_TYPE = 3
 private const val NOTES_CONTENT_TYPE = 4
 private const val ORPHANS_CONTENT_TYPE = 5
 private const val ORPHANS_KEY = "orphans"
+private const val END_CONTENT_TYPE = 6
+private const val END_KEY = "end"
 
 private fun DiffRow.contentType(): Int = when (this) {
   is DiffRow.FileHeader -> HEADER_CONTENT_TYPE
@@ -116,6 +118,10 @@ fun DiffView(
   val typography = LocalDiffTypography.current
   val layouts = remember { VisibleLineLayouts() }
   val codeStartX = with(LocalDensity.current) { (ContentHorizontalMargin + typography.lineNumberWidth * 2 + 16.dp).toPx() }
+  val colors = LocalDiffColors.current
+  val framePainter = rememberFileFramePainter()
+  val frameInset = with(LocalDensity.current) { FileHeaderTopMargin.toPx() }
+  val frameMargin = with(LocalDensity.current) { ContentHorizontalMargin.toPx() }
   val shown = placements.loadId == loadId
   val draft = if (shown) draftTarget else null
   val draftPlacement = (draft as? DraftTarget.NewThread)?.placement
@@ -151,7 +157,11 @@ fun DiffView(
   val selectionModifier = Modifier.diffSelectionGesture(listState, selection, selectionSource, layouts, rows, layout, codeStartX, typography.tabWidth)
   LazyColumn(
     state = listState,
-    modifier = modifier.testTag("diff-list").then(hoverModifier).then(selectionModifier),
+    modifier = modifier
+      .testTag("diff-list")
+      .then(hoverModifier)
+      .then(selectionModifier)
+      .fileFrames(listState, layout, framePainter, colors.border, colors.background, frameInset, frameMargin),
     contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = FileHeaderTopMargin),
   ) {
     if (layout.hasOrphanItem) {
@@ -207,6 +217,9 @@ fun DiffView(
         }
       }
     }
+    if (layout.hasEndItem) {
+      item(key = END_KEY, contentType = END_CONTENT_TYPE) { EndOfDiffFooter() }
+    }
   }
 }
 
@@ -233,7 +246,6 @@ private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment
       .background(colors.background)
       .padding(top = FileHeaderTopMargin)
       .background(colors.fileHeaderBackground)
-      .border(1.dp, colors.border)
       .focusProperties { canFocus = false }
       .clickable(interactionSource = null, indication = null, onClick = onClick)
       .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -299,7 +311,7 @@ private fun HunkHeaderRow(row: DiffRow.HunkHeader) {
   val modifier = Modifier
     .fillMaxWidth()
     .background(colors.hunkBackground)
-    .padding(horizontal = 12.dp, vertical = 2.dp)
+    .padding(horizontal = 12.dp)
   when (text) {
     is AnnotatedString -> BasicText(text = text, modifier = modifier, style = typography.hunkHeader)
     else -> BasicText(text = text.toString(), modifier = modifier, style = typography.hunkHeader)

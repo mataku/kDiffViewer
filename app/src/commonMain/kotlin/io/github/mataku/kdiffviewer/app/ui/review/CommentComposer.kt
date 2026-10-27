@@ -38,6 +38,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
+import io.github.mataku.kdiffviewer.app.ui.keepScrollJumps
 import io.github.mataku.kdiffviewer.app.ui.mac.MacPushButton
 import io.github.mataku.kdiffviewer.app.ui.mac.MacSegmented
 import io.github.mataku.kdiffviewer.app.ui.mac.MacTextArea
@@ -147,6 +148,7 @@ private fun PreviewPane(
       .background(colors.background, PreviewShape)
       .border(0.5.dp, colors.border, PreviewShape)
       .padding(horizontal = 8.dp, vertical = PreviewPadding)
+      .keepScrollJumps()
       .focusable(),
   ) {
     if (text.isBlank()) {

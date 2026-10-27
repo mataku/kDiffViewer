@@ -7,11 +7,15 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.font.FontFamily
 import io.github.mataku.compose.highlight.core.LocalSyntaxTheme
 import io.github.mataku.kdiffviewer.app.ui.markdown.LocalMarkdownStyles
 import io.github.mataku.kdiffviewer.app.ui.markdown.MarkdownStyles
+
+val LocalDarkTheme: ProvidableCompositionLocal<Boolean> = staticCompositionLocalOf { false }
 
 @Composable
 fun KdvTheme(
@@ -32,6 +36,7 @@ fun KdvTheme(
   val base = if (darkTheme) darkColorScheme() else lightColorScheme()
   MaterialTheme(colorScheme = base.withTokens(diffColors)) {
     CompositionLocalProvider(
+      LocalDarkTheme provides darkTheme,
       LocalDiffColors provides diffColors,
       LocalDiffTypography provides typography,
       LocalTreeTypography provides treeTypography,

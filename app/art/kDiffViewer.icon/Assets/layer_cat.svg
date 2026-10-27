@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+<clipPath id="head"><path d="M74 86 C71 72 73 60 79 52 L82 37 Q83 33 86 35 L99 48 C105 46 115 46 121 48 L134 35 Q137 33 138 37 L141 52 C147 60 149 72 146 86 C144 100 128 108 110 108 C92 108 76 100 74 86 Z"/></clipPath>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EEE7FF"/><stop offset="1" stop-color="#D6C8FF"/></linearGradient>
+<filter id="shadow" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity="0.28"/></filter>
+<filter id="rough" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="3.5"/></filter>
+</defs>
+<g transform="scale(1.2427184466019416) translate(-100 -100)">
+<g transform="translate(-390 19) scale(8.2)">
+<g filter="url(#rough)">
+<g transform="rotate(-7 110 100)">
+<path d="M74 86 C71 72 73 60 79 52 L82 37 Q83 33 86 35 L99 48 C105 46 115 46 121 48 L134 35 Q137 33 138 37 L141 52 C147 60 149 72 146 86 C144 100 128 108 110 108 C92 108 76 100 74 86 Z" fill="#F3D2A2"/>
+<g clip-path="url(#head)"><ellipse cx="110" cy="93" rx="21" ry="14" fill="#FFF8EE"/><ellipse cx="110" cy="106" rx="14" ry="8" fill="#FFF8EE"/><path d="M74 78 L86 81 M74 85 L85 86 M146 78 L134 81 M146 85 L135 86" stroke="#E2B57E" stroke-width="2.5" stroke-linecap="round"/></g>
+<path d="M74 86 C71 72 73 60 79 52 L82 37 Q83 33 86 35 L99 48 C105 46 115 46 121 48 L134 35 Q137 33 138 37 L141 52 C147 60 149 72 146 86 C144 100 128 108 110 108 C92 108 76 100 74 86 Z" fill="none" stroke="#4a3526" stroke-width="2.4" stroke-linejoin="round"/>
+<path d="M85 51 L86.5 41 L95 49 Z M135 51 L133.5 41 L125 49 Z" fill="#F2A7B5"/>
+<ellipse cx="97" cy="76" rx="3.5" ry="5" fill="#2b2b2b"/>
+<ellipse cx="123" cy="76" rx="3.5" ry="5" fill="#2b2b2b"/>
+<path d="M106 84 L114 84 L110 88 Z" fill="#E58A9C"/>
+<path d="M106 91 Q110 93 114 91" fill="none" stroke="#4a3526" stroke-width="1.5" stroke-linecap="round"/>
+</g>
+<ellipse cx="94" cy="108" rx="10" ry="6" fill="#FFF8EE" stroke="#4a3526" stroke-width="2.4"/>
+<ellipse cx="124" cy="108" rx="10" ry="6" fill="#FFF8EE" stroke="#4a3526" stroke-width="2.4"/>
+</g>
+</g>
+</g>
+</svg>

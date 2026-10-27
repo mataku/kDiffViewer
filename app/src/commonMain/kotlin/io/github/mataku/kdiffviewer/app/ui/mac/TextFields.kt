@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.ui.DiffColors
 import io.github.mataku.kdiffviewer.app.ui.KdvIcons
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
+import io.github.mataku.kdiffviewer.app.ui.keepScrollJumps
 
 @Composable
 fun MacTextField(
@@ -68,7 +69,7 @@ fun MacTextField(
       singleLine = true,
       textStyle = TextStyle(color = colors.text, fontSize = 13.sp),
       cursorBrush = SolidColor(colors.text),
-      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.keepScrollJumps(),
       decorationBox = { innerTextField ->
         Box(contentAlignment = Alignment.CenterStart) {
           if (value.isEmpty() && placeholder != null) {
@@ -123,7 +124,8 @@ fun MacSearchField(
           }
         }
         .then(modifier)
-        .onFocusChanged { focused = it.isFocused },
+        .onFocusChanged { focused = it.isFocused }
+        .keepScrollJumps(),
       decorationBox = { innerTextField ->
         Box(contentAlignment = Alignment.CenterStart) {
           if (value.isEmpty() && placeholder != null) {
@@ -170,7 +172,7 @@ fun MacTextArea(
       minLines = minLines,
       textStyle = textStyle,
       cursorBrush = SolidColor(colors.text),
-      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.keepScrollJumps(),
     )
   }
 }

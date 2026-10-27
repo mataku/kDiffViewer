@@ -12,6 +12,7 @@ core/   KMP library (jvm target). Diff model, streaming unified diff parser, unt
 protocol/ KMP library (jvm + macosArm64). Wire types shared by the app and the CLI, and the control-character marking both print.
 cli/    Kotlin/Native executable (macosArm64) producing `kdv`, which talks to running app windows over a Unix socket.
 app/    Compose Desktop app (jvm target). commonMain holds state holders and Compose UI; jvmMain holds main(), the folder picker, and packaging config.
+        Bundled images live only under commonMain/composeResources/ (density-qualified PNG); app/art/ holds the SVG originals they are exported from (including app_icon.svg) and is not packaged; app/art/kDiffViewer.icon is the Icon Composer original of the app icon; app/packaging/ holds what packaging uses: kDiffViewer.icns (fallback for macOS 15 and earlier, and the Dock icon for `:app:run`) and app-content/Resources/Assets.car (compiled from the .icon, copied into the bundle's Contents/Resources). Both are committed, so the build does not need Xcode.
 scripts/ large-diff generator for manual performance checks.
 ```
 
@@ -28,6 +29,7 @@ scripts/ large-diff generator for manual performance checks.
 ./gradlew :app:run --args=/abs/path    # run against a repository
 ./gradlew :app:createDistributable     # build app/build/compose/binaries/main/app/kDiffViewer.app
 scripts/generate-large-diff.sh <dir> [ext]   # create a large repository for manual scrolling checks; ext defaults to txt, kt writes Kotlin sources
+xcrun actool app/art/kDiffViewer.icon --compile <out> --app-icon kDiffViewer --platform macosx --target-device mac --minimum-deployment-target 26.0 --output-partial-info-plist <out>/partial.plist   # regenerate Assets.car after editing the icon
 ```
 
 ## Constraints
@@ -62,7 +64,6 @@ Diffs can have thousands of files and hundreds of thousands of rows, so CPU and 
 
 - Branch from `develop` and open pull requests against `develop`. CI runs on pushes to `develop` and on pull requests, on the `xcode-27` runner (macOS 27, arm64): ComposeSyntaxHighlighter bundles its grammar libraries only for macOS 26+, so the tests that load real languages cannot run on Linux.
 - Follow `.github/PULL_REQUEST_TEMPLATE.md`; PRs that change the UI need screenshots.
-- Design specs and plans live under `docs/superpowers/`, which is gitignored and exists only on the owner's machine. The roadmap is the "Out of scope (future list)" section of `docs/superpowers/specs/2026-10-25-kdiffviewer-first-goal-design.md`.
 
 ## When unclear, ask
 

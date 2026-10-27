@@ -200,4 +200,65 @@ class DiffLayoutTest {
     assertEquals(0, layout.fileIndexOfVisible(1))
     assertEquals(1, layout.fileIndexOfVisible(layout.headerVisibleIndex(1) + 1))
   }
+
+  @Test
+  fun endItemFollowsEveryFile() {
+    val plain = diffLayoutOf(state(listOf(a, b)))
+    val layout = diffLayoutOf(state(listOf(a, b)), hasEnd = true)
+    assertEquals(true, layout.hasEndItem)
+    assertEquals(false, plain.hasEndItem)
+    assertEquals(plain.visibleCount + 1, layout.visibleCount)
+    for (fileIndex in 0 until 2) assertEquals(plain.headerVisibleIndex(fileIndex), layout.headerVisibleIndex(fileIndex))
+    for (index in 0 until plain.visibleCount) assertEquals(plain.rowIndexOf(index), layout.rowIndexOf(index))
+    assertEquals(state(listOf(a, b)).rows.size, layout.rowIndexOf(layout.visibleCount - 1))
+    assertEquals(1, layout.fileIndexOfVisible(layout.visibleCount - 1))
+  }
+
+  @Test
+  fun endItemAfterCollapsedLastFile() {
+    val layout = diffLayoutOf(state(listOf(a, b), setOf(1)), hasEnd = true)
+    assertEquals(layout.headerVisibleIndex(1) + 2, layout.visibleCount)
+    assertEquals(state(listOf(a, b)).rows.size, layout.rowIndexOf(layout.visibleCount - 1))
+  }
+
+  @Test
+  fun endItemWithOrphansAndNotes() {
+    val layout = diffLayoutOf(state(listOf(a, b)), notesFiles = setOf(1), hasOrphans = true, hasEnd = true)
+    assertEquals(state(listOf(a, b)).rows.size, layout.rowIndexOf(layout.visibleCount - 1))
+    assertEquals(layout.visibleCount - 2, layout.visibleIndexOf(state(listOf(a, b)).rows.size - 1))
+  }
+
+  @Test
+  fun endItemAloneOnEmptyState() {
+    val layout = diffLayoutOf(state(emptyList()), hasEnd = true)
+    assertEquals(1, layout.visibleCount)
+    assertEquals(-1, layout.rowIndexOf(0))
+  }
+
+  @Test
+  fun lastVisibleIndexEndsEachFile() {
+    val layout = diffLayoutOf(state(listOf(a, b, c)))
+    assertEquals(layout.headerVisibleIndex(1) - 1, layout.lastVisibleIndex(0))
+    assertEquals(layout.headerVisibleIndex(2) - 1, layout.lastVisibleIndex(1))
+    assertEquals(layout.visibleCount - 1, layout.lastVisibleIndex(2))
+  }
+
+  @Test
+  fun lastVisibleIndexSkipsEndItem() {
+    val layout = diffLayoutOf(state(listOf(a, b)), hasEnd = true)
+    assertEquals(layout.visibleCount - 2, layout.lastVisibleIndex(1))
+  }
+
+  @Test
+  fun lastVisibleIndexOfCollapsedFileIsItsHeader() {
+    val layout = diffLayoutOf(state(listOf(a, b), setOf(0)))
+    assertEquals(layout.headerVisibleIndex(0), layout.lastVisibleIndex(0))
+  }
+
+  @Test
+  fun lastVisibleIndexIncludesNotesItem() {
+    val plain = diffLayoutOf(state(listOf(a, b)))
+    val layout = diffLayoutOf(state(listOf(a, b)), notesFiles = setOf(0))
+    assertEquals(plain.lastVisibleIndex(0) + 1, layout.lastVisibleIndex(0))
+  }
 }

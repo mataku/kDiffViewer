@@ -10,8 +10,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.assertCountEquals
@@ -20,6 +22,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
@@ -38,6 +41,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.withKeyDown
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.compose.highlight.core.HighlightSpan
@@ -1089,6 +1093,175 @@ class ViewerScreenTest {
     onNodeWithText("No newline at end of file").performMouseInput { moveTo(center) }
     waitForIdle()
     onNodeWithTag("add-comment").assertDoesNotExist()
+  }
+
+  @Test
+  fun footerShowsAfterLastFileWhenDone() = runComposeUiTest {
+    val files = (0 until 30).map { modified("f$it.kt", 20) }
+    setContent { ViewerScreen(stateOf(files), {}) }
+    onNodeWithTag("diff-list").performScrollToNode(hasTestTag("end-of-diff"))
+    onNodeWithTag("end-of-diff").assertIsDisplayed()
+    onNodeWithText("It fits. You're done.").assertIsDisplayed()
+  }
+
+  @Test
+  fun footerHiddenWhileLoading() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt")), status = LoadStatus.Loading), {}) }
+    onNodeWithTag("end-of-diff").assertDoesNotExist()
+  }
+
+  @Test
+  fun footerHiddenOnNoChanges() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()), {}) }
+    onNodeWithText("No changes").assertIsDisplayed()
+    onNodeWithTag("end-of-diff").assertDoesNotExist()
+  }
+
+  @Test
+  fun footerStaysAfterCollapsingLastFile() = runComposeUiTest {
+    val state = stateOf(listOf(modified("a.kt"), modified("b.kt"))).toggled(1)
+    setContent { ViewerScreen(state, {}) }
+    onNodeWithTag("end-of-diff").assertIsDisplayed()
+  }
+
+  @Test
+  fun footerHidesOnReloadAndReturnsOnDone() = runComposeUiTest {
+    val files = (0 until 30).map { modified("f$it.kt", 20) }
+    var ui by mutableStateOf(stateOf(files).copy(loadId = 1))
+    setContent { ViewerScreen(ui, {}) }
+    onNodeWithTag("diff-list").performScrollToNode(hasTestTag("end-of-diff"))
+    onNodeWithTag("end-of-diff").assertIsDisplayed()
+    ui = ui.copy(status = LoadStatus.Loading, loadId = 2)
+    waitForIdle()
+    onNodeWithTag("end-of-diff").assertDoesNotExist()
+    ui = stateOf(files).copy(loadId = 2)
+    waitForIdle()
+    onNodeWithTag("diff-list").performScrollToNode(hasTestTag("end-of-diff"))
+    onNodeWithTag("end-of-diff").assertIsDisplayed()
+  }
+
+  private fun ComposeUiTest.listPixels() = onNodeWithTag("diff-list").captureToImage().toPixelMap()
+
+  private fun ComposeUiTest.cornerOf(tag: String): IntOffset {
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val node = onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+    return IntOffset((node.left - list.left).toInt(), (node.top - list.top).toInt())
+  }
+
+  @Test
+  fun fileFrameRoundsHeaderCorners() = runComposeUiTest {
+    setContent { Box(Modifier.size(800.dp, 600.dp)) { ViewerScreen(stateOf(listOf(modified("a.kt"), modified("b.kt"))), {}) } }
+    val pixels = listPixels()
+    val corner = cornerOf("file-header-0")
+    assertEquals(LightDiffColors.background, pixels[corner.x, corner.y])
+    assertEquals(LightDiffColors.border, pixels[corner.x + 10, corner.y])
+    assertEquals(LightDiffColors.border, pixels[corner.x, corner.y + 20])
+  }
+
+  @Test
+  fun fileFrameRoundsLastRowCorners() = runComposeUiTest {
+    setContent { Box(Modifier.size(800.dp, 600.dp)) { ViewerScreen(stateOf(listOf(modified("a.kt"), modified("b.kt"))), {}) } }
+    val pixels = listPixels()
+    val next = cornerOf("file-header-1")
+    val bottom = next.y - 12 - 1
+    assertEquals(LightDiffColors.background, pixels[next.x, bottom])
+    assertEquals(LightDiffColors.border, pixels[next.x + 10, bottom])
+  }
+
+  @Test
+  fun collapsedFileFrameIsClosed() = runComposeUiTest {
+    setContent { Box(Modifier.size(800.dp, 600.dp)) { ViewerScreen(stateOf(listOf(modified("a.kt"), modified("b.kt"))).toggled(0), {}) } }
+    val pixels = listPixels()
+    val header = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val x = (header.left - list.left).toInt()
+    val bottom = (header.bottom - list.top).toInt() - 1
+    assertEquals(LightDiffColors.background, pixels[x, bottom])
+    assertEquals(LightDiffColors.border, pixels[x + 10, bottom])
+  }
+
+  @Test
+  fun framesSurviveReloadWhileScrolled() = runComposeUiTest {
+    val files = (0 until 30).map { modified("f$it.kt", 20) }
+    var ui by mutableStateOf(stateOf(files).copy(loadId = 1))
+    setContent { ViewerScreen(ui, {}) }
+    onNodeWithTag("diff-list").performScrollToIndex(files.size * 10)
+    waitForIdle()
+    ui = ViewerUiState(RepoPath("/repo"), LoadStatus.Loading, loadId = 2)
+    waitForIdle()
+    ui = stateOf(listOf(modified("only.kt"))).copy(loadId = 2)
+    waitForIdle()
+    onNodeWithTag("file-header-0").assertIsDisplayed()
+  }
+
+  @Test
+  fun fileFramesStayInsideListDuringHeaderHandoff() = runComposeUiTest {
+    setContent { Box(Modifier.size(800.dp, 600.dp)) { ViewerScreen(stateOf(listOf(modified("a.kt", 40), modified("b.kt", 40))), {}) } }
+    onNodeWithTag("diff-list").performScrollToIndex(41)
+    waitForIdle()
+    val pixels = onRoot().captureToImage().toPixelMap()
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val top = list.top.toInt()
+    val left = list.left.toInt()
+    for (y in (top - 30) until (top - 1)) {
+      for (x in (left + 15)..(left + 40)) {
+        val pixel = pixels[x, y]
+        assertTrue(pixel != LightDiffColors.border && pixel != LightDiffColors.background, "frame painted at ($x, $y) above the list")
+      }
+    }
+  }
+
+  @Test
+  fun hunkHeaderMatchesCodeLineHeight() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) }
+    val code = onNodeWithText("TWO", useUnmergedTree = true).fetchSemanticsNode().size.height
+    val hunk = onNodeWithText("@@ -1,1 +1,1 @@ fun main()", useUnmergedTree = true).fetchSemanticsNode().size.height
+    assertEquals(code, hunk)
+  }
+
+  @Test
+  fun noNewlineRowMatchesCodeLineHeight() = runComposeUiTest {
+    val body = listOf(DiffLine(LineKind.Added, "x", null, 1), DiffLine(LineKind.NoNewlineAtEof, "", null, null))
+    val file = FileDiff(null, "n.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", body))))
+    setContent { ViewerScreen(stateOf(listOf(file)), {}) }
+    val code = onNodeWithText("x", useUnmergedTree = true).fetchSemanticsNode().size.height
+    val noNewline = onNodeWithText("No newline at end of file", useUnmergedTree = true).fetchSemanticsNode().size.height
+    assertEquals(code, noNewline)
+  }
+
+  @Test
+  fun scrollJumpBottomShowsFooter() = runComposeUiTest {
+    val jumps = ScrollJumps()
+    setContent { ViewerScreen(stateOf((0 until 30).map { modified("f$it.kt", 20) }), {}, scrollJumps = jumps) }
+    waitForIdle()
+    jumps.request(ScrollJump.Bottom)
+    waitForIdle()
+    onNodeWithTag("end-of-diff").assertIsDisplayed()
+  }
+
+  @Test
+  fun scrollJumpTopReturnsToFirstItem() = runComposeUiTest {
+    val jumps = ScrollJumps()
+    setContent { ViewerScreen(stateOf((0 until 30).map { modified("f$it.kt", 20) }), {}, scrollJumps = jumps) }
+    waitForIdle()
+    jumps.request(ScrollJump.Bottom)
+    waitForIdle()
+    onNodeWithTag("file-header-0").assertDoesNotExist()
+    jumps.request(ScrollJump.Top)
+    waitForIdle()
+    onNodeWithTag("file-header-0").assertIsDisplayed()
+  }
+
+  @Test
+  fun scrollJumpOnNoChangesIsNoOp() = runComposeUiTest {
+    val jumps = ScrollJumps()
+    setContent { ViewerScreen(stateOf(emptyList()), {}, scrollJumps = jumps) }
+    waitForIdle()
+    jumps.request(ScrollJump.Bottom)
+    waitForIdle()
+    jumps.request(ScrollJump.Top)
+    waitForIdle()
+    onNodeWithText("No changes").assertIsDisplayed()
   }
 }
 
