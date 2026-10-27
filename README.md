@@ -54,6 +54,8 @@ kdv ./ --base HEAD
 
 `--base HEAD` shows only uncommitted changes.
 
+The base can also be changed from the toolbar: click the base tag to open a popup that lists local and remote branches and accepts a typed revision.
+
 ## Review comments
 
 Comment bodies render as GitHub-style Markdown: headings, emphasis, lists, task lists, block quotes, links, and code blocks, with fenced code in the bundled languages syntax-highlighted. Tables and images are not rendered. The comment composer has Write / Preview; press ⌘⇧P to switch between them.

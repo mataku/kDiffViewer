@@ -56,6 +56,8 @@ import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.ReviewState
 import io.github.mataku.kdiffviewer.app.review.buildPlacements
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
+import io.github.mataku.kdiffviewer.core.model.BaseSpec
+import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -255,6 +257,43 @@ class ViewerScreenTest {
     onNodeWithTag("head-label", useUnmergedTree = true).assertTextEquals("abc1234")
     onNodeWithTag("head-commit-icon", useUnmergedTree = true).assertIsDisplayed()
     onNodeWithTag("head-branch-icon", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun clickingTheBaseTagOpensThePicker() = runComposeUiTest {
+    var switched: BaseSpec? = null
+    setContent {
+      ViewerScreen(
+        stateOf(emptyList()).copy(base = ResolvedBase.Commit("origin/develop", "m1", "a1b2c3d"), head = HeadRef.Branch("feature/x")),
+        {},
+        loadBranches = { listOf(BranchRef("main", false)) },
+        onSwitchBase = {
+          switched = it
+          null
+        },
+      )
+    }
+    onNodeWithTag("base-picker").performClick()
+    waitForIdle()
+    onNodeWithTag("base-item-local-main").performClick()
+    waitForIdle()
+    assertEquals(BaseSpec.Ref("main"), switched)
+  }
+
+  @Test
+  fun baseTagAndPopupAreTitleBarClientRegions() = runComposeUiTest {
+    val regions = TitleBarRegions()
+    setContent {
+      CompositionLocalProvider(LocalTitleBarRegions provides regions) {
+        ViewerScreen(stateOf(emptyList()).copy(base = ResolvedBase.Commit("origin/develop", "m1", "a1b2c3d"), head = HeadRef.Branch("feature/x")), {})
+      }
+    }
+    assertTrue(regions.isClientArea(onNodeWithTag("base-picker").fetchSemanticsNode().boundsInWindow.center))
+    onNodeWithTag("base-picker").performClick()
+    waitForIdle()
+    val popup = onNodeWithTag("base-popup").fetchSemanticsNode().boundsInWindow
+    assertTrue(regions.isClientArea(popup.center))
+    assertFalse(regions.isClientArea(Offset(popup.right + 20f, popup.center.y)))
   }
 
   @Test

@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.core.git
 
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
+import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
@@ -313,5 +314,41 @@ class GitDiffSourceTest {
     val e = assertFailsWith<DiffLoadException.GitFailed> { resolve(BaseSpec.Ref("x")) }
     assertEquals(mergeBase("x1"), e.args)
     assertEquals("boom", e.stderr)
+  }
+
+  private val forEachRef = listOf("for-each-ref", "--format=%(refname)%00%(symref)", "--sort=-committerdate", "refs/heads", "refs/remotes")
+
+  @Test
+  fun branchesMapsLocalAndRemoteRefsInGitOrderAndSkipsSymrefs() = runTest {
+    runner.runResults[forEachRef] = GitResult(
+      0,
+      "refs/heads/feature-x\u0000\nrefs/remotes/origin/HEAD\u0000refs/remotes/origin/develop\nrefs/remotes/origin/develop\u0000\nrefs/heads/main\u0000\n",
+      "",
+    )
+    val result = source.branches(RepoPath("/repo/sub"))
+    assertEquals(listOf(BranchRef("feature-x", false), BranchRef("origin/develop", true), BranchRef("main", false)), result)
+    val call = runner.runCalls.single()
+    assertEquals(forEachRef, call.args)
+    assertEquals("/repo/sub", call.workingDir)
+  }
+
+  @Test
+  fun branchesMapsAnyRemote() = runTest {
+    runner.runResults[forEachRef] = GitResult(0, "refs/remotes/upstream/main\u0000\n", "")
+    assertEquals(listOf(BranchRef("upstream/main", true)), source.branches(RepoPath("/repo")))
+  }
+
+  @Test
+  fun branchesIsEmptyWithoutRefs() = runTest {
+    runner.runResults[forEachRef] = GitResult(0, "", "")
+    assertEquals(emptyList(), source.branches(RepoPath("/repo")))
+  }
+
+  @Test
+  fun branchesFailureIsGitFailed() = runTest {
+    runner.runResults[forEachRef] = GitResult(128, "", "fatal: x")
+    val e = assertFailsWith<DiffLoadException.GitFailed> { source.branches(RepoPath("/repo")) }
+    assertEquals(forEachRef, e.args)
+    assertEquals(128, e.exitCode)
   }
 }

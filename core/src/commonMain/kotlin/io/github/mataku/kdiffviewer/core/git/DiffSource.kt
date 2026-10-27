@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.core.git
 
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
+import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
@@ -17,6 +18,8 @@ interface DiffSource {
   fun load(repo: RepoPath, base: ResolvedBase): Flow<FileDiff>
 
   suspend fun head(repo: RepoPath): HeadRef?
+
+  suspend fun branches(repo: RepoPath): List<BranchRef>
 
   suspend fun root(repo: RepoPath): RepoPath? = null
 }
@@ -125,5 +128,22 @@ class GitDiffSource(
     if (branch.exitCode == 0) return HeadRef.Branch(branch.stdout.trimEnd('\n'))
     val hash = runner.run(repo.value, listOf("rev-parse", "--short", "HEAD"))
     return if (hash.exitCode == 0) HeadRef.Detached(hash.stdout.trimEnd('\n')) else null
+  }
+
+  override suspend fun branches(repo: RepoPath): List<BranchRef> {
+    val args = listOf("for-each-ref", "--format=%(refname)%00%(symref)", "--sort=-committerdate", "refs/heads", "refs/remotes")
+    val result = runner.run(repo.value, args)
+    if (result.exitCode != 0) throw DiffLoadException.GitFailed(args, result.exitCode, result.stderr)
+    return result.stdout.split('\n').mapNotNull { line ->
+      if (line.isEmpty()) return@mapNotNull null
+      val refname = line.substringBefore('\u0000')
+      val symref = line.substringAfter('\u0000', "")
+      when {
+        symref.isNotEmpty() -> null
+        refname.startsWith("refs/heads/") -> BranchRef(refname.removePrefix("refs/heads/"), false)
+        refname.startsWith("refs/remotes/") -> BranchRef(refname.removePrefix("refs/remotes/"), true)
+        else -> null
+      }
+    }
   }
 }

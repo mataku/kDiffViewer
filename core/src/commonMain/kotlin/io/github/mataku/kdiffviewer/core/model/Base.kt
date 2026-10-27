@@ -11,3 +11,5 @@ sealed interface ResolvedBase {
 
   data object EmptyTree : ResolvedBase
 }
+
+data class BranchRef(val name: String, val remote: Boolean)

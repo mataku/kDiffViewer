@@ -9,6 +9,7 @@ import io.github.mataku.kdiffviewer.app.highlight.textFile
 import io.github.mataku.kdiffviewer.core.git.DiffLoadException
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
+import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -74,6 +75,7 @@ class DiffViewerStateTest {
   private class FakeSource(
     private val heads: List<HeadRef?> = emptyList(),
     private val roots: Map<RepoPath, RepoPath> = emptyMap(),
+    private val branches: List<BranchRef> = emptyList(),
     private val bases: suspend (Int, BaseSpec) -> ResolvedBase = { _, _ -> headBase },
     private val block: (Int) -> Flow<FileDiff>,
   ) : DiffSource {
@@ -91,10 +93,16 @@ class DiffViewerStateTest {
       return block(calls++)
     }
     override suspend fun head(repo: RepoPath): HeadRef? = heads.getOrNull(headCalls++)
+    override suspend fun branches(repo: RepoPath): List<BranchRef> = branches
     override suspend fun root(repo: RepoPath): RepoPath? {
       rootCalls++
       return roots[repo]
     }
+  }
+
+  private suspend fun delayedBase(): ResolvedBase {
+    delay(200)
+    return ResolvedBase.Commit("x", "x1", "x1")
   }
 
   private fun TestScope.stateFor(source: DiffSource?) = DiffViewerState(source, this, 16)
@@ -146,14 +154,15 @@ class DiffViewerStateTest {
   }
 
   @Test
-  fun differentBaseSpecDoesNotKeepPreviousContent() = runTest(StandardTestDispatcher()) {
+  fun differentBaseSpecKeepsPreviousContentAndClearsResolvedBase() = runTest(StandardTestDispatcher()) {
     val state = stateFor(FakeSource { flow { emit(file("a")) } })
     state.open(repo)
     advanceUntilIdle()
     state.open(repo, BaseSpec.Ref("x"))
     assertEquals(LoadStatus.Loading, state.uiState.value.status)
-    assertEquals(emptyList(), state.uiState.value.files)
+    assertEquals(listOf(file("a")), state.uiState.value.files)
     assertNull(state.uiState.value.base)
+    assertEquals(BaseSpec.Ref("x"), state.uiState.value.baseSpec)
   }
 
   @Test
@@ -320,6 +329,7 @@ class DiffViewerStateTest {
       override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase = ResolvedBase.EmptyTree
       override fun load(repo: RepoPath, base: ResolvedBase): Flow<FileDiff> = flow { emit(file("a")) }
       override suspend fun head(repo: RepoPath): HeadRef? = throw IllegalStateException("boom")
+      override suspend fun branches(repo: RepoPath): List<BranchRef> = emptyList()
     }
     val state = stateFor(source)
     state.open(repo)
@@ -357,6 +367,143 @@ class DiffViewerStateTest {
     assertEquals(listOf(file("a"), file("b")), state.uiState.value.files)
     assertEquals(LoadStatus.Done, state.uiState.value.status)
     assertTrue(state.uiState.value.loadId > firstLoadId)
+  }
+
+  @Test
+  fun baseChangeKeepsPreviousContentUntilLoadCompletes() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(
+      FakeSource(bases = { i, _ -> if (i == 0) headBase else delayedBase() }) { call ->
+        if (call == 0) {
+          flow { emit(file("a")) }
+        } else {
+          flow {
+            delay(100)
+            emit(file("a"))
+            delay(100)
+            emit(file("b"))
+          }
+        }
+      },
+    )
+    state.open(repo)
+    advanceUntilIdle()
+    val firstLoadId = state.uiState.value.loadId
+    state.open(repo, BaseSpec.Ref("x"))
+    advanceTimeBy(150)
+    runCurrent()
+    assertEquals(listOf(file("a")), state.uiState.value.files)
+    assertEquals(LoadStatus.Loading, state.uiState.value.status)
+    assertEquals(firstLoadId, state.uiState.value.loadId)
+    assertEquals(BaseSpec.Ref("x"), state.uiState.value.baseSpec)
+    assertNull(state.uiState.value.base)
+    advanceUntilIdle()
+    assertEquals(listOf(file("a"), file("b")), state.uiState.value.files)
+    assertEquals(LoadStatus.Done, state.uiState.value.status)
+    assertTrue(state.uiState.value.loadId > firstLoadId)
+  }
+
+  @Test
+  fun switchBaseResolvesBeforeOpening() = runTest(StandardTestDispatcher()) {
+    val resolved = ResolvedBase.Commit("x", "x1", "x1")
+    val source = FakeSource(bases = { i, _ -> if (i == 0) headBase else resolved }) { flow { emit(file("a")) } }
+    val state = stateFor(source)
+    state.open(repo)
+    advanceUntilIdle()
+    assertNull(state.switchBase(BaseSpec.Ref("x")))
+    advanceUntilIdle()
+    assertEquals(listOf<BaseSpec>(BaseSpec.Default, BaseSpec.Ref("x"), BaseSpec.Ref("x")), source.specs)
+    assertEquals(resolved, state.uiState.value.base)
+    assertEquals(BaseSpec.Ref("x"), state.uiState.value.baseSpec)
+    assertEquals(2, source.calls)
+  }
+
+  @Test
+  fun switchBaseFailureLeavesStateUntouched() = runTest(StandardTestDispatcher()) {
+    val source = FakeSource(bases = { i, spec -> if (i == 0) headBase else throw DiffLoadException.UnknownBase((spec as BaseSpec.Ref).ref) }) { flow { emit(file("a")) } }
+    val state = stateFor(source)
+    state.open(repo)
+    advanceUntilIdle()
+    val before = state.uiState.value
+    assertEquals(ViewerError.UnknownBase("nope"), state.switchBase(BaseSpec.Ref("nope")))
+    advanceUntilIdle()
+    assertSame(before, state.uiState.value)
+    assertEquals(1, source.calls)
+  }
+
+  @Test
+  fun switchBaseWithSameSpecReloads() = runTest(StandardTestDispatcher()) {
+    val source = FakeSource { flow { emit(file("a")) } }
+    val state = stateFor(source)
+    state.open(repo)
+    advanceUntilIdle()
+    assertNull(state.switchBase(BaseSpec.Default))
+    advanceUntilIdle()
+    assertEquals(2, source.calls)
+  }
+
+  @Test
+  fun switchBaseFinishingAfterANewerOpenDoesNotReopen() = runTest(StandardTestDispatcher()) {
+    val otherRepo = RepoPath("/other")
+    val source = FakeSource(bases = { i, _ -> if (i == 1) delay(100).let { headBase } else headBase }) { flow { emit(file("a")) } }
+    val state = stateFor(source)
+    state.open(repo)
+    advanceUntilIdle()
+    var result: ViewerError? = ViewerError.GitNotFound
+    launch { result = state.switchBase(BaseSpec.Ref("x")) }
+    runCurrent()
+    state.open(otherRepo)
+    advanceUntilIdle()
+    assertNull(result)
+    assertEquals(otherRepo, state.uiState.value.repo)
+    assertEquals(BaseSpec.Default, state.uiState.value.baseSpec)
+    assertEquals(2, source.calls)
+    assertEquals(listOf<BaseSpec>(BaseSpec.Default, BaseSpec.Ref("x"), BaseSpec.Default), source.specs)
+  }
+
+  @Test
+  fun switchBaseRejectsOptionLikeRefWithoutGit() = runTest(StandardTestDispatcher()) {
+    val source = FakeSource { flow {} }
+    val state = stateFor(source)
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(ViewerError.UnknownBase("--x"), state.switchBase(BaseSpec.Ref("--x")))
+    assertEquals(listOf<BaseSpec>(BaseSpec.Default), source.specs)
+  }
+
+  @Test
+  fun switchBaseWithoutRepoReturnsMissingSourceError() = runTest(StandardTestDispatcher()) {
+    assertEquals(ViewerError.GitNotFound, stateFor(FakeSource { flow {} }).switchBase(BaseSpec.Default))
+  }
+
+  @Test
+  fun switchBaseDuringLoadCancelsIt() = runTest(StandardTestDispatcher()) {
+    val source = FakeSource { call ->
+      if (call == 0) {
+        flow {
+          delay(1_000)
+          emit(file("slow"))
+        }
+      } else {
+        flow { emit(file("b")) }
+      }
+    }
+    val state = stateFor(source)
+    state.open(repo)
+    runCurrent()
+    assertNull(state.switchBase(BaseSpec.Ref("x")))
+    advanceUntilIdle()
+    assertEquals(listOf(file("b")), state.uiState.value.files)
+    assertEquals(LoadStatus.Done, state.uiState.value.status)
+  }
+
+  @Test
+  fun branchesDelegatesToSourceAndIsEmptyWithoutOne() = runTest(StandardTestDispatcher()) {
+    val source = FakeSource(branches = listOf(BranchRef("main", false))) { flow {} }
+    val state = stateFor(source)
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(listOf(BranchRef("main", false)), state.branches())
+    assertEquals(emptyList(), stateFor(null).branches())
   }
 
   @Test
