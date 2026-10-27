@@ -5,6 +5,7 @@ import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 
 class FileTreeTest {
   private fun file(path: String) = FileDiff(path, path, ChangeType.Modified, false, DiffContent.Text(emptyList()))
@@ -83,6 +84,77 @@ class FileTreeTest {
         TreeEntry(TreeRow(0, "g.kt", 2), null, false),
       ),
       visibleTree(nested, setOf("a", "a/b")),
+    )
+  }
+
+  private val filterFiles = listOf(file("src/a.kt"), file("src/b.kt"), file("docs/ドキュメント.md"), file("README.md"), file("lib/x/deep.kt"))
+  private val filterRows = buildFileTree(filterFiles)
+
+  @Test
+  fun filterKeepsMatchingFilesWithAncestorsAndDropsEmptyDirectories() {
+    assertEquals(
+      listOf(TreeRow(0, "src", null), TreeRow(1, "b.kt", 1)),
+      filterTree(filterRows, filterFiles, "b.kt"),
+    )
+  }
+
+  @Test
+  fun directoryNameInQueryKeepsWholeSubtree() {
+    assertEquals(
+      listOf(TreeRow(0, "src", null), TreeRow(1, "a.kt", 0), TreeRow(1, "b.kt", 1)),
+      filterTree(filterRows, filterFiles, "src"),
+    )
+  }
+
+  @Test
+  fun queryMayContainPathSeparators() {
+    assertEquals(listOf(TreeRow(0, "lib", null), TreeRow(1, "x", null), TreeRow(2, "deep.kt", 4)), filterTree(filterRows, filterFiles, "x/deep"))
+  }
+
+  @Test
+  fun matchIsCaseInsensitiveAndHandlesNonAscii() {
+    assertEquals(listOf(TreeRow(0, "README.md", 3)), filterTree(filterRows, filterFiles, "readme"))
+    assertEquals(listOf(TreeRow(0, "docs", null), TreeRow(1, "ドキュメント.md", 2)), filterTree(filterRows, filterFiles, "ドキュ"))
+  }
+
+  @Test
+  fun queryIsTrimmed() {
+    assertEquals(listOf(TreeRow(0, "README.md", 3)), filterTree(filterRows, filterFiles, "  README  "))
+  }
+
+  @Test
+  fun whitespaceQueryReturnsTheInputInstance() {
+    assertSame(filterRows, filterTree(filterRows, filterFiles, ""))
+    assertSame(filterRows, filterTree(filterRows, filterFiles, " \t"))
+  }
+
+  @Test
+  fun noMatchReturnsEmptyList() {
+    assertEquals(emptyList(), filterTree(filterRows, filterFiles, "zzz"))
+  }
+
+  @Test
+  fun duplicatePathsAreBothKept() {
+    val files = listOf(file("a.txt"), file("a.txt"))
+    assertEquals(listOf(TreeRow(0, "a.txt", 0), TreeRow(0, "a.txt", 1)), filterTree(buildFileTree(files), files, "a"))
+  }
+
+  @Test
+  fun siblingAfterDeeperDirectoryKeepsOnlyItsOwnAncestors() {
+    val files = listOf(file("a/b/c.kt"), file("a/f.kt"))
+    assertEquals(listOf(TreeRow(0, "a", null), TreeRow(1, "f.kt", 1)), filterTree(buildFileTree(files), files, "f.kt"))
+  }
+
+  @Test
+  fun filteredRowsRoundTripThroughVisibleTree() {
+    val filtered = filterTree(filterRows, filterFiles, "deep")
+    assertEquals(
+      listOf(
+        TreeEntry(TreeRow(0, "lib", null), "lib", false),
+        TreeEntry(TreeRow(1, "x", null), "lib/x", false),
+        TreeEntry(TreeRow(2, "deep.kt", 4), null, false),
+      ),
+      visibleTree(filtered, emptySet()),
     )
   }
 }

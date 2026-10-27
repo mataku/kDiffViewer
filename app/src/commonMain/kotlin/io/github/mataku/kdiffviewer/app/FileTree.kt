@@ -76,6 +76,37 @@ class FileTreeBuilder {
 
 fun buildFileTree(files: List<FileDiff>): List<TreeRow> = FileTreeBuilder().apply { add(files) }.rows()
 
+fun filterTree(rows: List<TreeRow>, files: List<FileDiff>, query: String): List<TreeRow> {
+  val needle = query.trim()
+  if (needle.isEmpty()) return rows
+  val result = ArrayList<TreeRow>()
+  val pending = ArrayList<TreeRow>()
+  val emitted = ArrayList<Boolean>()
+  for (row in rows) {
+    while (pending.size > row.depth) {
+      pending.removeAt(pending.lastIndex)
+      emitted.removeAt(emitted.lastIndex)
+    }
+    val fileIndex = row.fileIndex
+    if (fileIndex == null) {
+      pending += row
+      emitted += false
+      continue
+    }
+    val path = files.getOrNull(fileIndex)?.displayPath ?: continue
+    if (path.contains(needle, ignoreCase = true)) {
+      for (i in pending.indices) {
+        if (!emitted[i]) {
+          result += pending[i]
+          emitted[i] = true
+        }
+      }
+      result += row
+    }
+  }
+  return result
+}
+
 @Immutable
 data class TreeEntry(val row: TreeRow, val directoryPath: String?, val collapsed: Boolean)
 
