@@ -10,8 +10,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.assertCountEquals
@@ -20,6 +22,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
@@ -38,6 +41,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.withKeyDown
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.compose.highlight.core.HighlightSpan
@@ -1134,6 +1138,60 @@ class ViewerScreenTest {
     waitForIdle()
     onNodeWithTag("diff-list").performScrollToNode(hasTestTag("end-of-diff"))
     onNodeWithTag("end-of-diff").assertIsDisplayed()
+  }
+
+  private fun ComposeUiTest.listPixels() = onNodeWithTag("diff-list").captureToImage().toPixelMap()
+
+  private fun ComposeUiTest.cornerOf(tag: String): IntOffset {
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val node = onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+    return IntOffset((node.left - list.left).toInt(), (node.top - list.top).toInt())
+  }
+
+  @Test
+  fun fileFrameRoundsHeaderCorners() = runComposeUiTest {
+    setContent { Box(Modifier.size(800.dp, 600.dp)) { ViewerScreen(stateOf(listOf(modified("a.kt"), modified("b.kt"))), {}) } }
+    val pixels = listPixels()
+    val corner = cornerOf("file-header-0")
+    assertEquals(LightDiffColors.background, pixels[corner.x, corner.y])
+    assertEquals(LightDiffColors.border, pixels[corner.x + 10, corner.y])
+    assertEquals(LightDiffColors.border, pixels[corner.x, corner.y + 20])
+  }
+
+  @Test
+  fun fileFrameRoundsLastRowCorners() = runComposeUiTest {
+    setContent { Box(Modifier.size(800.dp, 600.dp)) { ViewerScreen(stateOf(listOf(modified("a.kt"), modified("b.kt"))), {}) } }
+    val pixels = listPixels()
+    val next = cornerOf("file-header-1")
+    val bottom = next.y - 12 - 1
+    assertEquals(LightDiffColors.background, pixels[next.x, bottom])
+    assertEquals(LightDiffColors.border, pixels[next.x + 10, bottom])
+  }
+
+  @Test
+  fun collapsedFileFrameIsClosed() = runComposeUiTest {
+    setContent { Box(Modifier.size(800.dp, 600.dp)) { ViewerScreen(stateOf(listOf(modified("a.kt"), modified("b.kt"))).toggled(0), {}) } }
+    val pixels = listPixels()
+    val header = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val x = (header.left - list.left).toInt()
+    val bottom = (header.bottom - list.top).toInt() - 1
+    assertEquals(LightDiffColors.background, pixels[x, bottom])
+    assertEquals(LightDiffColors.border, pixels[x + 10, bottom])
+  }
+
+  @Test
+  fun framesSurviveReloadWhileScrolled() = runComposeUiTest {
+    val files = (0 until 30).map { modified("f$it.kt", 20) }
+    var ui by mutableStateOf(stateOf(files).copy(loadId = 1))
+    setContent { ViewerScreen(ui, {}) }
+    onNodeWithTag("diff-list").performScrollToIndex(files.size * 10)
+    waitForIdle()
+    ui = ViewerUiState(RepoPath("/repo"), LoadStatus.Loading, loadId = 2)
+    waitForIdle()
+    ui = stateOf(listOf(modified("only.kt"))).copy(loadId = 2)
+    waitForIdle()
+    onNodeWithTag("file-header-0").assertIsDisplayed()
   }
 }
 

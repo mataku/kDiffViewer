@@ -1,6 +1,22 @@
 package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.foundation.lazy.LazyListItemInfo
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import io.github.mataku.kdiffviewer.app.DiffLayout
 
 data class FileFrame(val top: Float, val bottom: Float, val roundTop: Boolean, val roundBottom: Boolean)
@@ -42,4 +58,69 @@ fun fileFrames(layout: DiffLayout, items: List<LazyListItemInfo>, headerInset: F
   }
   emit()
   return frames
+}
+
+private val FrameRadius = 6.dp
+private val FrameStroke = 1.dp
+
+class FileFramePainter(val mask: Path, val stroke: Stroke, val radius: Float, val strokeWidth: Float)
+
+@Composable
+fun rememberFileFramePainter(): FileFramePainter {
+  val density = LocalDensity.current
+  return remember(density) {
+    val radius = with(density) { FrameRadius.toPx() }
+    val strokeWidth = with(density) { FrameStroke.toPx() }
+    FileFramePainter(cornerMask(radius + strokeWidth / 2), Stroke(strokeWidth), radius, strokeWidth)
+  }
+}
+
+private fun cornerMask(side: Float): Path = Path().apply {
+  moveTo(0f, 0f)
+  lineTo(side, 0f)
+  arcTo(Rect(0f, 0f, side * 2, side * 2), 270f, -90f, forceMoveTo = false)
+  close()
+}
+
+fun Modifier.fileFrames(
+  listState: LazyListState,
+  layout: DiffLayout,
+  painter: FileFramePainter,
+  border: Color,
+  background: Color,
+  headerInset: Float,
+  margin: Float,
+): Modifier = drawWithContent {
+  drawContent()
+  val strokeWidth = painter.strokeWidth
+  val half = strokeWidth / 2
+  val left = margin
+  val right = size.width - margin
+  val frames = fileFrames(layout, listState.layoutInfo.visibleItemsInfo, headerInset, size.height, painter.radius + strokeWidth)
+  for (frame in frames) {
+    if (frame.roundTop) {
+      drawCornerMask(painter.mask, background, left, frame.top, 0f)
+      drawCornerMask(painter.mask, background, right, frame.top, 90f)
+    }
+    if (frame.roundBottom) {
+      drawCornerMask(painter.mask, background, right, frame.bottom, 180f)
+      drawCornerMask(painter.mask, background, left, frame.bottom, 270f)
+    }
+    drawRoundRect(
+      color = border,
+      topLeft = Offset(left + half, frame.top + half),
+      size = Size(right - left - strokeWidth, frame.bottom - frame.top - strokeWidth),
+      cornerRadius = CornerRadius(painter.radius),
+      style = painter.stroke,
+    )
+  }
+}
+
+private fun DrawScope.drawCornerMask(mask: Path, color: Color, x: Float, y: Float, degrees: Float) {
+  withTransform({
+    translate(x, y)
+    rotate(degrees, Offset.Zero)
+  }) {
+    drawPath(mask, color)
+  }
 }

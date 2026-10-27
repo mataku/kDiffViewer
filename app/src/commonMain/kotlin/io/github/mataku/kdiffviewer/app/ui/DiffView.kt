@@ -118,6 +118,10 @@ fun DiffView(
   val typography = LocalDiffTypography.current
   val layouts = remember { VisibleLineLayouts() }
   val codeStartX = with(LocalDensity.current) { (ContentHorizontalMargin + typography.lineNumberWidth * 2 + 16.dp).toPx() }
+  val colors = LocalDiffColors.current
+  val framePainter = rememberFileFramePainter()
+  val frameInset = with(LocalDensity.current) { FileHeaderTopMargin.toPx() }
+  val frameMargin = with(LocalDensity.current) { ContentHorizontalMargin.toPx() }
   val shown = placements.loadId == loadId
   val draft = if (shown) draftTarget else null
   val draftPlacement = (draft as? DraftTarget.NewThread)?.placement
@@ -153,7 +157,11 @@ fun DiffView(
   val selectionModifier = Modifier.diffSelectionGesture(listState, selection, selectionSource, layouts, rows, layout, codeStartX, typography.tabWidth)
   LazyColumn(
     state = listState,
-    modifier = modifier.testTag("diff-list").then(hoverModifier).then(selectionModifier),
+    modifier = modifier
+      .testTag("diff-list")
+      .then(hoverModifier)
+      .then(selectionModifier)
+      .fileFrames(listState, layout, framePainter, colors.border, colors.background, frameInset, frameMargin),
     contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = FileHeaderTopMargin),
   ) {
     if (layout.hasOrphanItem) {
@@ -238,7 +246,6 @@ private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment
       .background(colors.background)
       .padding(top = FileHeaderTopMargin)
       .background(colors.fileHeaderBackground)
-      .border(1.dp, colors.border)
       .focusProperties { canFocus = false }
       .clickable(interactionSource = null, indication = null, onClick = onClick)
       .padding(horizontal = 12.dp, vertical = 8.dp)

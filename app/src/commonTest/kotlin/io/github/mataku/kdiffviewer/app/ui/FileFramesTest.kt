@@ -2,12 +2,12 @@ package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.foundation.lazy.LazyListItemInfo
 import io.github.mataku.kdiffviewer.app.CollapsedFile
+import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.diffLayoutOf
 import io.github.mataku.kdiffviewer.app.fingerprint
 import io.github.mataku.kdiffviewer.app.flattenRows
-import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -24,8 +24,7 @@ class FileFramesTest {
     override val key: Any get() = index
   }
 
-  private fun items(first: Int, last: Int, firstOffset: Int = 0, size: Int = 10): List<LazyListItemInfo> =
-    (first..last).mapIndexed { i, index -> Item(index, firstOffset + i * size, size) }
+  private fun items(first: Int, last: Int, firstOffset: Int = 0, size: Int = 10): List<LazyListItemInfo> = (first..last).mapIndexed { i, index -> Item(index, firstOffset + i * size, size) }
 
   private fun file(path: String, lines: Int) = FileDiff(
     path,
