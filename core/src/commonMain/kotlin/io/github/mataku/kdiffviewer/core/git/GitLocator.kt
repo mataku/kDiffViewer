@@ -25,7 +25,7 @@ object GitLocator {
     }
     val fromPath = pathEnv.orEmpty()
       .split(':')
-      .filter { it.isNotEmpty() && it.trimEnd('/') != USR_BIN }
+      .filter { it.startsWith("/") && it.trimEnd('/') != USR_BIN }
       .map { "${it.trimEnd('/')}/git" }
     for (candidate in (fromPath + FALLBACK_PATHS).distinct()) {
       val info = probe(candidate) ?: continue

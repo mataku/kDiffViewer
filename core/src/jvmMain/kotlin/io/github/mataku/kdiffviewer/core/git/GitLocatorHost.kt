@@ -7,7 +7,7 @@ private const val VERSION_PREFIX = "git version"
 
 fun probeGit(path: String, timeoutMillis: Long = 2_000): GitInfo? {
   val file = File(path)
-  if (!file.isFile || !file.canExecute()) return null
+  if (!file.isAbsolute || !file.isFile || !file.canExecute()) return null
   val process = try {
     ProcessBuilder(path, "--version")
       .redirectError(ProcessBuilder.Redirect.DISCARD)

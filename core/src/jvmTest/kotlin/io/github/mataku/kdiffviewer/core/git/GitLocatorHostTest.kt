@@ -16,6 +16,14 @@ class GitLocatorHostTest {
   }
 
   @Test
+  fun probeRejectsRelativePathEvenWhenItResolves() {
+    val script = writeScript(newTempDir(), "git", "echo 'git version 9.9.9'")
+    val relative = File(System.getProperty("user.dir")).toPath().relativize(script.toPath()).toString()
+    assertEquals(GitInfo(script.path, "git version 9.9.9"), probeGit(script.path))
+    assertNull(probeGit(relative))
+  }
+
+  @Test
   fun probeRejectsNonZeroExit() {
     val script = writeScript(newTempDir(), "git", "echo 'git version 1'; exit 1")
 

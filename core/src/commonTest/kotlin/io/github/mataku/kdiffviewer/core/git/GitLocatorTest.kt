@@ -34,6 +34,13 @@ class GitLocatorTest {
   }
 
   @Test
+  fun relativePathEntriesAreNotProbed() {
+    val probe = FakeProbe(emptySet())
+    GitLocator.locate(null, ".:bin:/a", probe)
+    assertEquals(listOf("/a/git") + GitLocator.FALLBACK_PATHS, probe.calls)
+  }
+
+  @Test
   fun usrBinOnPathIsTriedLast() {
     val probe = FakeProbe(emptySet())
 
