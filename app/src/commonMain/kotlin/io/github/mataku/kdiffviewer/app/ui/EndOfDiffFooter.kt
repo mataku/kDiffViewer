@@ -34,9 +34,8 @@ fun EndOfDiffFooter(modifier: Modifier = Modifier) {
     modifier = modifier.fillMaxWidth().padding(top = 32.dp, bottom = 24.dp).testTag("end-of-diff"),
     contentAlignment = Alignment.TopCenter,
   ) {
-    val showArt = maxWidth >= ArtWidth
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-      if (showArt) {
+    if (maxWidth >= ArtWidth) {
+      Column(horizontalAlignment = Alignment.CenterHorizontally) {
         // The drawable-dark qualifier is not used for this art.
         // The resources library resolves that qualifier with isSystemInDarkTheme(), which ignores the app's manual appearance setting.
         // Its override point, LocalSystemTheme, is @InternalComposeUiApi, so the app selects a named resource instead.
@@ -46,8 +45,8 @@ fun EndOfDiffFooter(modifier: Modifier = Modifier) {
           modifier = Modifier.width(ArtWidth).testTag("end-of-diff-art"),
         )
         Spacer(Modifier.height(8.dp))
+        BasicText(text = CAPTION, style = TextStyle(color = colors.mutedText, fontSize = 13.sp))
       }
-      BasicText(text = CAPTION, style = TextStyle(color = colors.mutedText, fontSize = 13.sp))
     }
   }
 }

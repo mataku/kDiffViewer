@@ -47,10 +47,10 @@ class EndOfDiffFooterTest {
   }
 
   @Test
-  fun artHiddenWhenFooterIsNarrowerThanArt() = runComposeUiTest {
+  fun artAndCaptionHiddenWhenFooterIsNarrowerThanArt() = runComposeUiTest {
     setContent { KdvTheme(darkTheme = false) { Box(Modifier.width(179.dp)) { EndOfDiffFooter() } } }
     onNodeWithTag("end-of-diff-art").assertDoesNotExist()
-    onNodeWithText("It fits. You're done.").assertIsDisplayed()
+    onNodeWithText("It fits. You're done.").assertDoesNotExist()
   }
 
   @Test
