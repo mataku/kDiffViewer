@@ -10,16 +10,13 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.unit.sp
 import kotlin.test.Test
-import kotlin.test.assertEquals
 
 @OptIn(ExperimentalTestApi::class)
 class TextFieldsTest {
+  @Test
   fun textFieldShowsPlaceholderOnlyWhileEmpty() = runComposeUiTest {
     var value by mutableStateOf("")
     setContent { MacTextField(value, { value = it }, Modifier.testTag("field"), placeholder = "Branch or revision") }
