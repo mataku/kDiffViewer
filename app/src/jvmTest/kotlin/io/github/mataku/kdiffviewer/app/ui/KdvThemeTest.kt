@@ -13,6 +13,13 @@ import kotlin.test.assertSame
 @OptIn(ExperimentalTestApi::class)
 class KdvThemeTest {
   @Test
+  fun sidebarBackgroundPerTheme() {
+    assertEquals(Color(0xFFEFF2F5), LightDiffColors.sidebarBackground)
+    assertEquals(DarkDiffColors.fileHeaderBackground, DarkDiffColors.sidebarBackground)
+    assertEquals(DimDiffColors.fileHeaderBackground, DimDiffColors.sidebarBackground)
+  }
+
+  @Test
   fun darkThemeProvidesDarkDiffColors() = runComposeUiTest {
     var provided: DiffColors? = null
     setContent { KdvTheme(colorTheme = ColorTheme.Dark) { provided = LocalDiffColors.current } }
