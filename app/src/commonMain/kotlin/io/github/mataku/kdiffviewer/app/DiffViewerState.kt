@@ -14,6 +14,8 @@ import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.displayPath
+import io.github.mataku.kdiffviewer.core.parse.DiffBudget
+import io.github.mataku.kdiffviewer.core.parse.DiffLimits
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -27,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -84,6 +87,7 @@ data class ViewerUiState(
   val expanded: Set<CollapsedFile> = emptySet(),
   val baseSpec: BaseSpec = BaseSpec.Default,
   val base: ResolvedBase? = null,
+  val truncated: Boolean = false,
 )
 
 @Immutable
@@ -114,6 +118,7 @@ class DiffViewerState(
   private var missingSourceError: ViewerError = ViewerError.GitNotFound,
   private val loadContext: CoroutineContext = EmptyCoroutineContext,
   private val largeDiffLines: Int = LARGE_DIFF_LINES,
+  private val diffLimits: DiffLimits = DiffLimits(),
 ) {
   private val mutableUiState = MutableStateFlow(ViewerUiState())
   val uiState: StateFlow<ViewerUiState> = mutableUiState.asStateFlow()
@@ -284,10 +289,16 @@ class DiffViewerState(
 
   private suspend fun load(diffSource: DiffSource, repo: RepoPath, base: ResolvedBase, token: Any, accumulator: LoadAccumulator, run: HighlightRun?) = coroutineScope {
     val channel = Channel<LoadedFile>(Channel.UNLIMITED)
+    val budget = DiffBudget(diffLimits)
     launch {
       var failure: Throwable? = null
       try {
         diffSource.load(repo, base)
+          .transformWhile { file ->
+            val admitted = budget.admit(file)
+            if (admitted) emit(file) else accumulator.truncated = true
+            admitted
+          }
           .map { LoadedFile(it, it.fingerprint()) }
           .flowOn(loadContext)
           .collect { channel.send(it) }
@@ -350,6 +361,7 @@ class DiffViewerState(
     highlights = accumulator.highlights.snapshot(),
     fingerprints = accumulator.fingerprints.snapshot(),
     loadId = accumulator.loadId,
+    truncated = accumulator.truncated,
   )
 
   private class LoadedFile(val file: FileDiff, val fingerprint: Long)
@@ -361,6 +373,9 @@ class DiffViewerState(
     val highlights = AppendBuffer<HighlightSlot>()
     val fingerprints = AppendBuffer<Long>()
     val tree = FileTreeBuilder()
+
+    @Volatile
+    var truncated = false
     private var fileCount = 0
     private var rowCount = 0
 

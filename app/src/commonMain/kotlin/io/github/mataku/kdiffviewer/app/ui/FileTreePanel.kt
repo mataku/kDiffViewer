@@ -67,7 +67,7 @@ fun FileTreePanel(
       .width(width)
       .fillMaxHeight()
       .testTag("tree-panel")
-      .background(colors.fileHeaderBackground)
+      .background(colors.sidebarBackground)
       .padding(top = topInset),
   ) {
     MacSearchField(

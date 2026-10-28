@@ -9,6 +9,7 @@ import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
+import io.github.mataku.kdiffviewer.core.parse.DiffLimits
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -47,7 +48,7 @@ class DiffViewerStateThreadingTest {
     val scope = CoroutineScope(SupervisorJob() + dispatcher)
     try {
       repeat(20) { attempt ->
-        val state = DiffViewerState(source, scope, 1)
+        val state = DiffViewerState(source, scope, 1, diffLimits = DiffLimits(maxFiles = fileCount))
         runBlocking(dispatcher) { state.open(RepoPath("/repo")) }
         val ui = runBlocking {
           withTimeout(30_000) { state.uiState.first { it.status != LoadStatus.Loading } }
@@ -68,7 +69,7 @@ class DiffViewerStateThreadingTest {
     val scope = CoroutineScope(SupervisorJob() + dispatcher)
     try {
       repeat(20) { attempt ->
-        val state = DiffViewerState(source, scope, 1, loadContext = Dispatchers.Default)
+        val state = DiffViewerState(source, scope, 1, loadContext = Dispatchers.Default, diffLimits = DiffLimits(maxFiles = fileCount))
         runBlocking(dispatcher) { state.open(RepoPath("/repo")) }
         val ui = runBlocking {
           withTimeout(30_000) { state.uiState.first { it.status != LoadStatus.Loading } }
