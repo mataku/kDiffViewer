@@ -630,6 +630,20 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun headerControlsShareVerticalCentre() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
+      }
+    }
+    val centres = listOf("sidebar-control", "repo-name", "reload-button").map { tag ->
+      val bounds = onNodeWithTag(tag).getUnclippedBoundsInRoot()
+      (bounds.top + bounds.bottom) / 2
+    }
+    assertTrue(centres.all { (it - centres.first()).value in -1f..1f }, "vertical centres differ: $centres")
+  }
+
+  @Test
   fun headerLeavesRoomAroundItsContent() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(emptyList()).copy(head = HeadRef.Branch("main")), {}) }
     val header = onNodeWithTag("repo-header").fetchSemanticsNode().boundsInRoot
