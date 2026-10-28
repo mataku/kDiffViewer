@@ -13,7 +13,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpOffset
@@ -30,7 +31,7 @@ class CardSelectionSource(val state: SelectionState) : SelectionSource {
 }
 
 private class OriginHolder {
-  var value: Offset = Offset.Zero
+  var coordinates: LayoutCoordinates? = null
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -53,7 +54,7 @@ class NativeTextContextMenu(
     Box(
       Modifier
         .fillMaxWidth()
-        .onGloballyPositioned { origin.value = it.positionInWindow() }
+        .onPlaced { origin.coordinates = it }
         .contextMenuOpenDetector(state) { state.status = ContextMenuState.Status.Open(Rect(it, 0f)) },
     ) {
       content()
@@ -61,7 +62,7 @@ class NativeTextContextMenu(
     val status = state.status
     if (status is ContextMenuState.Status.Open) {
       LaunchedEffect(status) {
-        val position = origin.value + status.rect.topLeft
+        val position = (origin.coordinates?.takeIf { it.isAttached }?.positionInWindow() ?: Offset.Zero) + status.rect.topLeft
         val windowPosition = with(density) { DpOffset(position.x.toDp(), position.y.toDp()) }
         state.status = ContextMenuState.Status.Closed
         menu.show(windowPosition, textManager.menuItems())
