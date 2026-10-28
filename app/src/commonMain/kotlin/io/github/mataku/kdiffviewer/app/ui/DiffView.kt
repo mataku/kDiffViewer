@@ -91,6 +91,7 @@ private val FileHeaderTopMargin = 12.dp
 private val FileChevronSize = 12.dp
 private val FileCommentIconSize = 14.dp
 private val AddCommentSize = 16.dp
+private val AddCommentTint = ColorFilter.tint(Color.White)
 private val TextCursor = Modifier.pointerHoverIcon(PointerIcon.Text)
 
 private const val HEADER_CONTENT_TYPE = 0
@@ -152,6 +153,7 @@ fun DiffView(
   val listWidth = remember { mutableIntStateOf(0) }
   val splitHalfWidth = remember(contentStartX) { { (listWidth.intValue - 2 * contentStartX) / 2f } }
   val colors = LocalDiffColors.current
+  val iconTint = remember(colors.mutedText) { ColorFilter.tint(colors.mutedText) }
   val framePainter = rememberFileFramePainter()
   val frameInset = with(LocalDensity.current) { FileHeaderTopMargin.toPx() }
   val frameMargin = with(LocalDensity.current) { ContentHorizontalMargin.toPx() }
@@ -210,7 +212,7 @@ fun DiffView(
       val collapsed = layout.isCollapsed(fileIndex)
       val header = rows[display.unifiedOf(headerRow)] as DiffRow.FileHeader
       stickyHeader(key = header.key, contentType = HEADER_CONTENT_TYPE) {
-        FileHeaderRow(header, collapsed, onFileComment) { currentOnHeaderClick(header.fileIndex) }
+        FileHeaderRow(header, collapsed, iconTint, onFileComment) { currentOnHeaderClick(header.fileIndex) }
       }
       if (!collapsed) {
         if (layout.hasNotes(fileIndex)) {
@@ -332,7 +334,13 @@ private fun FileDiff.badge(): String = if (isUntracked) "Untracked" else change.
 private fun Modifier.headerBadge(borderColor: Color): Modifier = border(1.dp, borderColor, RoundedCornerShape(10.dp)).padding(horizontal = 6.dp, vertical = 1.dp)
 
 @Composable
-private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment: ((DiffRow.FileHeader) -> Unit)?, onClick: () -> Unit) {
+private fun FileHeaderRow(
+  row: DiffRow.FileHeader,
+  collapsed: Boolean,
+  iconTint: ColorFilter,
+  onComment: ((DiffRow.FileHeader) -> Unit)?,
+  onClick: () -> Unit,
+) {
   val colors = LocalDiffColors.current
   val typography = LocalDiffTypography.current
   Row(
@@ -355,7 +363,7 @@ private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment
         .testTag("file-chevron-${row.fileIndex}")
         .size(FileChevronSize)
         .rotate(if (collapsed) 0f else 90f),
-      colorFilter = ColorFilter.tint(colors.mutedText),
+      colorFilter = iconTint,
     )
     Row(
       modifier = Modifier.weight(1f),
@@ -398,7 +406,7 @@ private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment
           .testTag("file-comment-${row.fileIndex}")
           .clickable(interactionSource = null, indication = null) { onComment(row) }
           .size(FileCommentIconSize),
-        colorFilter = ColorFilter.tint(colors.mutedText),
+        colorFilter = iconTint,
       )
     }
   }
@@ -423,11 +431,10 @@ private fun HunkHeaderRow(row: DiffRow.HunkHeader) {
 
 @Composable
 private fun PlaceholderRow(message: String) {
-  val colors = LocalDiffColors.current
   BasicText(
     text = message,
     modifier = Modifier.fillMaxWidth().padding(12.dp),
-    style = TextStyle(color = colors.mutedText, fontSize = 13.sp),
+    style = LocalDiffTypography.current.placeholder,
   )
 }
 
@@ -624,7 +631,7 @@ private fun LineNumberCell(number: Int?, typography: DiffTypography, row: DiffRo
           .clickable(interactionSource = null, indication = null) { onAdd(row, side) },
         contentAlignment = Alignment.Center,
       ) {
-        Image(imageVector = KdvIcons.Plus, contentDescription = "Add comment", modifier = Modifier.size(10.dp), colorFilter = ColorFilter.tint(Color.White))
+        Image(imageVector = KdvIcons.Plus, contentDescription = "Add comment", modifier = Modifier.size(10.dp), colorFilter = AddCommentTint)
       }
     }
   }

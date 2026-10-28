@@ -44,6 +44,8 @@ val DefaultTreeWidth = 280.dp
 val MinTreeWidth = 160.dp
 val MaxTreeWidth = 600.dp
 private val StatsVisibleWidth = 240.dp
+private const val TREE_FILE_CONTENT_TYPE = 0
+private const val TREE_DIRECTORY_CONTENT_TYPE = 1
 
 @Composable
 fun FileTreePanel(
@@ -62,6 +64,7 @@ fun FileTreePanel(
 ) {
   val colors = LocalDiffColors.current
   val typography = LocalTreeTypography.current
+  val iconTint = remember(colors.mutedText) { ColorFilter.tint(colors.mutedText) }
   val showStats by remember(width) { derivedStateOf { width() >= StatsVisibleWidth } }
   val measurer = rememberTextMeasurer()
   val density = LocalDensity.current
@@ -102,7 +105,11 @@ fun FileTreePanel(
         state = listState,
         contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = 12.dp),
       ) {
-        itemsIndexed(entries, key = { index, _ -> index }) { index, entry ->
+        itemsIndexed(
+          entries,
+          key = { index, _ -> index },
+          contentType = { _, entry -> if (entry.row.fileIndex != null) TREE_FILE_CONTENT_TYPE else TREE_DIRECTORY_CONTENT_TYPE },
+        ) { index, entry ->
           val row = entry.row
           val fileIndex = row.fileIndex
           val directoryPath = entry.directoryPath
@@ -118,7 +125,6 @@ fun FileTreePanel(
               .padding(start = typography.indentPerDepth * row.depth, top = 3.dp, bottom = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
-            val iconTint = ColorFilter.tint(colors.mutedText)
             if (fileIndex == null && !filtering) {
               Image(
                 imageVector = KdvIcons.Chevron,

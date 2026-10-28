@@ -27,6 +27,13 @@ class DiffTypographyTest {
   }
 
   @Test
+  fun placeholderUsesMutedThirteenSp() {
+    val typography = diffTypography(FontFamily.Monospace, 12, 8, LightDiffColors)
+    assertEquals(LightDiffColors.mutedText, typography.placeholder.color)
+    assertEquals(13.sp, typography.placeholder.fontSize)
+  }
+
+  @Test
   fun headerPathUsesDiffFontAndSize() {
     val typography = diffTypography(FontFamily.Serif, 14, 4, LightDiffColors)
     assertEquals(FontFamily.Serif, typography.headerPath.fontFamily)
