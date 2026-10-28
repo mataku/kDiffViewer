@@ -11,27 +11,29 @@ import io.github.mataku.compose.highlight.python.Python
 import io.github.mataku.compose.highlight.ruby.Ruby
 import io.github.mataku.compose.highlight.rust.Rust
 import io.github.mataku.compose.highlight.swift.Swift
+import io.github.mataku.compose.highlight.tsx.Tsx
 import io.github.mataku.compose.highlight.typescript.Typescript
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-enum class LanguageId { Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScript, TypeScript, Markdown }
+enum class LanguageId { Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScript, TypeScript, Tsx, Markdown }
 
 fun languageIdFor(path: String): LanguageId? {
   val name = path.substringAfterLast('/')
   return when (name) {
-    "Gemfile", "Rakefile" -> LanguageId.Ruby
+    "Gemfile", "Rakefile", "Fastfile", "Brewfile" -> LanguageId.Ruby
 
     else -> when (name.substringAfterLast('.', "")) {
       "kt", "kts" -> LanguageId.Kotlin
-      "rb", "rake" -> LanguageId.Ruby
+      "rb", "rake", "gemspec", "ru" -> LanguageId.Ruby
       "go" -> LanguageId.Go
       "rs" -> LanguageId.Rust
       "swift" -> LanguageId.Swift
       "py" -> LanguageId.Python
       "java" -> LanguageId.Java
-      "js" -> LanguageId.JavaScript
+      "js", "jsx", "mjs", "cjs" -> LanguageId.JavaScript
       "ts" -> LanguageId.TypeScript
+      "tsx" -> LanguageId.Tsx
       "md" -> LanguageId.Markdown
       else -> null
     }
@@ -48,8 +50,9 @@ fun languageIdForInfo(info: String): LanguageId? {
     "swift" -> LanguageId.Swift
     "python", "py" -> LanguageId.Python
     "java" -> LanguageId.Java
-    "javascript", "js" -> LanguageId.JavaScript
+    "javascript", "js", "jsx" -> LanguageId.JavaScript
     "typescript", "ts" -> LanguageId.TypeScript
+    "tsx" -> LanguageId.Tsx
     "markdown", "md" -> LanguageId.Markdown
     else -> null
   }
@@ -92,5 +95,6 @@ val defaultLanguageAccessors: Map<LanguageId, () -> Language> = mapOf(
   LanguageId.Java to { Languages.Java },
   LanguageId.JavaScript to { Languages.Javascript },
   LanguageId.TypeScript to { Languages.Typescript },
+  LanguageId.Tsx to { Languages.Tsx },
   LanguageId.Markdown to { Languages.Markdown },
 )
