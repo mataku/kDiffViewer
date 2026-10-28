@@ -10,7 +10,6 @@ import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.invalidateDraw
-import androidx.compose.ui.node.requireDensity
 import androidx.compose.ui.unit.Dp
 
 fun Modifier.lineBackground(
@@ -59,7 +58,7 @@ private class LineBackgroundNode :
 
   override fun ContentDrawScope.draw() {
     val width = size.width.toInt()
-    val gutter = with(requireDensity()) { gutterWidth.toPx() }
+    val gutter = gutterWidth.toPx()
     if (split) {
       val leftWidth = width / 2
       paintHalf(0, leftWidth, gutter, leftGutter, leftContent)
