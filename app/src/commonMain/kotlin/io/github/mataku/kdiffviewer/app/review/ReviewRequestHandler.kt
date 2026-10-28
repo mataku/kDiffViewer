@@ -27,7 +27,9 @@ class ReviewRequestHandler(
   private val reload: suspend () -> Long?,
   private val info: () -> WindowInfoResult,
 ) {
-  suspend fun handle(line: String): String = try {
+  suspend fun handle(line: String): Reply = Reply(handleLine(line))
+
+  private suspend fun handleLine(line: String): String = try {
     val request = Codec.decodeRequest(line)
     if (request.v != PROTOCOL_VERSION) {
       Codec.failure(ErrorCodes.UNSUPPORTED_VERSION, "Unsupported protocol version ${request.v}, expected $PROTOCOL_VERSION")

@@ -2,8 +2,12 @@ package io.github.mataku.kdiffviewer.app.review
 
 import io.github.mataku.kdiffviewer.protocol.Codec
 import io.github.mataku.kdiffviewer.protocol.ErrorCodes
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
@@ -24,7 +28,7 @@ class ReviewSocketServer(
   private val socket: Path,
   private val scope: CoroutineScope,
   private val ioContext: CoroutineContext,
-  private val handle: suspend (String) -> String,
+  private val handle: suspend (String) -> Reply,
   private val maxRequestBytes: Int = 1_048_576,
   private val idleTimeoutMillis: Long = 10_000,
 ) {
@@ -77,11 +81,43 @@ class ReviewSocketServer(
       val request = withTimeoutOrNull(idleTimeoutMillis) {
         runInterruptible { readLine(client) }
       } ?: return
-      val response = when (request) {
-        is Request.TooLarge -> Codec.failure(ErrorCodes.BAD_REQUEST, "Request too large")
-        is Request.Line -> handle(request.text)
+      val reply = when (request) {
+        is Request.TooLarge -> Reply(Codec.failure(ErrorCodes.BAD_REQUEST, "Request too large"))
+        is Request.Line -> respond(client, request.text) ?: return
       }
-      runInterruptible { writeLine(client, response) }
+      if (runInterruptible { writeLine(client, reply.line) }) reply.onWritten()
+    }
+  }
+
+  private suspend fun respond(client: SocketChannel, text: String): Reply? = coroutineScope {
+    val handler = async { handle(text) }
+    // Not runInterruptible: interrupting a thread blocked in SocketChannel.read closes the channel, which would drop the response.
+    // shutdownInput releases the blocked read instead, and the client never half-closes, so EOF means it went away.
+    val watcher = launch(ioContext) {
+      awaitEndOfInput(client)
+      handler.cancel()
+    }
+    try {
+      handler.await()
+    } catch (e: CancellationException) {
+      ensureActive()
+      null
+    } finally {
+      runCatching { client.shutdownInput() }
+      watcher.join()
+    }
+  }
+
+  private fun awaitEndOfInput(client: SocketChannel) {
+    val buffer = ByteBuffer.allocate(256)
+    while (true) {
+      buffer.clear()
+      val read = try {
+        client.read(buffer)
+      } catch (_: java.io.IOException) {
+        return
+      }
+      if (read < 0) return
     }
   }
 
@@ -111,11 +147,13 @@ class ReviewSocketServer(
     }
   }
 
-  private fun writeLine(client: SocketChannel, text: String) {
+  private fun writeLine(client: SocketChannel, text: String): Boolean {
     val buffer = ByteBuffer.wrap((text + "\n").encodeToByteArray())
-    try {
+    return try {
       while (buffer.hasRemaining()) client.write(buffer)
+      true
     } catch (_: java.io.IOException) {
+      false
     }
   }
 

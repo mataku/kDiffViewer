@@ -42,6 +42,8 @@ import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
+private suspend fun ReviewRequestHandler.call(line: String): String = handle(line).line
+
 class ReviewRequestHandlerTest {
   private val repo = RepoPath("/repo")
   private val epoch = Instant.fromEpochSeconds(1_000)
@@ -96,7 +98,7 @@ class ReviewRequestHandlerTest {
   @Test
   fun windowInfoReturnsInfo() = runTest {
     val f = fixture()
-    assertEquals(info, resultOf<WindowInfoResult>(f.handler.handle(request(Methods.WINDOW_INFO))))
+    assertEquals(info, resultOf<WindowInfoResult>(f.handler.call(request(Methods.WINDOW_INFO))))
   }
 
   @Test
@@ -104,7 +106,7 @@ class ReviewRequestHandlerTest {
     val f = fixture()
     f.addThread(1)
     advanceUntilIdle()
-    val result = resultOf<ThreadListResult>(f.handler.handle(request(Methods.THREAD_LIST)))
+    val result = resultOf<ThreadListResult>(f.handler.call(request(Methods.THREAD_LIST)))
     val thread = result.threads.single()
     assertEquals(
       ThreadDto(
@@ -128,15 +130,15 @@ class ReviewRequestHandlerTest {
     f.addThread(0)
     f.addThread(1)
     f.review.resolveThread("t1", true)
-    assertEquals(listOf("t2"), resultOf<ThreadListResult>(f.handler.handle(request(Methods.THREAD_LIST))).threads.map { it.id })
-    assertEquals(listOf("t1", "t2"), resultOf<ThreadListResult>(f.handler.handle(request(Methods.THREAD_LIST, "all" to true))).threads.map { it.id })
+    assertEquals(listOf("t2"), resultOf<ThreadListResult>(f.handler.call(request(Methods.THREAD_LIST))).threads.map { it.id })
+    assertEquals(listOf("t1", "t2"), resultOf<ThreadListResult>(f.handler.call(request(Methods.THREAD_LIST, "all" to true))).threads.map { it.id })
   }
 
   @Test
   fun threadReplyAppendsAgentComment() = runTest(StandardTestDispatcher()) {
     val f = fixture()
     f.addThread(0)
-    val comment = resultOf<CommentDto>(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "done", "author" to "claude")))
+    val comment = resultOf<CommentDto>(f.handler.call(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "done", "author" to "claude")))
     assertEquals(CommentDto("c2", AuthorDto("agent", "claude"), "done", epoch.toString()), comment)
     assertEquals(2, f.review.threads(true).single().comments.size)
   }
@@ -145,7 +147,7 @@ class ReviewRequestHandlerTest {
   fun threadReplyDefaultsAuthorToAgent() = runTest(StandardTestDispatcher()) {
     val f = fixture()
     f.addThread(0)
-    val comment = resultOf<CommentDto>(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "done")))
+    val comment = resultOf<CommentDto>(f.handler.call(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "done")))
     assertEquals(AuthorDto("agent", "agent"), comment.author)
   }
 
@@ -153,7 +155,7 @@ class ReviewRequestHandlerTest {
   fun threadReplyRejectsBlankBody() = runTest(StandardTestDispatcher()) {
     val f = fixture()
     f.addThread(0)
-    val response = Codec.decodeResponse(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to " \n")))
+    val response = Codec.decodeResponse(f.handler.call(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to " \n")))
     assertFalse(response.ok)
     assertEquals(ErrorCodes.BAD_REQUEST, response.error?.code)
     assertEquals("Reply body is blank", response.error?.message)
@@ -164,7 +166,7 @@ class ReviewRequestHandlerTest {
   fun threadReplyMapsBlankAuthorToAgent() = runTest(StandardTestDispatcher()) {
     val f = fixture()
     f.addThread(0)
-    val comment = resultOf<CommentDto>(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "done", "author" to " ")))
+    val comment = resultOf<CommentDto>(f.handler.call(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "done", "author" to " ")))
     assertEquals(AuthorDto("agent", "agent"), comment.author)
   }
 
@@ -172,7 +174,7 @@ class ReviewRequestHandlerTest {
   fun bodyAtTheCapIsAccepted() = runTest(StandardTestDispatcher()) {
     val f = fixture()
     f.addThread(0)
-    val response = Codec.decodeResponse(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "a".repeat(65_536))))
+    val response = Codec.decodeResponse(f.handler.call(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "a".repeat(65_536))))
     assertTrue(response.ok)
   }
 
@@ -180,7 +182,7 @@ class ReviewRequestHandlerTest {
   fun bodyOverTheCapIsBadRequest() = runTest(StandardTestDispatcher()) {
     val f = fixture()
     f.addThread(0)
-    val response = Codec.decodeResponse(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "a".repeat(65_537))))
+    val response = Codec.decodeResponse(f.handler.call(request(Methods.THREAD_REPLY, "threadId" to "t1", "body" to "a".repeat(65_537))))
     assertFalse(response.ok)
     assertEquals(ErrorCodes.BAD_REQUEST, response.error?.code)
     assertEquals("Reply body exceeds 65536 characters", response.error?.message)
@@ -192,7 +194,7 @@ class ReviewRequestHandlerTest {
     val f = fixture()
     val nested = "[".repeat(100_000) + "]".repeat(100_000)
     val line = """{"v":$PROTOCOL_VERSION,"method":"${Methods.THREAD_LIST}","params":{"all":true,"x":$nested}}"""
-    val response = Codec.decodeResponse(f.handler.handle(line))
+    val response = Codec.decodeResponse(f.handler.call(line))
     assertFalse(response.ok)
     assertEquals(ErrorCodes.BAD_REQUEST, response.error?.code)
   }
@@ -200,7 +202,7 @@ class ReviewRequestHandlerTest {
   @Test
   fun threadReplyUnknownThread() = runTest {
     val f = fixture()
-    val response = Codec.decodeResponse(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t9", "body" to "x")))
+    val response = Codec.decodeResponse(f.handler.call(request(Methods.THREAD_REPLY, "threadId" to "t9", "body" to "x")))
     assertFalse(response.ok)
     assertEquals(ErrorCodes.THREAD_NOT_FOUND, response.error?.code)
     assertEquals("No thread t9", response.error?.message)
@@ -210,7 +212,7 @@ class ReviewRequestHandlerTest {
   fun threadResolveMarksResolved() = runTest(StandardTestDispatcher()) {
     val f = fixture()
     f.addThread(0)
-    val thread = resultOf<ThreadDto>(f.handler.handle(request(Methods.THREAD_RESOLVE, "threadId" to "t1")))
+    val thread = resultOf<ThreadDto>(f.handler.call(request(Methods.THREAD_RESOLVE, "threadId" to "t1")))
     assertTrue(thread.resolved)
     assertTrue(f.review.threads(true).single().resolved)
   }
@@ -218,7 +220,7 @@ class ReviewRequestHandlerTest {
   @Test
   fun threadResolveUnknownThread() = runTest {
     val f = fixture()
-    val response = Codec.decodeResponse(f.handler.handle(request(Methods.THREAD_RESOLVE, "threadId" to "t9")))
+    val response = Codec.decodeResponse(f.handler.call(request(Methods.THREAD_RESOLVE, "threadId" to "t9")))
     assertEquals(ErrorCodes.THREAD_NOT_FOUND, response.error?.code)
     assertEquals("No thread t9", response.error?.message)
   }
@@ -226,7 +228,7 @@ class ReviewRequestHandlerTest {
   @Test
   fun reloadWithoutRepositoryFails() = runTest {
     val f = fixture { null }
-    assertEquals(ErrorCodes.NO_REPOSITORY, errorCode(f.handler.handle(request(Methods.RELOAD))))
+    assertEquals(ErrorCodes.NO_REPOSITORY, errorCode(f.handler.call(request(Methods.RELOAD))))
   }
 
   @Test
@@ -235,7 +237,7 @@ class ReviewRequestHandlerTest {
     f = fixture { 2L }
     f.addThread(1)
     advanceUntilIdle()
-    val deferred = async { f.handler.handle(request(Methods.RELOAD)) }
+    val deferred = async { f.handler.call(request(Methods.RELOAD)) }
     runCurrent()
     assertFalse(deferred.isCompleted)
     f.review.onViewerState(ui(2))
@@ -249,7 +251,7 @@ class ReviewRequestHandlerTest {
     val f = fixture { 2L }
     f.review.onViewerState(ui(1))
     advanceUntilIdle()
-    val deferred = async { f.handler.handle(request(Methods.RELOAD)) }
+    val deferred = async { f.handler.call(request(Methods.RELOAD)) }
     runCurrent()
     f.review.onViewerState(ui(2, LoadStatus.Failed(ViewerError.GitFailed("boom"))))
     advanceUntilIdle()
@@ -259,35 +261,35 @@ class ReviewRequestHandlerTest {
   @Test
   fun malformedJsonIsBadRequest() = runTest {
     val f = fixture()
-    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.handle("not json")))
-    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.handle("")))
-    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.handle("""{"method":"reload"}""")))
+    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.call("not json")))
+    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.call("")))
+    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.call("""{"method":"reload"}""")))
   }
 
   @Test
   fun badParamsIsBadRequest() = runTest {
     val f = fixture()
-    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.handle(request(Methods.THREAD_REPLY, "threadId" to "t1"))))
-    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.handle("""{"v":1,"method":"thread.list","params":{"all":"maybe"}}""")))
+    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.call(request(Methods.THREAD_REPLY, "threadId" to "t1"))))
+    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.call("""{"v":1,"method":"thread.list","params":{"all":"maybe"}}""")))
   }
 
   @Test
   fun unsupportedVersion() = runTest {
     val f = fixture()
-    assertEquals(ErrorCodes.UNSUPPORTED_VERSION, errorCode(f.handler.handle(request(Methods.WINDOW_INFO, v = 99))))
+    assertEquals(ErrorCodes.UNSUPPORTED_VERSION, errorCode(f.handler.call(request(Methods.WINDOW_INFO, v = 99))))
   }
 
   @Test
   fun unknownMethodIsBadRequest() = runTest {
     val f = fixture()
-    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.handle(request("nope"))))
+    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.call(request("nope"))))
   }
 
   @Test
   fun dependencyExceptionsBecomeFailuresNotThrows() = runTest {
     val review = ReviewState(this, StandardTestDispatcher(testScheduler), { epoch })
     val handler = ReviewRequestHandler(review, { null }, { error("boom") })
-    val line = handler.handle(request(Methods.WINDOW_INFO))
+    val line = handler.call(request(Methods.WINDOW_INFO))
     assertFalse(Codec.decodeResponse(line).ok)
   }
 }

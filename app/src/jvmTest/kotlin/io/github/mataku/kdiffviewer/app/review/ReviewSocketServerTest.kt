@@ -38,7 +38,7 @@ class ReviewSocketServerTest {
   private fun startServer(
     maxRequestBytes: Int = 1_048_576,
     idleTimeoutMillis: Long = 10_000,
-    handle: suspend (String) -> String = { "echo:$it" },
+    handle: suspend (String) -> Reply = { Reply("echo:$it") },
   ): ReviewSocketServer = ReviewSocketServer(socket, scope, Dispatchers.IO, handle, maxRequestBytes, idleTimeoutMillis).also {
     it.start()
     server = it
@@ -130,7 +130,7 @@ class ReviewSocketServerTest {
     val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
     startServer { line ->
       if (line == "slow") gate.await()
-      "echo:$line"
+      Reply("echo:$line")
     }
     val slow = connect()
     slow.send("slow\n")
@@ -138,5 +138,61 @@ class ReviewSocketServerTest {
     gate.complete(Unit)
     assertEquals("echo:slow", slow.readLine())
     slow.close()
+  }
+
+  @Test
+  fun `client disconnect cancels the handler`() = runBlocking {
+    val started = kotlinx.coroutines.CompletableDeferred<Unit>()
+    val cancelled = kotlinx.coroutines.CompletableDeferred<Unit>()
+    startServer {
+      started.complete(Unit)
+      try {
+        kotlinx.coroutines.awaitCancellation()
+      } finally {
+        cancelled.complete(Unit)
+      }
+    }
+    val client = connect()
+    client.send("wait\n")
+    kotlinx.coroutines.withTimeout(2_000) { started.await() }
+    client.close()
+    kotlinx.coroutines.withTimeout(2_000) { cancelled.await() }
+  }
+
+  @Test
+  fun `slow handler still responds`() {
+    startServer {
+      kotlinx.coroutines.delay(300)
+      Reply("late:$it")
+    }
+    assertEquals("late:x", roundTrip("x"))
+  }
+
+  @Test
+  fun `onWritten runs after a successful write`() = runBlocking {
+    val written = kotlinx.coroutines.CompletableDeferred<Unit>()
+    startServer { Reply("ok") { written.complete(Unit) } }
+    assertEquals("ok", roundTrip("x"))
+    kotlinx.coroutines.withTimeout(2_000) { written.await() }
+  }
+
+  @Test
+  fun `onWritten is skipped when the client is gone`() = runBlocking {
+    val started = kotlinx.coroutines.CompletableDeferred<Unit>()
+    val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+    var written = false
+    startServer {
+      started.complete(Unit)
+      kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { release.await() }
+      Reply("late") { written = true }
+    }
+    val client = connect()
+    client.send("x\n")
+    kotlinx.coroutines.withTimeout(2_000) { started.await() }
+    client.close()
+    kotlinx.coroutines.delay(200)
+    release.complete(Unit)
+    kotlinx.coroutines.delay(300)
+    assertFalse(written)
   }
 }
