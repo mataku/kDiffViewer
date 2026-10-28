@@ -18,6 +18,7 @@ import io.github.mataku.kdiffviewer.app.settings.displayPath
 import io.github.mataku.kdiffviewer.app.settings.revealInFinder
 import io.github.mataku.kdiffviewer.app.ui.KdvTheme
 import io.github.mataku.kdiffviewer.app.ui.PreferencesScreen
+import io.github.mataku.kdiffviewer.app.ui.TitleBarHeight
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -46,6 +47,7 @@ fun PreferencesWindow(
     LaunchedEffect(window) { window.minimumSize = Dimension(600, 480) }
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     LaunchedEffect(focusRequests) { window.toFront() }
+    val titleBarInset = remember { if (installCustomTitleBar(window, TitleBarHeight) != null) TitleBarHeight else 0.dp }
     val fontFamilies by produceState<List<String>?>(null) {
       value = withContext(Dispatchers.IO) {
         GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames.toList()
@@ -74,6 +76,7 @@ fun PreferencesWindow(
         onUpdate = onUpdate,
         onCommitGitPath = onCommitGitPath,
         onChooseGit = { chooseGitExecutable()?.let(onCommitGitPath) },
+        titleBarInset = titleBarInset,
       )
     }
   }

@@ -27,6 +27,8 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.up
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import io.github.mataku.kdiffviewer.app.settings.Appearance
 import io.github.mataku.kdiffviewer.app.settings.GitStatus
 import io.github.mataku.kdiffviewer.app.settings.Settings
@@ -35,6 +37,7 @@ import io.github.mataku.kdiffviewer.core.git.GitInfo
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class PreferencesScreenTest {
@@ -55,6 +58,7 @@ class PreferencesScreenTest {
     path: String = "~/settings.json",
     status: GitStatus = ready,
     families: List<String>? = listOf("Menlo", "Monaco", "Arial"),
+    titleBarInset: Dp = 0.dp,
   ) {
     setContent {
       KdvTheme(colorTheme = ColorTheme.Light) {
@@ -68,9 +72,17 @@ class PreferencesScreenTest {
           onUpdate = { harness.transforms += it },
           onCommitGitPath = { harness.commits += it },
           onChooseGit = { harness.chooseCount++ },
+          titleBarInset = titleBarInset,
         )
       }
     }
+  }
+
+  @Test
+  fun titleBarInsetKeepsScrollingContentBelowTitleBar() = runComposeUiTest {
+    show(Harness(), titleBarInset = 52.dp)
+    val content = onNodeWithTag("settings-content").fetchSemanticsNode().boundsInRoot
+    assertTrue(content.top >= with(density) { 52.dp.toPx() }, "content=$content")
   }
 
   @Test

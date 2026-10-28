@@ -38,6 +38,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.settings.Appearance
@@ -72,12 +73,15 @@ fun PreferencesScreen(
   onUpdate: ((Settings) -> Settings) -> Unit,
   onCommitGitPath: (String) -> Unit,
   onChooseGit: () -> Unit,
+  titleBarInset: Dp = 0.dp,
 ) {
   val colors = LocalDiffColors.current
   Column(
     modifier = Modifier
       .fillMaxSize()
       .background(colors.background)
+      .padding(top = titleBarInset)
+      .testTag("settings-content")
       .verticalScroll(rememberScrollState())
       .padding(start = 32.dp, end = 32.dp, top = 28.dp, bottom = 28.dp),
     verticalArrangement = Arrangement.spacedBy(28.dp),
