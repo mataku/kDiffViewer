@@ -142,4 +142,14 @@ class SplitRowsTest {
     assertEquals(pairsOf(whole), pairsOf(incremental))
     assertEquals(rowsAB.indices.map { whole.splitIndexOf(it) }, rowsAB.indices.map { incremental.splitIndexOf(it) })
   }
+
+  @Test
+  fun splitRowsOfSameContentAreEqual() {
+    val rows = rowsOf(textFile("a.txt", hunk(removed("a", 1), added("b", 1))))
+    val first = splitRowsOf(rows)
+    assertEquals(first, splitRowsOf(rows))
+    assertEquals(first.hashCode(), splitRowsOf(rows).hashCode())
+    assertTrue(first != splitRowsOf(rowsOf(textFile("a.txt", hunk(removed("a", 1))))))
+    assertTrue(first != SplitRows.Empty)
+  }
 }

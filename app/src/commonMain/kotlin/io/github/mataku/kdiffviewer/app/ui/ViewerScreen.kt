@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.LoadStatus
@@ -50,6 +51,7 @@ import io.github.mataku.kdiffviewer.app.ScrollRestorer
 import io.github.mataku.kdiffviewer.app.ViewerError
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.diffLayoutOf
+import io.github.mataku.kdiffviewer.app.displayRows
 import io.github.mataku.kdiffviewer.app.filterTree
 import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.isLargeDiff
@@ -103,9 +105,11 @@ fun ViewerScreen(
   val hasOrphans = shown && (review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
   val hasEnd = state.status == LoadStatus.Done && state.files.isNotEmpty()
   val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasOrphans, hasEnd) {
-    diffLayoutOf(state, notesFiles, hasOrphans, hasEnd)
+    diffLayoutOf(state, DiffMode.Unified, notesFiles, hasOrphans, hasEnd)
   }
   val currentLayout by rememberUpdatedState(layout)
+  val display = remember(state.rows, state.split) { state.displayRows(DiffMode.Unified) }
+  val currentDisplay by rememberUpdatedState(display)
   LaunchedEffect(scrollJumps, listState) {
     scrollJumps?.requests?.collect { jump ->
       val count = currentLayout.visibleCount
@@ -157,8 +161,9 @@ fun ViewerScreen(
     focusRequests.intValue++
   }
   LaunchedEffect(listState) {
-    snapshotFlow { Triple(currentState, currentLayout, listState.firstVisibleItemIndex) }.collect { (ui, uiLayout, firstVisible) ->
-      restorer.next(ui, uiLayout, firstVisible)?.let { listState.scrollToItem(it) }
+    snapshotFlow { Pair(Triple(currentState, currentLayout, currentDisplay), listState.firstVisibleItemIndex) }.collect { (inputs, firstVisible) ->
+      val (ui, uiLayout, uiDisplay) = inputs
+      restorer.next(ui, uiLayout, uiDisplay, firstVisible)?.let { listState.scrollToItem(it) }
     }
   }
   var collapsed by remember(state.repo) { mutableStateOf(emptySet<String>()) }

@@ -17,6 +17,13 @@ class SplitRows internal constructor(
 
   fun splitIndexOf(unifiedRow: Int): Int = splitIndex[unifiedRow]
 
+  override fun equals(other: Any?): Boolean {
+    if (other === this) return true
+    return other is SplitRows && other.left == left && other.right == right && other.splitIndex == splitIndex
+  }
+
+  override fun hashCode(): Int = 31 * (31 * left.hashCode() + right.hashCode()) + splitIndex.hashCode()
+
   companion object {
     val Empty: SplitRows = SplitRowsBuilder().snapshot()
   }

@@ -12,6 +12,7 @@ import io.github.mataku.kdiffviewer.core.model.displayPath
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ScrollRestorerTest {
   private val repo = RepoPath("/repo")
@@ -36,14 +37,38 @@ class ScrollRestorerTest {
     val headers = rows.mapIndexedNotNull { index, row -> if (row is DiffRow.FileHeader) index else null }
     val fingerprints = files.map { it.fingerprint() }
     val collapsed = collapsedIndices.map { CollapsedFile(files[it].displayPath, fingerprints[it]) }.toSet()
-    return ViewerUiState(repoPath, status, files, rows, headers, buildFileTree(files), loadId, fingerprints = fingerprints, collapsed = collapsed, baseSpec = baseSpec)
+    return ViewerUiState(repoPath, status, files, rows, headers, buildFileTree(files), loadId, fingerprints = fingerprints, collapsed = collapsed, baseSpec = baseSpec, split = splitRowsOf(rows))
   }
 
-  private fun anchorOf(ui: ViewerUiState, firstVisibleIndex: Int) = scrollAnchorOf(ui, diffLayoutOf(ui), firstVisibleIndex)
+  private fun anchorOf(ui: ViewerUiState, firstVisibleIndex: Int) = scrollAnchorOf(ui, diffLayoutOf(ui), ui.displayRows(DiffMode.Unified), firstVisibleIndex)
 
-  private fun targetOf(anchor: ScrollAnchor, ui: ViewerUiState) = restoreTargetOf(anchor, ui, diffLayoutOf(ui))
+  private fun targetOf(anchor: ScrollAnchor, ui: ViewerUiState) = restoreTargetOf(anchor, ui, diffLayoutOf(ui), ui.displayRows(DiffMode.Unified))
 
-  private fun ScrollRestorer.nextFor(ui: ViewerUiState, firstVisibleIndex: Int) = next(ui, diffLayoutOf(ui), firstVisibleIndex)
+  private fun ScrollRestorer.nextFor(ui: ViewerUiState, firstVisibleIndex: Int, mode: DiffMode = DiffMode.Unified, hasEnd: Boolean = false) = next(ui, diffLayoutOf(ui, mode, hasEnd = hasEnd), ui.displayRows(mode), firstVisibleIndex)
+
+  private val hunkFile = FileDiff(
+    "h.kt",
+    "h.kt",
+    ChangeType.Modified,
+    false,
+    DiffContent.Text(
+      listOf(
+        Hunk(
+          1,
+          2,
+          1,
+          2,
+          "",
+          listOf(
+            DiffLine(LineKind.Removed, "a", 1, null),
+            DiffLine(LineKind.Removed, "b", 2, null),
+            DiffLine(LineKind.Added, "c", null, 1),
+            DiffLine(LineKind.Added, "d", null, 2),
+          ),
+        ),
+      ),
+    ),
+  )
 
   private val a = file("a.kt", 3)
   private val b = file("b.kt", 10)
@@ -151,5 +176,38 @@ class ScrollRestorerTest {
     val restorer = ScrollRestorer()
     restorer.nextFor(state(listOf(a, b), 1, baseSpec = BaseSpec.Ref("x")), 8)
     assertEquals(7, restorer.nextFor(state(listOf(c, b), 2, baseSpec = BaseSpec.Ref("x")), 0))
+  }
+
+  @Test
+  fun modeSwitchKeepsUnifiedRow() {
+    val ui = state(listOf(hunkFile), 1)
+    val restorer = ScrollRestorer()
+    assertNull(restorer.nextFor(ui, 5))
+    assertEquals(3, restorer.nextFor(ui, 5, DiffMode.Split))
+    assertNull(restorer.nextFor(ui, 3, DiffMode.Split))
+    assertEquals(5, restorer.nextFor(ui, 3, DiffMode.Unified))
+  }
+
+  @Test
+  fun reloadInSplitRestores() {
+    val restorer = ScrollRestorer()
+    assertNull(restorer.nextFor(state(listOf(a, b), 1), 8, DiffMode.Split))
+    assertNull(restorer.nextFor(state(emptyList(), 2, LoadStatus.Loading), 8, DiffMode.Split))
+    assertNull(restorer.nextFor(state(listOf(c), 2, LoadStatus.Loading), 0, DiffMode.Split))
+    assertEquals(7, restorer.nextFor(state(listOf(c, b), 2, LoadStatus.Loading), 0, DiffMode.Split))
+    assertNull(restorer.nextFor(state(listOf(c, b, a), 2), 7, DiffMode.Split))
+  }
+
+  @Test
+  fun modeSwitchWithEndItemFirstVisible() {
+    val ui = state(listOf(hunkFile), 1)
+    val restorer = ScrollRestorer()
+    val unifiedLast = diffLayoutOf(ui, DiffMode.Unified, hasEnd = true).visibleCount - 1
+    assertNull(restorer.nextFor(ui, unifiedLast, DiffMode.Unified, hasEnd = true))
+    val target = restorer.nextFor(ui, unifiedLast, DiffMode.Split, hasEnd = true)!!
+    assertTrue(target <= diffLayoutOf(ui, DiffMode.Split, hasEnd = true).visibleCount - 1)
+    assertNull(restorer.nextFor(ui, target, DiffMode.Split, hasEnd = true))
+    val back = restorer.nextFor(ui, target, DiffMode.Unified, hasEnd = true)!!
+    assertTrue(back <= unifiedLast)
   }
 }

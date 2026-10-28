@@ -7,6 +7,7 @@ import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.model.Side
 import io.github.mataku.kdiffviewer.core.model.displayPath
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -25,8 +26,10 @@ class DiffLayoutTest {
     val headers = rows.mapIndexedNotNull { index, row -> if (row is DiffRow.FileHeader) index else null }
     val fingerprints = files.map { it.fingerprint() }
     val collapsed = collapsedIndices.map { CollapsedFile(files[it].displayPath, fingerprints[it]) }.toSet()
-    return ViewerUiState(RepoPath("/repo"), LoadStatus.Done, files, rows, headers, fingerprints = fingerprints, collapsed = collapsed)
+    return ViewerUiState(RepoPath("/repo"), LoadStatus.Done, files, rows, headers, fingerprints = fingerprints, collapsed = collapsed, split = splitRowsOf(rows))
   }
+
+  private fun changeFile(path: String, vararg lines: DiffLine) = FileDiff(path, path, ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", lines.toList()))))
 
   private val a = file("a.kt", 3)
   private val b = file("b.kt", 10)
@@ -143,9 +146,9 @@ class DiffLayoutTest {
     val ui = state(listOf(a, b))
     val layout = diffLayoutOf(ui, notesFiles = setOf(0, 1), hasOrphans = true)
     val visible = layout.visibleIndexOf(layout.headerRowIndex(1) + 3)
-    assertEquals(ScrollAnchor("b.kt", 3), scrollAnchorOf(ui, layout, visible))
-    assertEquals(visible, restoreTargetOf(ScrollAnchor("b.kt", 3), ui, layout))
-    assertEquals(ScrollAnchor("a.kt", 0), scrollAnchorOf(ui, layout, 0))
+    assertEquals(ScrollAnchor("b.kt", 3), scrollAnchorOf(ui, layout, ui.displayRows(DiffMode.Unified), visible))
+    assertEquals(visible, restoreTargetOf(ScrollAnchor("b.kt", 3), ui, layout, ui.displayRows(DiffMode.Unified)))
+    assertEquals(ScrollAnchor("a.kt", 0), scrollAnchorOf(ui, layout, ui.displayRows(DiffMode.Unified), 0))
   }
 
   @Test
@@ -156,8 +159,8 @@ class DiffLayoutTest {
     assertEquals(-1, layout.fileIndexOfVisible(0))
     assertEquals(-1, layout.rowIndexOf(0))
     assertEquals(-1, layout.visibleIndexOf(0))
-    assertEquals(null, scrollAnchorOf(ui, layout, 0))
-    assertEquals(null, restoreTargetOf(ScrollAnchor("a.kt", 0), ui, layout))
+    assertEquals(null, scrollAnchorOf(ui, layout, ui.displayRows(DiffMode.Unified), 0))
+    assertEquals(null, restoreTargetOf(ScrollAnchor("a.kt", 0), ui, layout, ui.displayRows(DiffMode.Unified)))
   }
 
   @Test
@@ -260,5 +263,51 @@ class DiffLayoutTest {
     val plain = diffLayoutOf(state(listOf(a, b)))
     val layout = diffLayoutOf(state(listOf(a, b)), notesFiles = setOf(0))
     assertEquals(plain.lastVisibleIndex(0) + 1, layout.lastVisibleIndex(0))
+  }
+
+  private val replaced = changeFile("r.kt", DiffLine(LineKind.Removed, "a", 1, null), DiffLine(LineKind.Added, "b", null, 1))
+  private val plain = changeFile("p.kt", DiffLine(LineKind.Context, "x", 1, 1))
+
+  @Test
+  fun splitLayoutCountsSplitRows() {
+    val layout = diffLayoutOf(state(listOf(replaced, plain)), DiffMode.Split)
+    assertEquals(2 + 2 + 2, layout.visibleCount)
+    assertEquals(3, layout.headerVisibleIndex(1))
+  }
+
+  @Test
+  fun splitLayoutWithCollapsedFile() {
+    val ui = state(listOf(replaced, plain), setOf(0))
+    val layout = diffLayoutOf(ui, DiffMode.Split)
+    assertEquals(1, layout.headerVisibleIndex(1))
+    assertEquals(ui.split.splitIndexOf(ui.fileHeaderRowIndex[1]), layout.rowIndexOf(1))
+  }
+
+  @Test
+  fun splitLayoutWithNotesAndOrphans() {
+    val ui = state(listOf(replaced, plain))
+    val plainLayout = diffLayoutOf(ui, DiffMode.Split)
+    val layout = diffLayoutOf(ui, DiffMode.Split, notesFiles = setOf(0, 1), hasOrphans = true, hasEnd = true)
+    assertEquals(plainLayout.visibleCount + 4, layout.visibleCount)
+    assertEquals(plainLayout.headerVisibleIndex(1) + 2, layout.headerVisibleIndex(1))
+    assertEquals(ui.split.size, layout.rowIndexOf(layout.visibleCount - 1))
+    assertEquals(layout.headerRowIndex(0), layout.rowIndexOf(0))
+  }
+
+  @Test
+  fun displayRowsMapBetweenUnifiedAndSplit() {
+    val ui = state(listOf(replaced, plain))
+    val unified = ui.displayRows(DiffMode.Unified)
+    val split = ui.displayRows(DiffMode.Split)
+    assertEquals(3, unified.unifiedOf(3))
+    assertEquals(3, unified.displayOf(3))
+    assertEquals(2, split.unifiedOf(2, Side.Old))
+    assertEquals(3, split.unifiedOf(2, Side.New))
+    assertEquals(3, split.unifiedOf(2))
+    assertEquals(2, split.displayOf(3))
+    assertEquals(2, split.displayOf(2))
+    val removedOnly = state(listOf(changeFile("x.kt", DiffLine(LineKind.Removed, "a", 1, null)))).displayRows(DiffMode.Split)
+    assertEquals(2, removedOnly.unifiedOf(2))
+    assertEquals(ui.rows.size, split.unifiedOf(ui.split.size))
   }
 }

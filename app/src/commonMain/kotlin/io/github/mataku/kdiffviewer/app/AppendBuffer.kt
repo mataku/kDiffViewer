@@ -86,4 +86,18 @@ class IntSnapshot internal constructor(
     if (index !in 0 until size) throw IndexOutOfBoundsException("index: $index, size: $size")
     return items[index]
   }
+
+  override fun equals(other: Any?): Boolean {
+    if (other === this) return true
+    if (other !is IntSnapshot || other.size != size) return false
+    if (other.items === items) return true
+    for (i in 0 until size) if (items[i] != other.items[i]) return false
+    return true
+  }
+
+  override fun hashCode(): Int {
+    var result = 1
+    for (i in 0 until size) result = 31 * result + items[i]
+    return result
+  }
 }

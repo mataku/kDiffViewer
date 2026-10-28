@@ -53,18 +53,19 @@ class DiffLayout internal constructor(
   }
 }
 
-fun diffLayoutOf(state: ViewerUiState, notesFiles: Set<Int> = emptySet(), hasOrphans: Boolean = false, hasEnd: Boolean = false): DiffLayout {
-  val headerRows = state.fileHeaderRowIndex
-  val fileCount = headerRows.size
-  val rowCount = state.rows.size
+fun diffLayoutOf(state: ViewerUiState, mode: DiffMode = DiffMode.Unified, notesFiles: Set<Int> = emptySet(), hasOrphans: Boolean = false, hasEnd: Boolean = false): DiffLayout {
+  val unifiedHeaders = state.fileHeaderRowIndex
+  val fileCount = unifiedHeaders.size
+  val split = state.split
+  val rowCount = if (mode == DiffMode.Split) split.size else state.rows.size
   val headerRowArray = IntArray(fileCount)
   val headerVisible = IntArray(fileCount)
   val collapsed = BooleanArray(fileCount)
   val notes = BooleanArray(fileCount)
   var visible = if (hasOrphans) 1 else 0
   for (fileIndex in 0 until fileCount) {
-    val header = headerRows[fileIndex]
-    val end = if (fileIndex + 1 < fileCount) headerRows[fileIndex + 1] else rowCount
+    val header = if (mode == DiffMode.Split) split.splitIndexOf(unifiedHeaders[fileIndex]) else unifiedHeaders[fileIndex]
+    val end = if (fileIndex + 1 < fileCount) (if (mode == DiffMode.Split) split.splitIndexOf(unifiedHeaders[fileIndex + 1]) else unifiedHeaders[fileIndex + 1]) else rowCount
     headerRowArray[fileIndex] = header
     headerVisible[fileIndex] = visible
     collapsed[fileIndex] = state.isCollapsed(fileIndex)
