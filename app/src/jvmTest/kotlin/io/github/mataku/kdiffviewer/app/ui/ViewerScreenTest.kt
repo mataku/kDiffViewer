@@ -26,6 +26,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
@@ -67,7 +68,6 @@ import io.github.mataku.kdiffviewer.app.review.ReviewState
 import io.github.mataku.kdiffviewer.app.review.buildPlacements
 import io.github.mataku.kdiffviewer.app.splitRowsOf
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
-import io.github.mataku.kdiffviewer.app.ui.review.ReviewControls
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.ChangeType
@@ -1786,7 +1786,7 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun toolbarFinishReviewSubmitsPendingComments() = runComposeUiTest {
+  fun reviewBarSendsPendingComments() = runComposeUiTest {
     val ui = reviewUi
     val review = reviewState(ui)
     review.addPending(ui)
@@ -1794,28 +1794,26 @@ class ViewerScreenTest {
       val snapshot by review.snapshot.collectAsState()
       CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
     }
-    onNode(hasTestTag("finish-review-button") and hasAnyAncestor(hasTestTag("repo-header"))).assertIsDisplayed()
-    onNodeWithTag("review-bar").assertDoesNotExist()
-    onNodeWithTag("finish-review-button").performClick()
-    onNodeWithText("Submit").performClick()
+    onNode(hasTestTag("review-bar") and hasAnyAncestor(hasTestTag("diff-column"))).assertIsDisplayed()
+    onNode(hasText("Send to Agent") and hasAnyAncestor(hasTestTag("repo-header"))).assertDoesNotExist()
+    onNodeWithText("Send to Agent").performClick()
     waitForIdle()
     assertEquals(1, review.snapshot.value.submissions.size)
     assertEquals(0, review.snapshot.value.pendingCount)
+    onNodeWithTag("review-bar").assertDoesNotExist()
   }
 
   @Test
-  fun bottomBarReplacesToolbarButton() = runComposeUiTest {
+  fun reviewBarApproves() = runComposeUiTest {
     val ui = reviewUi
     val review = reviewState(ui)
     review.addPending(ui)
     setContent {
       val snapshot by review.snapshot.collectAsState()
       CompositionLocalProvider(LocalReviewActions provides review) {
-        ViewerScreen(ui, {}, review = snapshot, reviewControls = ReviewControls.BottomBar)
+        ViewerScreen(ui, {}, review = snapshot)
       }
     }
-    onNodeWithTag("finish-review-button").assertDoesNotExist()
-    onNode(hasTestTag("review-bar") and hasAnyAncestor(hasTestTag("diff-column"))).assertIsDisplayed()
     onNodeWithText("Approve").performClick()
     waitForIdle()
     assertEquals(SubmissionState.Approved, review.snapshot.value.submissions.single().state)

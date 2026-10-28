@@ -47,7 +47,6 @@ import io.github.mataku.kdiffviewer.app.ui.ViewerTitleBarHeight
 import io.github.mataku.kdiffviewer.app.ui.markdown.SafeUriHandler
 import io.github.mataku.kdiffviewer.app.ui.resolveFontFamily
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
-import io.github.mataku.kdiffviewer.app.ui.review.ReviewControls
 import io.github.mataku.kdiffviewer.app.ui.scrollJumpOf
 import io.github.mataku.kdiffviewer.core.git.GitLocation
 import io.github.mataku.kdiffviewer.core.git.GitLocator
@@ -218,7 +217,6 @@ private fun runApplication(
   val changeMode = { mode: DiffMode -> if (mode != diffMode) diffMode = mode }
   var sidebarVisible by remember { mutableStateOf(true) }
   val toggleSidebar = { sidebarVisible = !sidebarVisible }
-  var reviewControls by remember { mutableStateOf(ReviewControls.Toolbar) }
   Window(
     onCloseRequest = shutdown,
     title = "kDiffViewer",
@@ -255,10 +253,6 @@ private fun runApplication(
           enabled = uiState.repo != null && uiState.status !is LoadStatus.Failed,
           onClick = toggleSidebar,
         )
-        Menu("Review Controls") {
-          RadioButtonItem("Toolbar", selected = reviewControls == ReviewControls.Toolbar, onClick = { reviewControls = ReviewControls.Toolbar })
-          RadioButtonItem("Bottom Bar", selected = reviewControls == ReviewControls.BottomBar, onClick = { reviewControls = ReviewControls.BottomBar })
-        }
         Separator()
         Item("Reload", shortcut = KeyShortcut(Key.R, meta = true), onClick = state::reload)
       }
@@ -301,7 +295,6 @@ private fun runApplication(
             scrollJumps = scrollJumps,
             mode = diffMode,
             onModeChange = changeMode,
-            reviewControls = reviewControls,
           )
         }
       }

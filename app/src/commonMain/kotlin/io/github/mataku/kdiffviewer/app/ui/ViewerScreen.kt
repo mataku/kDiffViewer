@@ -71,14 +71,12 @@ import io.github.mataku.kdiffviewer.app.ui.mac.MacSegmented
 import io.github.mataku.kdiffviewer.app.ui.mac.TAG_FILL_ALPHA
 import io.github.mataku.kdiffviewer.app.ui.mac.TagPadding
 import io.github.mataku.kdiffviewer.app.ui.mac.TagShape
-import io.github.mataku.kdiffviewer.app.ui.review.FinishReviewButton
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftFocusRequests
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftText
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewInProgress
 import io.github.mataku.kdiffviewer.app.ui.review.RevealingReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.ReviewBar
-import io.github.mataku.kdiffviewer.app.ui.review.ReviewControls
 import io.github.mataku.kdiffviewer.app.ui.review.draftPlacement
 import io.github.mataku.kdiffviewer.app.ui.review.fileIndexOrNull
 import io.github.mataku.kdiffviewer.app.ui.review.revealIndex
@@ -112,7 +110,6 @@ fun ViewerScreen(
   scrollJumps: ScrollJumps? = null,
   mode: DiffMode = DiffMode.Unified,
   onModeChange: (DiffMode) -> Unit = {},
-  reviewControls: ReviewControls = ReviewControls.Toolbar,
 ) {
   val colors = LocalDiffColors.current
   val listState = rememberLazyListState()
@@ -231,19 +228,6 @@ fun ViewerScreen(
       mode = mode,
       onModeChange = onModeChange,
       onReload = onReload,
-      finishReview = if (reviewControls == ReviewControls.Toolbar) {
-        {
-          FinishReviewButton(
-            pendingCount = review.pendingCount,
-            waiting = review.waiting,
-            summary = reviewSummary,
-            onSummaryChange = { reviewSummary = it },
-            onSend = sendReview,
-          )
-        }
-      } else {
-        null
-      },
     )
     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
     SidebarLayout(
@@ -319,7 +303,7 @@ fun ViewerScreen(
               LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
             }
           }
-          if (reviewControls == ReviewControls.BottomBar && (review.pendingCount > 0 || review.waiting)) {
+          if (review.pendingCount > 0 || review.waiting) {
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
             ReviewBar(
               pendingCount = review.pendingCount,
@@ -347,7 +331,6 @@ private fun RepoHeader(
   mode: DiffMode,
   onModeChange: (DiffMode) -> Unit,
   onReload: () -> Unit,
-  finishReview: (@Composable () -> Unit)?,
 ) {
   val colors = LocalDiffColors.current
   val density = LocalDensity.current
@@ -459,10 +442,6 @@ private fun RepoHeader(
         .testTag("reload-button")
         .titleBarClientRegion("reload-button"),
     )
-    if (finishReview != null) {
-      Spacer(Modifier.width(12.dp))
-      finishReview()
-    }
   }
 }
 

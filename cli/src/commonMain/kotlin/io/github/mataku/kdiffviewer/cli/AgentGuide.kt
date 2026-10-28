@@ -72,7 +72,7 @@ kdv review wait --json prints:
     "threads": [ThreadDto, ...]
   }
 
-state is "comment" or "approved"; summary is the user's optional overall comment.
+state is "comment" or "approved"; summary is the optional message the user wrote to you when sending.
 commentIds are the comments this review sent; threads holds every thread that contains one of them, with all of its comments for context.
 Several reviews arrive together when the user sent more than one while you were busy.
 
