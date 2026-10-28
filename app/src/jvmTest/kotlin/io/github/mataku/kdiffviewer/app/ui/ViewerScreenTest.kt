@@ -438,6 +438,99 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun hiddenFromStartHasNoTreeAndFullWidthDiff() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = false)
+      }
+    }
+    onNodeWithTag("tree-panel").assertDoesNotExist()
+    val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    assertEquals(0.dp, diff.left)
+    assertEquals(800.dp, diff.right - diff.left)
+  }
+
+  @Test
+  fun hidingRemovesTreeAfterAnimation() = runComposeUiTest {
+    var visible by mutableStateOf(true)
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible)
+      }
+    }
+    mainClock.autoAdvance = false
+    visible = false
+    mainClock.advanceTimeBy(100)
+    onNodeWithTag("tree-panel").assertExists()
+    val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    assertEquals(800.dp, diff.right - diff.left)
+    mainClock.advanceTimeBy(200)
+    onNodeWithTag("tree-panel").assertDoesNotExist()
+  }
+
+  @Test
+  fun showingNarrowsDiffOnlyAtEnd() = runComposeUiTest {
+    var visible by mutableStateOf(false)
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible)
+      }
+    }
+    mainClock.autoAdvance = false
+    visible = true
+    mainClock.advanceTimeBy(100)
+    onNodeWithTag("tree-panel").assertExists()
+    val midway = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    assertEquals(800.dp, midway.right - midway.left)
+    mainClock.advanceTimeBy(200)
+    val tree = onNodeWithTag("tree-panel").getUnclippedBoundsInRoot()
+    val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    assertEquals(DefaultTreeWidth + 1.dp, diff.left)
+    assertEquals(800.dp - DefaultTreeWidth - 1.dp, diff.right - diff.left)
+    assertEquals(0.dp, tree.left)
+  }
+
+  @Test
+  fun hideShowKeepsTreeWidthAndScroll() = runComposeUiTest {
+    var visible by mutableStateOf(true)
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf((0 until 40).map { modified("f${it.toString().padStart(2, '0')}.kt") }), {}, sidebarVisible = visible)
+      }
+    }
+    onNodeWithTag("tree-divider").performMouseInput {
+      moveTo(center)
+      press()
+      moveBy(Offset(100f, 0f))
+      release()
+    }
+    onNodeWithTag("file-tree").performScrollToIndex(30)
+    waitForIdle()
+    val width = onNodeWithTag("tree-panel").getUnclippedBoundsInRoot().let { it.right - it.left }
+    val row = onNodeWithTag("tree-file-30").getUnclippedBoundsInRoot()
+    visible = false
+    waitForIdle()
+    onNodeWithTag("tree-panel").assertDoesNotExist()
+    visible = true
+    waitForIdle()
+    assertEquals(width, onNodeWithTag("tree-panel").getUnclippedBoundsInRoot().let { it.right - it.left })
+    assertEquals(row, onNodeWithTag("tree-file-30").getUnclippedBoundsInRoot())
+  }
+
+  @Test
+  fun hideShowKeepsFilterText() = runComposeUiTest {
+    var visible by mutableStateOf(true)
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"), modified("b.kt"))), {}, sidebarVisible = visible) }
+    onNodeWithTag("tree-filter").performTextInput("b.kt")
+    visible = false
+    waitForIdle()
+    visible = true
+    waitForIdle()
+    onNodeWithTag("tree-file-0").assertDoesNotExist()
+    onNodeWithTag("tree-file-1").assertExists()
+  }
+
+  @Test
   fun leadingInsetPushesToggleRight() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, titleBarLeadingInset = 78.dp) }
     val toggle = onNodeWithTag("sidebar-toggle").fetchSemanticsNode().boundsInRoot

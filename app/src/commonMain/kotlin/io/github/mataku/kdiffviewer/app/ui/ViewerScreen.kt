@@ -8,13 +8,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -187,8 +187,18 @@ fun ViewerScreen(
   var treeQuery by remember(state.repo) { mutableStateOf("") }
   val needle = treeQuery.trim()
   val filtering = needle.isNotEmpty()
-  val treeEntries = remember(state.tree, state.files, collapsed, needle) {
-    if (filtering) visibleTree(filterTree(state.tree, state.files, needle), emptySet()) else visibleTree(state.tree, collapsed)
+  val sidebar = remember { SidebarTransition(sidebarVisible) }
+  LaunchedEffect(sidebarVisible) {
+    if (sidebar.target != sidebarVisible) sidebar.animateTo(sidebarVisible)
+  }
+  val treeListState = remember(state.repo) { LazyListState() }
+  val treeComposed = sidebar.treeComposed
+  val treeEntries = remember(state.tree, state.files, collapsed, needle, treeComposed) {
+    when {
+      !treeComposed -> emptyList()
+      filtering -> visibleTree(filterTree(state.tree, state.files, needle), emptySet())
+      else -> visibleTree(state.tree, collapsed)
+    }
   }
   Column(modifier = modifier.fillMaxSize().background(colors.background)) {
     RepoHeader(
@@ -203,72 +213,81 @@ fun ViewerScreen(
       onReload = onReload,
     )
     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-    Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-      FileTreePanel(
-        entries = treeEntries,
-        topInset = 12.dp,
-        onFileClick = { fileIndex ->
-          onExpandFile(fileIndex)
-          listState.requestScrollToItem(layout.headerVisibleIndex(fileIndex))
-        },
-        onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
-        statsOf = statsOf,
-        statusOf = statusOf,
-        width = treeWidth,
-        query = treeQuery,
-        onQueryChange = { treeQuery = it },
-        filtering = filtering,
-      )
-      PaneDivider(
-        onDrag = { delta ->
-          treeWidth = (treeWidth + with(density) { delta.toDp() }).coerceIn(MinTreeWidth, MaxTreeWidth)
-        },
-      )
-      Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-        if (state.truncated) {
-          TruncatedNotice()
-          Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-        }
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-          if (state.status == LoadStatus.Done && state.files.isEmpty() && !hasOrphans) {
-            BasicText(
-              text = "No changes",
-              modifier = Modifier.align(Alignment.Center),
-              style = TextStyle(color = colors.mutedText, fontSize = 14.sp),
-            )
-          } else {
-            CompositionLocalProvider(
-              LocalDraftText provides draftText,
-              LocalDraftFocusRequests provides focusRequests,
-              LocalReviewActions provides actions,
-            ) {
-              DiffView(
-                rows = state.rows,
-                layout = layout,
-                display = display,
-                highlights = state.highlights,
-                listState = listState,
-                files = state.files,
-                placements = review.placements,
-                draftTarget = draftTarget,
-                loadId = state.loadId,
-                selection = diffSelection,
-                selectionSource = selectionSource,
-                onHeaderClick = { fileIndex ->
-                  val header = layout.headerVisibleIndex(fileIndex)
-                  val pinned = listState.firstVisibleItemIndex >= header
-                  onToggleFile(fileIndex)
-                  if (pinned) listState.requestScrollToItem(header)
-                },
+    SidebarLayout(
+      transition = sidebar,
+      modifier = Modifier.weight(1f).fillMaxWidth(),
+      tree = {
+        FileTreePanel(
+          entries = treeEntries,
+          listState = treeListState,
+          topInset = 12.dp,
+          onFileClick = { fileIndex ->
+            onExpandFile(fileIndex)
+            listState.requestScrollToItem(layout.headerVisibleIndex(fileIndex))
+          },
+          onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
+          statsOf = statsOf,
+          statusOf = statusOf,
+          width = treeWidth,
+          query = treeQuery,
+          onQueryChange = { treeQuery = it },
+          filtering = filtering,
+        )
+      },
+      divider = {
+        PaneDivider(
+          onDrag = { delta ->
+            treeWidth = (treeWidth + with(density) { delta.toDp() }).coerceIn(MinTreeWidth, MaxTreeWidth)
+          },
+        )
+      },
+      diff = {
+        Column(modifier = Modifier.testTag("diff-column").fillMaxSize()) {
+          if (state.truncated) {
+            TruncatedNotice()
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+          }
+          Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            if (state.status == LoadStatus.Done && state.files.isEmpty() && !hasOrphans) {
+              BasicText(
+                text = "No changes",
+                modifier = Modifier.align(Alignment.Center),
+                style = TextStyle(color = colors.mutedText, fontSize = 14.sp),
               )
+            } else {
+              CompositionLocalProvider(
+                LocalDraftText provides draftText,
+                LocalDraftFocusRequests provides focusRequests,
+                LocalReviewActions provides actions,
+              ) {
+                DiffView(
+                  rows = state.rows,
+                  layout = layout,
+                  display = display,
+                  highlights = state.highlights,
+                  listState = listState,
+                  files = state.files,
+                  placements = review.placements,
+                  draftTarget = draftTarget,
+                  loadId = state.loadId,
+                  selection = diffSelection,
+                  selectionSource = selectionSource,
+                  onHeaderClick = { fileIndex ->
+                    val header = layout.headerVisibleIndex(fileIndex)
+                    val pinned = listState.firstVisibleItemIndex >= header
+                    onToggleFile(fileIndex)
+                    if (pinned) listState.requestScrollToItem(header)
+                  },
+                )
+              }
+            }
+            if (state.status == LoadStatus.Loading) {
+              LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
             }
           }
-          if (state.status == LoadStatus.Loading) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
-          }
         }
-      }
-    }
+      },
+    )
   }
 }
 

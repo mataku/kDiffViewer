@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -52,6 +54,7 @@ fun FileTreePanel(
   query: String = "",
   onQueryChange: (String) -> Unit = {},
   filtering: Boolean = false,
+  listState: LazyListState = rememberLazyListState(),
 ) {
   val colors = LocalDiffColors.current
   val typography = LocalTreeTypography.current
@@ -88,6 +91,7 @@ fun FileTreePanel(
     } else {
       LazyColumn(
         modifier = Modifier.fillMaxWidth().testTag("file-tree"),
+        state = listState,
         contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = 12.dp),
       ) {
         itemsIndexed(entries, key = { index, _ -> index }) { index, entry ->

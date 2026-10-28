@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -19,9 +20,9 @@ class SidebarTransition(initiallyVisible: Boolean) {
 
   val progress: Float get() = animatable.value
 
-  val treeComposed: Boolean get() = target || progress > 0f
+  val treeComposed: Boolean by derivedStateOf { target || progress > 0f }
 
-  val diffNarrow: Boolean get() = target && progress == 1f
+  val diffNarrow: Boolean by derivedStateOf { target && progress == 1f }
 
   suspend fun animateTo(visible: Boolean) {
     target = visible
