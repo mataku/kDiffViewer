@@ -629,6 +629,14 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun largeDiffLabelMatchesChangeBadgeHeight() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("big.json")), largeDiffLines = 2), {}) }
+    val badge = onNodeWithTag("file-badge-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val label = onNodeWithTag("file-large-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    assertEquals(badge.height, label.height)
+  }
+
+  @Test
   fun largeDiffExpandsOnHeaderClick() = runComposeUiTest {
     var ui by mutableStateOf(stateOf(listOf(modified("big.json")), largeDiffLines = 2))
     setContent { ViewerScreen(ui, {}, onToggleFile = { index -> ui = ui.copy(expanded = ui.expanded + CollapsedFile(ui.files[index].displayPath, ui.fingerprints[index])) }) }
