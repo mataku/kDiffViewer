@@ -438,10 +438,191 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun titleBarInsetPushesTreeRowsDown() = runComposeUiTest {
-    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, titleBarInset = 28.dp) }
-    val row = onNodeWithTag("tree-file-0").fetchSemanticsNode().boundsInRoot
-    assertTrue(row.top >= with(density) { 28.dp.toPx() }, "row=$row")
+  fun hiddenFromStartHasNoTreeAndFullWidthDiff() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = false)
+      }
+    }
+    onNodeWithTag("tree-panel").assertDoesNotExist()
+    val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    assertEquals(0.dp, diff.left)
+    assertEquals(800.dp, diff.right - diff.left)
+  }
+
+  @Test
+  fun hidingRemovesTreeAfterAnimation() = runComposeUiTest {
+    var visible by mutableStateOf(true)
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible)
+      }
+    }
+    mainClock.autoAdvance = false
+    visible = false
+    mainClock.advanceTimeBy(100)
+    onNodeWithTag("tree-panel").assertExists()
+    val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    assertEquals(800.dp, diff.right - diff.left)
+    mainClock.advanceTimeBy(200)
+    onNodeWithTag("tree-panel").assertDoesNotExist()
+  }
+
+  @Test
+  fun showingNarrowsDiffOnlyAtEnd() = runComposeUiTest {
+    var visible by mutableStateOf(false)
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible)
+      }
+    }
+    mainClock.autoAdvance = false
+    visible = true
+    mainClock.advanceTimeBy(100)
+    onNodeWithTag("tree-panel").assertExists()
+    val midway = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    assertEquals(800.dp, midway.right - midway.left)
+    mainClock.advanceTimeBy(200)
+    val tree = onNodeWithTag("tree-panel").getUnclippedBoundsInRoot()
+    val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    assertEquals(DefaultTreeWidth + 1.dp, diff.left)
+    assertEquals(800.dp - DefaultTreeWidth - 1.dp, diff.right - diff.left)
+    assertEquals(0.dp, tree.left)
+  }
+
+  @Test
+  fun hideShowKeepsTreeWidthAndScroll() = runComposeUiTest {
+    var visible by mutableStateOf(true)
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf((0 until 40).map { modified("f${it.toString().padStart(2, '0')}.kt") }), {}, sidebarVisible = visible)
+      }
+    }
+    onNodeWithTag("tree-divider").performMouseInput {
+      moveTo(center)
+      press()
+      moveBy(Offset(100f, 0f))
+      release()
+    }
+    onNodeWithTag("file-tree").performScrollToIndex(30)
+    waitForIdle()
+    val width = onNodeWithTag("tree-panel").getUnclippedBoundsInRoot().let { it.right - it.left }
+    val row = onNodeWithTag("tree-file-30").getUnclippedBoundsInRoot()
+    visible = false
+    waitForIdle()
+    onNodeWithTag("tree-panel").assertDoesNotExist()
+    visible = true
+    waitForIdle()
+    assertEquals(width, onNodeWithTag("tree-panel").getUnclippedBoundsInRoot().let { it.right - it.left })
+    assertEquals(row, onNodeWithTag("tree-file-30").getUnclippedBoundsInRoot())
+  }
+
+  @Test
+  fun hideShowKeepsFilterText() = runComposeUiTest {
+    var visible by mutableStateOf(true)
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"), modified("b.kt"))), {}, sidebarVisible = visible) }
+    onNodeWithTag("tree-filter").performTextInput("b.kt")
+    visible = false
+    waitForIdle()
+    visible = true
+    waitForIdle()
+    onNodeWithTag("tree-file-0").assertDoesNotExist()
+    onNodeWithTag("tree-file-1").assertExists()
+  }
+
+  @Test
+  fun leadingInsetPushesToggleRight() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, titleBarLeadingInset = 78.dp) }
+    val toggle = onNodeWithTag("sidebar-control").fetchSemanticsNode().boundsInRoot
+    assertTrue(toggle.left >= with(density) { 78.dp.toPx() }, "toggle=$toggle")
+  }
+
+  @Test
+  fun toggleSitsLeftOfRepoName() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) }
+    val toggle = onNodeWithTag("sidebar-control").fetchSemanticsNode().boundsInRoot
+    val name = onNodeWithTag("repo-name").fetchSemanticsNode().boundsInRoot
+    assertTrue(toggle.right <= name.left, "toggle=$toggle name=$name")
+  }
+
+  @Test
+  fun sidebarSegmentsMarkVisibility() = runComposeUiTest {
+    var visible by mutableStateOf(true)
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible) }
+    assertEquals(true, onNodeWithTag("sidebar-shown").fetchSemanticsNode().config[SemanticsProperties.Selected])
+    assertEquals(false, onNodeWithTag("sidebar-hidden").fetchSemanticsNode().config[SemanticsProperties.Selected])
+    visible = false
+    waitForIdle()
+    assertEquals(false, onNodeWithTag("sidebar-shown").fetchSemanticsNode().config[SemanticsProperties.Selected])
+    assertEquals(true, onNodeWithTag("sidebar-hidden").fetchSemanticsNode().config[SemanticsProperties.Selected])
+  }
+
+  @Test
+  fun selectingTheOtherSidebarSegmentTogglesAndControlIsClientRegion() = runComposeUiTest {
+    val regions = TitleBarRegions()
+    var toggles = 0
+    setContent {
+      CompositionLocalProvider(LocalTitleBarRegions provides regions) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, onToggleSidebar = { toggles++ })
+      }
+    }
+    val control = onNodeWithTag("sidebar-control").fetchSemanticsNode().boundsInWindow
+    assertTrue(regions.isClientArea(control.center))
+    onNodeWithTag("sidebar-shown").performClick()
+    assertEquals(0, toggles)
+    onNodeWithTag("sidebar-hidden").performClick()
+    assertEquals(1, toggles)
+    onNodeWithTag("sidebar-hidden").assertWidthIsEqualTo(32.dp)
+  }
+
+  @Test
+  fun toggleShowsInEmptyState() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()), {}) }
+    onNodeWithTag("sidebar-control").assertIsDisplayed()
+  }
+
+  @Test
+  fun repoNameAlignsWithDiffContentWhenTreeShown() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
+      }
+    }
+    val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    val name = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
+    assertEquals(diff.left + 20.dp, name.left)
+  }
+
+  @Test
+  fun repoNameFollowsControlWhenTreeHidden() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = false)
+      }
+    }
+    val control = onNodeWithTag("sidebar-control").getUnclippedBoundsInRoot()
+    val name = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
+    assertEquals(control.right + 12.dp, name.left)
+  }
+
+  @Test
+  fun repoNameStaysPutWhenDividerDragged() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
+      }
+    }
+    val before = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
+    onNodeWithTag("tree-divider").performMouseInput {
+      moveTo(center)
+      press()
+      moveBy(Offset(100f, 0f))
+      release()
+    }
+    waitForIdle()
+    val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    assertTrue(diff.left > before.left - 20.dp, "divider drag did not move the diff column: diff=$diff")
+    assertEquals(before, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
   }
 
   @Test
@@ -449,7 +630,7 @@ class ViewerScreenTest {
     setContent { ViewerScreen(stateOf(emptyList()).copy(head = HeadRef.Branch("main")), {}) }
     val header = onNodeWithTag("repo-header").fetchSemanticsNode().boundsInRoot
     val reload = onNodeWithTag("reload-button").fetchSemanticsNode().boundsInRoot
-    val minHeight = with(density) { 52.dp.toPx() }
+    val minHeight = with(density) { 64.dp.toPx() }
     val margin = with(density) { 16.dp.toPx() }
     assertTrue(header.height >= minHeight, "header=$header")
     assertTrue(header.right - reload.right >= margin, "reload=$reload header=$header")
@@ -619,7 +800,7 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun treeSpansFullHeightAndHeaderSitsRightOfIt() = runComposeUiTest {
+  fun headerSpansFullWidthAndTreeSitsBelowIt() = runComposeUiTest {
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {
         ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
@@ -627,13 +808,13 @@ class ViewerScreenTest {
     }
     val tree = onNodeWithTag("tree-panel").fetchSemanticsNode().boundsInRoot
     val header = onNodeWithTag("repo-header").fetchSemanticsNode().boundsInRoot
-    val reload = onNodeWithTag("reload-button").fetchSemanticsNode().boundsInRoot
     val root = onRoot().fetchSemanticsNode().boundsInRoot
-    assertEquals(root.top, tree.top)
-    assertEquals(root.bottom, tree.bottom)
-    assertTrue(header.left >= tree.right, "header=$header tree=$tree")
-    assertTrue(reload.left >= tree.right, "reload=$reload tree=$tree")
+    assertEquals(root.left, header.left)
+    assertEquals(root.right, header.right)
     assertEquals(root.top, header.top)
+    assertEquals(with(density) { 64.dp.toPx() }, header.height)
+    assertTrue(tree.top >= header.bottom, "tree=$tree header=$header")
+    assertEquals(root.bottom, tree.bottom)
   }
 
   private fun keywordFile(): FileDiff {

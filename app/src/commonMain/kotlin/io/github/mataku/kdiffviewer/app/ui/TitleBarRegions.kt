@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 
 val TitleBarHeight = 52.dp
 
+val ViewerTitleBarHeight = 64.dp
+
 val ContentHorizontalMargin = 20.dp
 
 class TitleBarRegions {

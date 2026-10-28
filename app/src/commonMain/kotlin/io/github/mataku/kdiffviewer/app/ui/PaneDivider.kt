@@ -17,12 +17,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 
+val PaneDividerWidth = 1.dp
+
 @Composable
 fun PaneDivider(onDrag: (Float) -> Unit, modifier: Modifier = Modifier) {
   val colors = LocalDiffColors.current
   val currentOnDrag by rememberUpdatedState(onDrag)
   val dragState = rememberDraggableState { delta -> currentOnDrag(delta) }
-  Box(modifier = modifier.zIndex(1f).width(1.dp).fillMaxHeight().background(colors.border)) {
+  Box(modifier = modifier.zIndex(1f).width(PaneDividerWidth).fillMaxHeight().background(colors.border)) {
     Box(
       modifier = Modifier
         .testTag("tree-divider")

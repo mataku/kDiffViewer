@@ -113,7 +113,7 @@ fun MacPullDownTag(
     modifier = modifier
       .clip(TagShape)
       .background(colors.text.copy(alpha = TAG_FILL_ALPHA))
-      .clickable(role = Role.Button, onClick = onClick)
+      .clickable(interactionSource = null, indication = null, role = Role.Button, onClick = onClick)
       .padding(TagPadding),
     verticalAlignment = Alignment.CenterVertically,
   ) {

@@ -90,7 +90,7 @@ private fun ActionButton(label: String, onClick: () -> Unit) {
     modifier = Modifier
       .border(1.dp, colors.border)
       .background(colors.fileHeaderBackground)
-      .clickable(onClick = onClick)
+      .clickable(interactionSource = null, indication = null, onClick = onClick)
       .padding(horizontal = 16.dp, vertical = 8.dp),
   )
 }

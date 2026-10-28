@@ -51,7 +51,7 @@ fun AppearanceCard(
     modifier = Modifier
       .testTag("appearance-${appearance.name}")
       .semantics { this.selected = selected }
-      .clickable(role = Role.RadioButton, onClick = onClick),
+      .clickable(interactionSource = null, indication = null, role = Role.RadioButton, onClick = onClick),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {

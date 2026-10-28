@@ -88,7 +88,7 @@ fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
       style = styles.collapsed,
       modifier = cardModifier
         .testTag("thread-${thread.id}-collapsed")
-        .clickable { expanded = true }
+        .clickable(interactionSource = null, indication = null) { expanded = true }
         .padding(horizontal = 12.dp, vertical = 6.dp),
     )
     return
@@ -221,7 +221,7 @@ private fun CommentView(comment: Comment, editing: Boolean, actions: ReviewActio
 
 @Composable
 private fun LinkText(text: String, style: TextStyle, onClick: () -> Unit) {
-  BasicText(text, style = style, modifier = Modifier.clickable(onClick = onClick))
+  BasicText(text, style = style, modifier = Modifier.clickable(interactionSource = null, indication = null, onClick = onClick))
 }
 
 @Composable

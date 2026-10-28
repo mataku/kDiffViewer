@@ -3,20 +3,18 @@ package io.github.mataku.kdiffviewer.app.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -26,6 +24,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +35,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -85,13 +88,18 @@ import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.roundToInt
+
+private val SidebarOptions = listOf(true, false)
 
 @Composable
 fun ViewerScreen(
   state: ViewerUiState,
   onReload: () -> Unit,
   modifier: Modifier = Modifier,
-  titleBarInset: Dp = 0.dp,
+  titleBarLeadingInset: Dp = 0.dp,
+  sidebarVisible: Boolean = true,
+  onToggleSidebar: () -> Unit = {},
   onToggleFile: (Int) -> Unit = {},
   onExpandFile: (Int) -> Unit = {},
   review: ReviewSnapshot = ReviewSnapshot.Empty,
@@ -187,156 +195,234 @@ fun ViewerScreen(
   var treeQuery by remember(state.repo) { mutableStateOf("") }
   val needle = treeQuery.trim()
   val filtering = needle.isNotEmpty()
-  val treeEntries = remember(state.tree, state.files, collapsed, needle) {
-    if (filtering) visibleTree(filterTree(state.tree, state.files, needle), emptySet()) else visibleTree(state.tree, collapsed)
+  val sidebar = remember { SidebarTransition(sidebarVisible) }
+  LaunchedEffect(sidebarVisible) {
+    if (sidebar.target != sidebarVisible) sidebar.animateTo(sidebarVisible)
   }
-  Row(modifier = modifier.fillMaxSize().background(colors.background)) {
-    FileTreePanel(
-      entries = treeEntries,
-      topInset = titleBarInset + 12.dp,
-      onFileClick = { fileIndex ->
-        onExpandFile(fileIndex)
-        listState.requestScrollToItem(layout.headerVisibleIndex(fileIndex))
-      },
-      onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
-      statsOf = statsOf,
-      statusOf = statusOf,
-      width = treeWidth,
-      query = treeQuery,
-      onQueryChange = { treeQuery = it },
-      filtering = filtering,
+  val treeListState = remember(state.repo) { LazyListState() }
+  val treeComposed = sidebar.treeComposed
+  val treeEntries = remember(state.tree, state.files, collapsed, needle, treeComposed) {
+    when {
+      !treeComposed -> emptyList()
+      filtering -> visibleTree(filterTree(state.tree, state.files, needle), emptySet())
+      else -> visibleTree(state.tree, collapsed)
+    }
+  }
+  Column(modifier = modifier.fillMaxSize().background(colors.background)) {
+    RepoHeader(
+      state = state,
+      titleBarLeadingInset = titleBarLeadingInset,
+      sidebarVisible = sidebarVisible,
+      onToggleSidebar = onToggleSidebar,
+      sidebar = sidebar,
+      loadBranches = loadBranches,
+      onSwitchBase = onSwitchBase,
+      mode = mode,
+      onModeChange = onModeChange,
+      onReload = onReload,
     )
-    PaneDivider(
-      onDrag = { delta ->
-        treeWidth = (treeWidth + with(density) { delta.toDp() }).coerceIn(MinTreeWidth, MaxTreeWidth)
+    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+    SidebarLayout(
+      transition = sidebar,
+      modifier = Modifier.weight(1f).fillMaxWidth(),
+      tree = {
+        FileTreePanel(
+          entries = treeEntries,
+          listState = treeListState,
+          topInset = 12.dp,
+          onFileClick = { fileIndex ->
+            onExpandFile(fileIndex)
+            listState.requestScrollToItem(layout.headerVisibleIndex(fileIndex))
+          },
+          onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
+          statsOf = statsOf,
+          statusOf = statusOf,
+          width = treeWidth,
+          query = treeQuery,
+          onQueryChange = { treeQuery = it },
+          filtering = filtering,
+        )
       },
-    )
-    Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-      Row(
-        modifier = Modifier
-          .testTag("repo-header")
-          .fillMaxWidth()
-          .heightIn(min = TitleBarHeight)
-          .background(colors.fileHeaderBackground)
-          .padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-      ) {
-        Column {
-          BasicText(
-            text = state.repo?.let(::repoName).orEmpty(),
-            modifier = Modifier.testTag("repo-name"),
-            style = TextStyle(color = colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-          )
-          val base = state.base as? ResolvedBase.Commit
-          val head = state.head
-          if (base != null || head != null) {
-            val labelStyle = TextStyle(color = colors.mutedText, fontSize = 12.sp)
-            Row(modifier = Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-              if (base != null) {
-                val uncommittedOnly = base.label == "HEAD"
-                BasePicker(base, state.baseSpec, head, loadBranches, onSwitchBase, labelStyle, Modifier.weight(1f, fill = false).titleBarClientRegion("base-picker"))
-                if (head != null) {
-                  BasicText(text = if (uncommittedOnly) "·" else "...", modifier = Modifier.padding(horizontal = 6.dp), style = labelStyle)
-                }
+      divider = {
+        PaneDivider(
+          onDrag = { delta ->
+            treeWidth = (treeWidth + with(density) { delta.toDp() }).coerceIn(MinTreeWidth, MaxTreeWidth)
+          },
+        )
+      },
+      diff = {
+        Column(modifier = Modifier.testTag("diff-column").fillMaxSize()) {
+          if (state.truncated) {
+            TruncatedNotice()
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+          }
+          Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            if (state.status == LoadStatus.Done && state.files.isEmpty() && !hasOrphans) {
+              BasicText(
+                text = "No changes",
+                modifier = Modifier.align(Alignment.Center),
+                style = TextStyle(color = colors.mutedText, fontSize = 14.sp),
+              )
+            } else {
+              CompositionLocalProvider(
+                LocalDraftText provides draftText,
+                LocalDraftFocusRequests provides focusRequests,
+                LocalReviewActions provides actions,
+              ) {
+                DiffView(
+                  rows = state.rows,
+                  layout = layout,
+                  display = display,
+                  highlights = state.highlights,
+                  listState = listState,
+                  files = state.files,
+                  placements = review.placements,
+                  draftTarget = draftTarget,
+                  loadId = state.loadId,
+                  selection = diffSelection,
+                  selectionSource = selectionSource,
+                  onHeaderClick = { fileIndex ->
+                    val header = layout.headerVisibleIndex(fileIndex)
+                    val pinned = listState.firstVisibleItemIndex >= header
+                    onToggleFile(fileIndex)
+                    if (pinned) listState.requestScrollToItem(header)
+                  },
+                )
               }
-              if (head != null) {
-                val (icon, iconTag, label) = when (head) {
-                  is HeadRef.Branch -> Triple(KdvIcons.Branch, "head-branch-icon", head.name)
-                  is HeadRef.Detached -> Triple(KdvIcons.Commit, "head-commit-icon", head.shortHash)
-                }
-                Row(
-                  modifier = Modifier.clip(TagShape).background(colors.text.copy(alpha = TAG_FILL_ALPHA)).padding(TagPadding),
-                  verticalAlignment = Alignment.CenterVertically,
-                ) {
-                  Image(
-                    imageVector = icon,
-                    contentDescription = null,
-                    modifier = Modifier.testTag(iconTag).padding(end = 4.dp).size(12.dp),
-                    colorFilter = ColorFilter.tint(colors.mutedText),
-                  )
-                  BasicText(
-                    text = label,
-                    modifier = Modifier.testTag("head-label"),
-                    style = labelStyle,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                  )
-                }
-              }
+            }
+            if (state.status == LoadStatus.Loading) {
+              LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
             }
           }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          MacSegmented(
-            options = DiffMode.entries,
-            selected = mode,
-            label = { it.name },
-            tag = { "diff-mode-${it.name.lowercase()}" },
-            onSelect = { if (it != mode) onModeChange(it) },
-            modifier = Modifier
-              .testTag("diff-mode-control")
-              .titleBarClientRegion("diff-mode"),
-            segmentWidth = 32.dp,
-            icon = { if (it == DiffMode.Unified) KdvIcons.Unified else KdvIcons.Split },
-            tooltip = { it.name },
-          )
-          Spacer(Modifier.width(8.dp))
-          GlassIconButton(
-            icon = KdvIcons.Reload,
-            contentDescription = "Reload",
-            tooltip = "Reload (⌘R)",
-            onClick = onReload,
-            modifier = Modifier
-              .testTag("reload-button")
-              .titleBarClientRegion("reload-button"),
-          )
+      },
+    )
+  }
+}
+
+@Composable
+private fun RepoHeader(
+  state: ViewerUiState,
+  titleBarLeadingInset: Dp,
+  sidebarVisible: Boolean,
+  onToggleSidebar: () -> Unit,
+  sidebar: SidebarTransition,
+  loadBranches: suspend () -> List<BranchRef>,
+  onSwitchBase: suspend (BaseSpec) -> ViewerError?,
+  mode: DiffMode,
+  onModeChange: (DiffMode) -> Unit,
+  onReload: () -> Unit,
+) {
+  val colors = LocalDiffColors.current
+  val density = LocalDensity.current
+  val repoAnchor = with(density) { (DefaultTreeWidth + PaneDividerWidth + ContentHorizontalMargin).toPx() }
+  val startPadding = if (titleBarLeadingInset > 0.dp) titleBarLeadingInset + 8.dp else 20.dp
+  val startPaddingPx = with(density) { startPadding.toPx() }
+  val naturalLeft = remember { mutableFloatStateOf(0f) }
+  Row(
+    modifier = Modifier
+      .testTag("repo-header")
+      .fillMaxWidth()
+      .height(ViewerTitleBarHeight)
+      .background(colors.fileHeaderBackground)
+      .padding(start = startPadding, end = 20.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    MacSegmented(
+      options = SidebarOptions,
+      selected = sidebarVisible,
+      label = { if (it) "Show Sidebar" else "Hide Sidebar" },
+      tag = { if (it) "sidebar-shown" else "sidebar-hidden" },
+      onSelect = { if (it != sidebarVisible) onToggleSidebar() },
+      modifier = Modifier
+        .testTag("sidebar-control")
+        .titleBarClientRegion("sidebar-control"),
+      segmentWidth = 32.dp,
+      icon = { if (it) KdvIcons.Sidebar else KdvIcons.NoSidebar },
+      tooltip = { if (it) "Show Sidebar (⌃⌘S)" else "Hide Sidebar (⌃⌘S)" },
+    )
+    Spacer(Modifier.width(12.dp))
+    Column(
+      modifier = Modifier
+        .weight(1f)
+        .onPlaced { naturalLeft.floatValue = startPaddingPx + it.positionInParent().x }
+        .layout { measurable, constraints ->
+          val shift = if (sidebar.diffNarrow) (repoAnchor - naturalLeft.floatValue).coerceAtLeast(0f).roundToInt() else 0
+          val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = (constraints.maxWidth - shift).coerceAtLeast(0)))
+          layout(constraints.maxWidth, placeable.height) { placeable.placeRelative(shift, 0) }
         }
-      }
-      Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-      if (state.truncated) {
-        TruncatedNotice()
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-      }
-      Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-        if (state.status == LoadStatus.Done && state.files.isEmpty() && !hasOrphans) {
-          BasicText(
-            text = "No changes",
-            modifier = Modifier.align(Alignment.Center),
-            style = TextStyle(color = colors.mutedText, fontSize = 14.sp),
-          )
-        } else {
-          CompositionLocalProvider(
-            LocalDraftText provides draftText,
-            LocalDraftFocusRequests provides focusRequests,
-            LocalReviewActions provides actions,
-          ) {
-            DiffView(
-              rows = state.rows,
-              layout = layout,
-              display = display,
-              highlights = state.highlights,
-              listState = listState,
-              files = state.files,
-              placements = review.placements,
-              draftTarget = draftTarget,
-              loadId = state.loadId,
-              selection = diffSelection,
-              selectionSource = selectionSource,
-              onHeaderClick = { fileIndex ->
-                val header = layout.headerVisibleIndex(fileIndex)
-                val pinned = listState.firstVisibleItemIndex >= header
-                onToggleFile(fileIndex)
-                if (pinned) listState.requestScrollToItem(header)
-              },
-            )
+        .graphicsLayer {
+          translationX = if (sidebar.diffNarrow) 0f else sidebar.progress * (repoAnchor - naturalLeft.floatValue).coerceAtLeast(0f)
+        },
+    ) {
+      BasicText(
+        text = state.repo?.let(::repoName).orEmpty(),
+        modifier = Modifier.testTag("repo-name"),
+        style = TextStyle(color = colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+      )
+      val base = state.base as? ResolvedBase.Commit
+      val head = state.head
+      if (base != null || head != null) {
+        val labelStyle = TextStyle(color = colors.mutedText, fontSize = 12.sp)
+        Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+          if (base != null) {
+            val uncommittedOnly = base.label == "HEAD"
+            BasePicker(base, state.baseSpec, head, loadBranches, onSwitchBase, labelStyle, Modifier.weight(1f, fill = false).titleBarClientRegion("base-picker"))
+            if (head != null) {
+              BasicText(text = if (uncommittedOnly) "·" else "...", modifier = Modifier.padding(horizontal = 6.dp), style = labelStyle)
+            }
           }
-        }
-        if (state.status == LoadStatus.Loading) {
-          LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
+          if (head != null) {
+            val (icon, iconTag, label) = when (head) {
+              is HeadRef.Branch -> Triple(KdvIcons.Branch, "head-branch-icon", head.name)
+              is HeadRef.Detached -> Triple(KdvIcons.Commit, "head-commit-icon", head.shortHash)
+            }
+            Row(
+              modifier = Modifier.clip(TagShape).background(colors.text.copy(alpha = TAG_FILL_ALPHA)).padding(TagPadding),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Image(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.testTag(iconTag).padding(end = 4.dp).size(12.dp),
+                colorFilter = ColorFilter.tint(colors.mutedText),
+              )
+              BasicText(
+                text = label,
+                modifier = Modifier.testTag("head-label"),
+                style = labelStyle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+            }
+          }
         }
       }
     }
+    Spacer(Modifier.width(12.dp))
+    MacSegmented(
+      options = DiffMode.entries,
+      selected = mode,
+      label = { it.name },
+      tag = { "diff-mode-${it.name.lowercase()}" },
+      onSelect = { if (it != mode) onModeChange(it) },
+      modifier = Modifier
+        .testTag("diff-mode-control")
+        .titleBarClientRegion("diff-mode"),
+      segmentWidth = 32.dp,
+      icon = { if (it == DiffMode.Unified) KdvIcons.Unified else KdvIcons.Split },
+      tooltip = { it.name },
+    )
+    Spacer(Modifier.width(8.dp))
+    GlassIconButton(
+      icon = KdvIcons.Reload,
+      contentDescription = "Reload",
+      tooltip = "Reload (⌘R)",
+      onClick = onReload,
+      modifier = Modifier
+        .testTag("reload-button")
+        .titleBarClientRegion("reload-button"),
+    )
   }
 }
 
