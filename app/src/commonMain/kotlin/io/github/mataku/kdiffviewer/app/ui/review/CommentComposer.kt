@@ -52,17 +52,22 @@ private enum class ComposerMode(val label: String, val tag: String) {
 private val PreviewShape = RoundedCornerShape(6.dp)
 private val PreviewPadding = 6.dp
 
+sealed interface ComposerActions {
+  class Save(val onSave: () -> Unit) : ComposerActions
+
+  class Post(val onReview: () -> Unit, val onSingle: (() -> Unit)?) : ComposerActions
+}
+
 @Composable
 fun CommentComposer(
-  submitLabel: String,
+  actions: ComposerActions,
   onTextChange: (String) -> Unit,
-  onSubmit: () -> Unit,
   onCancel: () -> Unit,
 ) {
   val focusRequester = remember { FocusRequester() }
   val previewFocusRequester = remember { FocusRequester() }
   val draftText = LocalDraftText.current
-  val latestSubmit by rememberUpdatedState(onSubmit)
+  val latestActions by rememberUpdatedState(actions)
   val latestCancel by rememberUpdatedState(onCancel)
   val focusRequests = LocalDraftFocusRequests.current.value
   var mode by remember { mutableStateOf(ComposerMode.Write) }
@@ -82,7 +87,12 @@ fun CommentComposer(
           }
 
           event.isMetaPressed && (event.key == Key.Enter || event.key == Key.NumPadEnter) -> {
-            if (draftText.value.isNotBlank()) latestSubmit()
+            if (draftText.value.isNotBlank()) {
+              when (val current = latestActions) {
+                is ComposerActions.Save -> current.onSave()
+                is ComposerActions.Post -> if (event.isShiftPressed) current.onSingle?.invoke() else current.onReview()
+              }
+            }
             true
           }
 
@@ -126,7 +136,20 @@ fun CommentComposer(
       horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
     ) {
       MacPushButton(text = "Cancel", onClick = onCancel)
-      MacPushButton(text = submitLabel, onClick = onSubmit, enabled = text.isNotBlank())
+      when (actions) {
+        is ComposerActions.Save -> MacPushButton(text = "Save", onClick = actions.onSave, enabled = text.isNotBlank(), default = true)
+
+        is ComposerActions.Post -> {
+          actions.onSingle?.let { MacPushButton(text = "Add single comment", onClick = it, enabled = text.isNotBlank()) }
+          val inReview = LocalReviewInProgress.current.value
+          MacPushButton(
+            text = if (inReview) "Add review comment" else "Start a review",
+            onClick = actions.onReview,
+            enabled = text.isNotBlank(),
+            default = true,
+          )
+        }
+      }
     }
   }
 }

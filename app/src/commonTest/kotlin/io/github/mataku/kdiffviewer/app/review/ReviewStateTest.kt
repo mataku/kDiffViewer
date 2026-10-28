@@ -15,6 +15,8 @@ import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.core.review.LineLocation
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.Side
+import io.github.mataku.kdiffviewer.core.review.Submission
+import io.github.mataku.kdiffviewer.core.review.SubmissionState
 import io.github.mataku.kdiffviewer.core.review.anchorOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -55,11 +57,17 @@ class ReviewStateTest {
 
   private fun TestScope.newState() = ReviewState(this, StandardTestDispatcher(testScheduler), { epoch })
 
-  private fun ReviewState.addThread(file: FileDiff, lineIndex: Int, text: String = "fix") {
+  private fun ReviewState.addThread(file: FileDiff, lineIndex: Int, text: String = "fix", mode: DraftMode = DraftMode.Single) {
     val anchor = anchorOf(file, 0, lineIndex)!!
     startDraft(DraftTarget.NewThread(anchor, Placement.OnLine(LineLocation(0, 0, lineIndex))))
     updateDraft(text)
-    submitDraft()
+    submitDraft(mode)
+  }
+
+  private fun ReviewState.addReply(threadId: String, text: String, mode: DraftMode) {
+    startDraft(DraftTarget.Reply(threadId))
+    updateDraft(text)
+    submitDraft(mode)
   }
 
   private val base = file("a.kt", "a", "b", "c")
@@ -82,7 +90,7 @@ class ReviewStateTest {
     val state = newState()
     state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
     state.updateDraft("   ")
-    state.submitDraft()
+    state.submitDraft(DraftMode.Single)
     assertTrue(state.snapshot.value.threads.isEmpty())
   }
 
@@ -194,6 +202,28 @@ class ReviewStateTest {
   }
 
   @Test
+  fun awaitSettledExcludesPendingThreadsFromOutdated() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.onViewerState(ui(1, base))
+    advanceUntilIdle()
+    state.addThread(base, 1, mode = DraftMode.Review)
+    state.onViewerState(ui(2, file("a.kt", "a", "q", "c")))
+    advanceUntilIdle()
+    assertTrue(state.snapshot.value.threads.single().outdated)
+    assertEquals(LoadSettlement(false, 1, 0), state.awaitSettled(2))
+  }
+
+  @Test
+  fun singleReplyToPendingThreadStaysPending() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 1, mode = DraftMode.Review)
+    state.addReply("t1", "more", DraftMode.Single)
+    assertTrue(state.snapshot.value.threads.single().comments.all { it.pending })
+    assertTrue(state.snapshot.value.submissions.isEmpty())
+    assertTrue(state.threads(includeResolved = true).isEmpty())
+  }
+
+  @Test
   fun awaitSettledReturnsImmediatelyWhenAlreadySettled() = runTest(StandardTestDispatcher()) {
     val state = newState()
     state.onViewerState(ui(3, base))
@@ -227,7 +257,7 @@ class ReviewStateTest {
     assertIs<ReviewResult.Ok<*>>(result)
     assertEquals(Draft(DraftTarget.Reply("t1"), "typing"), state.snapshot.value.draft)
     assertEquals(listOf("c1", "c2"), state.snapshot.value.threads.single().comments.map { it.id })
-    state.submitDraft()
+    state.submitDraft(DraftMode.Single)
     assertEquals(listOf("c1", "c2", "c3"), state.snapshot.value.threads.single().comments.map { it.id })
     assertEquals("typing", state.snapshot.value.threads.single().comments.last().body)
   }
@@ -239,7 +269,7 @@ class ReviewStateTest {
     state.startDraft(DraftTarget.Edit("c1"))
     assertEquals("old", state.snapshot.value.draft?.text)
     state.updateDraft("new")
-    state.submitDraft()
+    state.submitDraft(DraftMode.Single)
     assertEquals("new", state.snapshot.value.threads.single().comments.single().body)
   }
 
@@ -335,7 +365,7 @@ class ReviewStateTest {
     advanceUntilIdle()
     state.startDraft(DraftTarget.NewThread(Anchor.File("a.kt"), Placement.OnFile(0)))
     state.updateDraft("file note")
-    state.submitDraft()
+    state.submitDraft(DraftMode.Single)
     assertEquals(listOf("t1"), state.snapshot.value.placements.byFile[0]?.map { it.id })
     state.onViewerState(ui(2))
     advanceUntilIdle()
@@ -385,7 +415,7 @@ class ReviewStateTest {
         repeat(100) {
           state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0, 0, 2))))
           state.updateDraft("x")
-          state.submitDraft()
+          state.submitDraft(DraftMode.Single)
         }
       }
       (repliers + drafter).awaitAll()
@@ -396,5 +426,285 @@ class ReviewStateTest {
     val commentIds = threads.flatMap { t -> t.comments.map { it.id } }
     assertEquals(1 + 1600 + 100, commentIds.size)
     assertEquals(commentIds.size, commentIds.toSet().size)
+  }
+
+  @Test
+  fun singleNewThreadCreatesSubmission() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 1)
+    val snapshot = state.snapshot.value
+    assertEquals(listOf(Submission(1, SubmissionState.Comment, null, epoch, listOf("c1"))), snapshot.submissions)
+    assertEquals(0, snapshot.pendingCount)
+    assertFalse(snapshot.threads.single().comments.single().pending)
+  }
+
+  @Test
+  fun reviewCommentIsPendingAndHiddenFromAgents() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 1, mode = DraftMode.Review)
+    val snapshot = state.snapshot.value
+    assertEquals(1, snapshot.pendingCount)
+    assertTrue(snapshot.submissions.isEmpty())
+    assertTrue(snapshot.threads.single().comments.single().pending)
+    assertTrue(state.threads(includeResolved = true).isEmpty())
+    assertNull(state.agentThread("t1"))
+  }
+
+  @Test
+  fun reviewReplyOnPublishedThreadHidden() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 1)
+    state.addReply("t1", "more", DraftMode.Review)
+    assertEquals(listOf("c1"), state.threads(includeResolved = false).single().comments.map { it.id })
+    assertEquals(listOf("c1", "c2"), state.snapshot.value.threads.single().comments.map { it.id })
+  }
+
+  @Test
+  fun submitReviewPublishesAllPending() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 0, mode = DraftMode.Review)
+    state.addThread(base, 2, mode = DraftMode.Review)
+    state.submitReview("  summary  ", approve = false)
+    val snapshot = state.snapshot.value
+    assertEquals(listOf(Submission(1, SubmissionState.Comment, "summary", epoch, listOf("c1", "c2"))), snapshot.submissions)
+    assertEquals(0, snapshot.pendingCount)
+    assertEquals(2, state.threads(includeResolved = false).size)
+  }
+
+  @Test
+  fun approveWithNothingPending() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.submitReview(null, approve = true)
+    assertEquals(listOf(Submission(1, SubmissionState.Approved, null, epoch, emptyList())), state.snapshot.value.submissions)
+  }
+
+  @Test
+  fun submitWithNothingIsNoOp() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.submitReview("   ", approve = false)
+    assertTrue(state.snapshot.value.submissions.isEmpty())
+  }
+
+  @Test
+  fun summaryOnlySubmits() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.submitReview("ship it after tests", approve = false)
+    assertEquals("ship it after tests", state.snapshot.value.submissions.single().summary)
+  }
+
+  @Test
+  fun oversizedSummaryIsIgnored() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 1, mode = DraftMode.Review)
+    state.submitReview("x".repeat(MAX_REPLY_BODY_CHARS + 1), approve = false)
+    assertTrue(state.snapshot.value.submissions.isEmpty())
+    assertEquals(1, state.snapshot.value.pendingCount)
+  }
+
+  @Test
+  fun editKeepsPending() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 1, mode = DraftMode.Review)
+    state.startDraft(DraftTarget.Edit("c1"))
+    state.updateDraft("edited")
+    state.submitDraft(DraftMode.Single)
+    val comment = state.snapshot.value.threads.single().comments.single()
+    assertEquals("edited", comment.body)
+    assertTrue(comment.pending)
+    assertTrue(state.snapshot.value.submissions.isEmpty())
+  }
+
+  @Test
+  fun deletingPendingCommentUpdatesCount() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 1, mode = DraftMode.Review)
+    state.delete("c1")
+    assertEquals(0, state.snapshot.value.pendingCount)
+  }
+
+  @Test
+  fun agentReplyToPendingThreadIsNotFound() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 1, mode = DraftMode.Review)
+    assertIs<ReviewResult.Err>(state.reply("t1", Author.Agent("bot"), "done"))
+    assertIs<ReviewResult.Err>(state.resolveThread("t1", true))
+  }
+
+  @Test
+  fun singleReplyCreatesSubmission() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 1)
+    state.addReply("t1", "and this", DraftMode.Single)
+    assertEquals(listOf(listOf("c1"), listOf("c2")), state.snapshot.value.submissions.map { it.commentIds })
+  }
+
+  @Test
+  fun repositorySwitchClearsSubmissions() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.onViewerState(ui(1, base))
+    state.addThread(base, 1)
+    state.addThread(base, 2, mode = DraftMode.Review)
+    state.onViewerState(ui(2, base, repo = RepoPath("/other"), status = LoadStatus.Loading))
+    val snapshot = state.snapshot.value
+    assertTrue(snapshot.submissions.isEmpty())
+    assertEquals(0, snapshot.pendingCount)
+    state.submitReview(null, approve = true)
+    assertEquals("r1", state.snapshot.value.submissions.single().id)
+  }
+
+  private fun TestScope.openState(): ReviewState = newState().also { it.onViewerState(ui(1, base)) }
+
+  @Test
+  fun noRepository() = runTest(StandardTestDispatcher()) {
+    assertEquals(WaitOutcome.NoRepository, newState().awaitSubmissions(null))
+  }
+
+  @Test
+  fun queuedSubmissionReturnsImmediately() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 1)
+    val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    assertEquals(listOf("r1"), outcome.submissions.map { it.id })
+    state.markDelivered(outcome)
+    assertEquals(WaitOutcome.TimedOut, state.awaitSubmissions(10))
+    assertFalse(state.snapshot.value.waiting)
+  }
+
+  @Test
+  fun waitResumesOnSubmit() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    val waiter = async { state.awaitSubmissions(null) }
+    runCurrent()
+    assertTrue(state.snapshot.value.waiting)
+    state.addThread(base, 1, mode = DraftMode.Review)
+    runCurrent()
+    assertFalse(waiter.isCompleted)
+    state.submitReview(null, approve = true)
+    val outcome = assertIs<WaitOutcome.Delivered>(waiter.await())
+    assertEquals(SubmissionState.Approved, outcome.submissions.single().state)
+    assertFalse(state.snapshot.value.waiting)
+  }
+
+  @Test
+  fun inFlightDeliveryIsNotHandedToAnotherWaiter() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 1)
+    assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    assertEquals(WaitOutcome.TimedOut, state.awaitSubmissions(10))
+    assertEquals(0, state.snapshot.value.core.deliveredThrough)
+  }
+
+  @Test
+  fun releasedDeliveryIsDeliveredAgain() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 1)
+    val first = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    state.releaseDelivery(first)
+    val again = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    assertEquals(listOf("r1"), again.submissions.map { it.id })
+  }
+
+  @Test
+  fun deliveryCarriesPublishedThreadsFromTheSameSnapshot() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 0)
+    state.addReply("t1", "later", DraftMode.Review)
+    state.addThread(base, 2, mode = DraftMode.Review)
+    state.addThread(base, 1, text = "other")
+    val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    assertEquals(listOf("t1", "t3"), outcome.threads.map { it.id })
+    assertEquals(listOf("c1"), outcome.threads.first().comments.map { it.id })
+    state.onViewerState(ui(2, base, repo = RepoPath("/other"), status = LoadStatus.Loading))
+    assertEquals(listOf("t1", "t3"), outcome.threads.map { it.id })
+  }
+
+  @Test
+  fun deliveryReturnsEveryUndeliveredSubmission() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 0)
+    state.addThread(base, 1)
+    val first = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    assertEquals(listOf("r1", "r2"), first.submissions.map { it.id })
+    state.markDelivered(first)
+    state.addThread(base, 2)
+    val second = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    assertEquals(listOf("r3"), second.submissions.map { it.id })
+  }
+
+  @Test
+  fun timeoutLeavesCursor() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    assertEquals(WaitOutcome.TimedOut, state.awaitSubmissions(1_000))
+    assertEquals(0, state.snapshot.value.core.deliveredThrough)
+    assertFalse(state.snapshot.value.waiting)
+  }
+
+  @Test
+  fun secondWaiterSupersedesFirst() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    val first = async { state.awaitSubmissions(null) }
+    runCurrent()
+    val second = async { state.awaitSubmissions(null) }
+    runCurrent()
+    assertEquals(WaitOutcome.Superseded, first.await())
+    assertTrue(state.snapshot.value.waiting)
+    state.addThread(base, 1)
+    assertIs<WaitOutcome.Delivered>(second.await())
+  }
+
+  @Test
+  fun repositorySwitchFailsWaiter() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    val waiter = async { state.awaitSubmissions(null) }
+    runCurrent()
+    state.onViewerState(ui(2, base, repo = RepoPath("/other"), status = LoadStatus.Loading))
+    assertEquals(WaitOutcome.RepositoryChanged, waiter.await())
+    assertFalse(state.snapshot.value.waiting)
+  }
+
+  @Test
+  fun cancelledWaitClearsWaiting() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    val waiter = async { state.awaitSubmissions(null) }
+    runCurrent()
+    assertTrue(state.snapshot.value.waiting)
+    waiter.cancel()
+    runCurrent()
+    assertFalse(state.snapshot.value.waiting)
+  }
+
+  @Test
+  fun markDeliveredIgnoresOldGeneration() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 1)
+    val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    state.onViewerState(ui(2, base, repo = RepoPath("/other"), status = LoadStatus.Loading))
+    state.addThread(base, 1)
+    state.markDelivered(outcome)
+    state.releaseDelivery(outcome)
+    assertEquals(0, state.snapshot.value.core.deliveredThrough)
+    assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+  }
+
+  @Test
+  fun markDeliveredNeverLowersCursor() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 0)
+    val first = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    state.addThread(base, 1)
+    val second = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    state.markDelivered(second)
+    state.markDelivered(first)
+    assertEquals(2, state.snapshot.value.core.deliveredThrough)
+  }
+
+  @Test
+  fun releaseAfterDeliveryIsNoOp() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 0)
+    val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    state.markDelivered(outcome)
+    state.releaseDelivery(outcome)
+    assertEquals(WaitOutcome.TimedOut, state.awaitSubmissions(10))
   }
 }

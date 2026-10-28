@@ -13,6 +13,8 @@ sealed interface Command {
 
   data class ThreadResolve(val id: String, val target: TargetOptions) : Command
 
+  data class ReviewWait(val timeoutSeconds: Int?, val json: Boolean, val target: TargetOptions) : Command
+
   data class Reload(val target: TargetOptions) : Command
 
   data class Windows(val target: TargetOptions) : Command

@@ -24,7 +24,9 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
@@ -59,6 +61,7 @@ import io.github.mataku.kdiffviewer.app.flattenRows
 import io.github.mataku.kdiffviewer.app.highlight.FileHighlight
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.app.isCollapsed
+import io.github.mataku.kdiffviewer.app.review.DraftMode
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.ReviewState
@@ -83,6 +86,7 @@ import io.github.mataku.kdiffviewer.core.review.Comment
 import io.github.mataku.kdiffviewer.core.review.LineLocation
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.ReviewThread
+import io.github.mataku.kdiffviewer.core.review.SubmissionState
 import io.github.mataku.kdiffviewer.core.review.anchorOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -1222,7 +1226,7 @@ class ViewerScreenTest {
     val review = reviewState(ui)
     review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
     review.updateDraft("mine")
-    review.submitDraft()
+    review.submitDraft(DraftMode.Single)
     setContent {
       val snapshot by review.snapshot.collectAsState()
       CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
@@ -1773,6 +1777,51 @@ class ViewerScreenTest {
     val split = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot.width
     assertEquals(unified, split)
     assertTrue(abs(list.width - 2 * margin - split) <= 1f, "list=$list header=$split")
+  }
+
+  private fun ReviewState.addPending(ui: ViewerUiState) {
+    startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
+    updateDraft("pending one")
+    submitDraft(DraftMode.Review)
+  }
+
+  @Test
+  fun reviewBarSendsPendingComments() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    review.addPending(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNode(hasTestTag("review-bar") and hasAnyAncestor(hasTestTag("diff-column"))).assertDoesNotExist()
+    val bar = onNodeWithTag("review-bar").assertIsDisplayed().getUnclippedBoundsInRoot()
+    val header = onNodeWithTag("repo-header").getUnclippedBoundsInRoot()
+    assertEquals(header.left, bar.left)
+    assertEquals(header.right, bar.right)
+    assertTrue(onNodeWithTag("diff-column").getUnclippedBoundsInRoot().bottom <= bar.top)
+    onNode(hasText("Send to Agent") and hasAnyAncestor(hasTestTag("repo-header"))).assertDoesNotExist()
+    onNodeWithText("Send to Agent").performClick()
+    waitForIdle()
+    assertEquals(1, review.snapshot.value.submissions.size)
+    assertEquals(0, review.snapshot.value.pendingCount)
+    onNodeWithTag("review-bar").assertDoesNotExist()
+  }
+
+  @Test
+  fun reviewBarApproves() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    review.addPending(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) {
+        ViewerScreen(ui, {}, review = snapshot)
+      }
+    }
+    onNodeWithText("Approve").performClick()
+    waitForIdle()
+    assertEquals(SubmissionState.Approved, review.snapshot.value.submissions.single().state)
   }
 }
 

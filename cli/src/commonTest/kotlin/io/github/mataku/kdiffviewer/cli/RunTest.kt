@@ -7,10 +7,13 @@ import io.github.mataku.kdiffviewer.protocol.ErrorCodes
 import io.github.mataku.kdiffviewer.protocol.RegistryEntry
 import io.github.mataku.kdiffviewer.protocol.ReloadResult
 import io.github.mataku.kdiffviewer.protocol.RequestEnvelope
+import io.github.mataku.kdiffviewer.protocol.ReviewDto
+import io.github.mataku.kdiffviewer.protocol.ReviewWaitResult
 import io.github.mataku.kdiffviewer.protocol.ThreadDto
 import io.github.mataku.kdiffviewer.protocol.ThreadListResult
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -318,8 +321,57 @@ class RunTest {
   fun agentGuideMentionsWorkflow() {
     val (code, out, _) = exec(FakePlatform(), "agent-guide")
     assertEquals(0, code)
-    for (needle in listOf("kdv thread list --json", "kdv thread reply <id> - <<'EOF'", "kdv thread resolve <id>", "kdv reload", "outdated")) {
+    for (needle in listOf("kdv thread list --json", "kdv thread reply <id> - <<'EOF'", "kdv thread resolve <id>", "kdv reload", "outdated", "kdv review wait --json", "--timeout", "\"state\": \"approved\"", "Exit code 3", "pending")) {
       assertTrue(out.contains(needle), needle)
     }
+  }
+
+  private fun okWait(result: ReviewWaitResult) = Codec.success(Codec.json.encodeToJsonElement(ReviewWaitResult.serializer(), result))
+
+  private val delivered = ReviewWaitResult(false, listOf(ReviewDto("r1", "comment", null, "2026-10-28T00:00:00Z", listOf("c1"))), listOf(sampleThread))
+
+  @Test
+  fun reviewWaitPrintsReviews() {
+    val p = FakePlatform(respond = { _, _ -> okWait(delivered) })
+    val (code, out, _) = exec(p, "review", "wait", "--timeout", "30")
+    assertEquals(0, code)
+    assertEquals(formatReviews(delivered) + "\n", out)
+    val request = p.requests.single().second
+    assertEquals("review.wait", request.method)
+    assertEquals(30, request.params["timeoutSeconds"]?.jsonPrimitive?.int)
+  }
+
+  @Test
+  fun reviewWaitJsonPrintsResult() {
+    val p = FakePlatform(respond = { _, _ -> okWait(delivered) })
+    val (code, out, _) = exec(p, "review", "wait", "--json")
+    assertEquals(0, code)
+    assertEquals(delivered, Codec.json.decodeFromString(ReviewWaitResult.serializer(), out.trim()))
+  }
+
+  @Test
+  fun reviewWaitTimeoutExitsThree() {
+    val p = FakePlatform(respond = { _, _ -> okWait(ReviewWaitResult(true, emptyList(), emptyList())) })
+    val (code, out, _) = exec(p, "review", "wait", "--timeout", "1")
+    assertEquals(3, code)
+    assertEquals("Timed out.\n", out)
+    val (jsonCode, _, _) = exec(p, "review", "wait", "--timeout", "1", "--json")
+    assertEquals(3, jsonCode)
+  }
+
+  @Test
+  fun reviewWaitWindowClosed() {
+    val p = FakePlatform(respond = { _, _ -> throw TransportException("connection closed") })
+    val (code, _, err) = exec(p, "review", "wait")
+    assertEquals(1, code)
+    assertEquals("kdv: the kDiffViewer window closed\n", err)
+  }
+
+  @Test
+  fun reviewWaitSupersededIsFailure() {
+    val p = FakePlatform(respond = { _, _ -> Codec.failure(ErrorCodes.SUPERSEDED, "Another kdv review wait replaced this one") })
+    val (code, _, err) = exec(p, "review", "wait")
+    assertEquals(1, code)
+    assertEquals("kdv: Another kdv review wait replaced this one\n", err)
   }
 }

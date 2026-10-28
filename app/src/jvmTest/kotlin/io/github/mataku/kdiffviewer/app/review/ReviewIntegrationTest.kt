@@ -67,7 +67,7 @@ class ReviewIntegrationTest {
     val review = ReviewState(reviewScope, Dispatchers.Unconfined) { Instant.fromEpochSeconds(0) }
     review.startDraft(DraftTarget.NewThread(Anchor.File("a.kt"), Placement.OnFile(0)))
     review.updateDraft("please fix")
-    review.submitDraft()
+    review.submitDraft(DraftMode.Single)
     val registry = SessionRegistry(dir, 4242L, { java.time.Instant.EPOCH }, ::processAlive)
     val handler = ReviewRequestHandler(review, { 1L }, { WindowInfoResult(4242L, null, PROTOCOL_VERSION) })
     val started = ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, handler::handle, warn = {}).also { integration = it }
@@ -84,7 +84,7 @@ class ReviewIntegrationTest {
   @Test
   fun publishWritesRegistryEntry() {
     val registry = SessionRegistry(dir, 4243L, { java.time.Instant.EPOCH }, ::processAlive)
-    val started = ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, { "{}" }, warn = {}).also { integration = it }
+    val started = ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, { Reply("{}") }, warn = {}).also { integration = it }
     assertTrue(started.start())
     started.publish(dir)
     assertTrue(Files.readString(dir.resolve("4243.json")).contains(dir.toRealPath().toString()))
@@ -106,7 +106,7 @@ class ReviewIntegrationTest {
     val sub = Files.createDirectories(top.resolve("sub"))
     val viewer = DiffViewerState(RootedSource(RepoPath(top.toString())), reviewScope)
     val registry = SessionRegistry(dir, 4246L, { java.time.Instant.EPOCH }, ::processAlive)
-    val started = ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, { "{}" }, warn = {}).also { integration = it }
+    val started = ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, { Reply("{}") }, warn = {}).also { integration = it }
     assertTrue(started.start())
     val follower = launch(Dispatchers.IO) { started.publishRoots(viewer.uiState) }
     viewer.open(RepoPath(sub.toString()))
@@ -122,7 +122,7 @@ class ReviewIntegrationTest {
   @Test
   fun startAfterCloseDoesNothing() {
     val registry = SessionRegistry(dir, 4245L, { java.time.Instant.EPOCH }, ::processAlive)
-    val closed = ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, { "{}" }, warn = {}).also { integration = it }
+    val closed = ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, { Reply("{}") }, warn = {}).also { integration = it }
     closed.close()
     assertFalse(closed.start())
     closed.publish(dir)
@@ -135,7 +135,7 @@ class ReviewIntegrationTest {
     val long = Files.createTempDirectory(Path.of("/tmp"), "kdv").resolve("x".repeat(120))
     val warnings = mutableListOf<String>()
     val registry = SessionRegistry(long, 4244L, { java.time.Instant.EPOCH }, ::processAlive)
-    val started = ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, { "{}" }, warn = { warnings += it })
+    val started = ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, { Reply("{}") }, warn = { warnings += it })
     assertFalse(started.start())
     assertEquals(listOf("kdv integration disabled: socket path too long"), warnings)
     started.publish(dir)

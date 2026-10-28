@@ -74,7 +74,9 @@ import io.github.mataku.kdiffviewer.app.ui.mac.TagShape
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftFocusRequests
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftText
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
+import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewInProgress
 import io.github.mataku.kdiffviewer.app.ui.review.RevealingReviewActions
+import io.github.mataku.kdiffviewer.app.ui.review.ReviewBar
 import io.github.mataku.kdiffviewer.app.ui.review.draftPlacement
 import io.github.mataku.kdiffviewer.app.ui.review.fileIndexOrNull
 import io.github.mataku.kdiffviewer.app.ui.review.revealIndex
@@ -116,6 +118,7 @@ fun ViewerScreen(
   val shown = review.placements.loadId == state.loadId
   val draftTarget = review.draft?.target
   val draftText = rememberUpdatedState(review.draft?.text.orEmpty())
+  val reviewInProgress = rememberUpdatedState(review.pendingCount > 0)
   val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(draftTarget) else emptySet() }
   val hasOrphans = shown && (review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
   val hasEnd = state.status == LoadStatus.Done && state.files.isNotEmpty()
@@ -147,6 +150,11 @@ fun ViewerScreen(
   val focusRequests = remember { mutableIntStateOf(0) }
   var revealRequests by remember { mutableIntStateOf(0) }
   val baseActions = LocalReviewActions.current
+  var reviewSummary by remember(state.repo) { mutableStateOf("") }
+  val sendReview: (Boolean) -> Unit = { approve ->
+    baseActions?.submitReview(reviewSummary, approve)
+    reviewSummary = ""
+  }
   val actions = remember(baseActions, draftText) { baseActions?.let { RevealingReviewActions(it, draftText) { revealRequests++ } } }
   val currentReview by rememberUpdatedState(review)
   val currentOnExpandFile by rememberUpdatedState(onExpandFile)
@@ -266,6 +274,7 @@ fun ViewerScreen(
             } else {
               CompositionLocalProvider(
                 LocalDraftText provides draftText,
+                LocalReviewInProgress provides reviewInProgress,
                 LocalDraftFocusRequests provides focusRequests,
                 LocalReviewActions provides actions,
               ) {
@@ -297,6 +306,16 @@ fun ViewerScreen(
         }
       },
     )
+    if (review.pendingCount > 0 || review.waiting) {
+      Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+      ReviewBar(
+        pendingCount = review.pendingCount,
+        waiting = review.waiting,
+        summary = reviewSummary,
+        onSummaryChange = { reviewSummary = it },
+        onSend = sendReview,
+      )
+    }
   }
 }
 

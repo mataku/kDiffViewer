@@ -72,6 +72,8 @@ Drag over the diff to select code; double-click selects a word, triple-click a l
 
 Review comments left in the app can be read and answered from the terminal through `kdv thread`. Run `kdv agent-guide` for the instructions to give a coding agent.
 
+A coding agent can wait for your review with `kdv review wait`, which blocks until you send comments from the app. In the composer, Add single comment (⌘⇧↩) sends the comment right away, while Start a review (⌘↩) keeps it pending, hidden from the agent. While comments are pending or an agent is waiting, a bar under the diff sends them with Send to Agent, optionally with a message, or tells the agent you are done with Approve.
+
 ## Development
 
 `./gradlew check` runs all tests, and CI runs the same on pushes to develop and on pull requests.

@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.mataku.kdiffviewer.app.review.DraftMode
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.selection.LocalNativeContextMenu
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
@@ -54,6 +55,7 @@ import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.core.review.Comment
 import io.github.mataku.kdiffviewer.core.review.ReviewThread
+import io.github.mataku.kdiffviewer.core.review.isPending
 import io.github.mataku.kdiffviewer.protocol.markControls
 
 private val CardShape = RoundedCornerShape(6.dp)
@@ -151,18 +153,20 @@ fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
         DisableSelection {
           if (draftTarget is DraftTarget.Reply && draftTarget.threadId == thread.id && actions != null) {
             CommentComposer(
-              submitLabel = "Reply",
+              actions = ComposerActions.Post(
+                onReview = { actions.submitDraft(DraftMode.Review) },
+                onSingle = if (thread.isPending) null else ({ actions.submitDraft(DraftMode.Single) }),
+              ),
               onTextChange = actions::updateDraft,
-              onSubmit = actions::submitDraft,
               onCancel = actions::cancelDraft,
             )
           }
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MacPushButton("Reply", onClick = { actions?.startDraft(DraftTarget.Reply(thread.id)) })
-            if (thread.resolved) {
-              MacPushButton("Unresolve", onClick = { actions?.setResolved(thread.id, false) })
-            } else {
-              MacPushButton("Resolve", onClick = { actions?.setResolved(thread.id, true) })
+            when {
+              thread.isPending -> Unit
+              thread.resolved -> MacPushButton("Unresolve", onClick = { actions?.setResolved(thread.id, false) })
+              else -> MacPushButton("Resolve", onClick = { actions?.setResolved(thread.id, true) })
             }
           }
         }
@@ -191,6 +195,7 @@ private fun CommentView(comment: Comment, editing: Boolean, actions: ReviewActio
             Badge("Agent", colors.agentBadge, styles.agentBadge)
           }
         }
+        if (comment.pending) Badge("Pending", colors.outdatedBadge, styles.outdatedBadge)
         if (isOwn) {
           var confirmingDelete by remember(comment.id) { mutableStateOf(false) }
           if (confirmingDelete) {
@@ -207,9 +212,8 @@ private fun CommentView(comment: Comment, editing: Boolean, actions: ReviewActio
     if (editing && actions != null) {
       DisableSelection {
         CommentComposer(
-          submitLabel = "Save",
+          actions = ComposerActions.Save { actions.submitDraft(DraftMode.Single) },
           onTextChange = actions::updateDraft,
-          onSubmit = actions::submitDraft,
           onCancel = actions::cancelDraft,
         )
       }

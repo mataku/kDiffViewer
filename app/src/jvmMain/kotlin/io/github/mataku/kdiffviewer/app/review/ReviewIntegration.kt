@@ -16,7 +16,7 @@ class ReviewIntegration(
   private val registry: SessionRegistry,
   parentContext: CoroutineContext,
   private val ioContext: CoroutineContext,
-  private val handle: suspend (String) -> String,
+  private val handle: suspend (String) -> Reply,
   private val warn: (String) -> Unit = System.err::println,
 ) {
   private val scope = CoroutineScope(SupervisorJob() + parentContext)

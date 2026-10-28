@@ -19,6 +19,7 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.withKeyDown
 import androidx.compose.ui.unit.height
+import io.github.mataku.kdiffviewer.app.review.DraftMode
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,8 +36,11 @@ class CommentComposerTest {
     override fun cancelDraft() {
       calls += "cancel"
     }
-    override fun submitDraft() {
-      calls += "submit"
+    override fun submitReview(summary: String?, approve: Boolean) {
+    }
+
+    override fun submitDraft(mode: DraftMode) {
+      calls += if (mode == DraftMode.Review) "review" else "submit"
     }
     override fun setResolved(threadId: String, resolved: Boolean) = Unit
     override fun delete(commentId: String) = Unit
@@ -45,7 +49,7 @@ class CommentComposerTest {
   private fun androidx.compose.ui.test.ComposeUiTest.show(draft: String, actions: FakeActions = FakeActions()) {
     setContent {
       CompositionLocalProvider(LocalDraftText provides mutableStateOf(draft)) {
-        CommentComposer("Comment", actions::updateDraft, actions::submitDraft, actions::cancelDraft)
+        CommentComposer(ComposerActions.Save { actions.submitDraft(DraftMode.Single) }, actions::updateDraft, actions::cancelDraft)
       }
     }
   }
@@ -114,7 +118,7 @@ class CommentComposerTest {
     val draft = mutableStateOf("1\n2\n3\n4\n5\n6")
     setContent {
       CompositionLocalProvider(LocalDraftText provides draft) {
-        CommentComposer("Comment", { draft.value = it }, {}, {})
+        CommentComposer(ComposerActions.Save {}, { draft.value = it }, {})
       }
     }
     val writeHeight = onNodeWithTag("comment-composer").getUnclippedBoundsInRoot().height
@@ -123,5 +127,75 @@ class CommentComposerTest {
     waitForIdle()
     val previewHeight = onNodeWithTag("composer-preview").getUnclippedBoundsInRoot().height
     assertTrue(previewHeight >= writeHeight, "preview $previewHeight < write $writeHeight")
+  }
+
+  private fun androidx.compose.ui.test.ComposeUiTest.showPost(
+    draft: String,
+    actions: FakeActions,
+    inProgress: Boolean = false,
+    single: Boolean = true,
+  ) {
+    setContent {
+      CompositionLocalProvider(LocalDraftText provides mutableStateOf(draft), LocalReviewInProgress provides mutableStateOf(inProgress)) {
+        CommentComposer(
+          ComposerActions.Post(
+            onReview = { actions.submitDraft(DraftMode.Review) },
+            onSingle = if (single) ({ actions.submitDraft(DraftMode.Single) }) else null,
+          ),
+          actions::updateDraft,
+          actions::cancelDraft,
+        )
+      }
+    }
+  }
+
+  @Test
+  fun postWithoutReviewOffersStartAReview() = runComposeUiTest {
+    showPost("x", FakeActions())
+    onNodeWithText("Start a review").assertIsDisplayed()
+    onNodeWithText("Add single comment").assertIsDisplayed()
+    onNodeWithText("Add review comment").assertDoesNotExist()
+  }
+
+  @Test
+  fun postDuringReviewOffersAddReviewComment() = runComposeUiTest {
+    showPost("x", FakeActions(), inProgress = true)
+    onNodeWithText("Add review comment").assertIsDisplayed()
+    onNodeWithText("Start a review").assertDoesNotExist()
+  }
+
+  @Test
+  fun buttonsCallTheirModes() = runComposeUiTest {
+    val actions = FakeActions()
+    showPost("x", actions)
+    onNodeWithText("Add single comment").performClick()
+    onNodeWithText("Start a review").performClick()
+    assertEquals(listOf("submit", "review"), actions.calls)
+  }
+
+  @Test
+  fun cmdEnterStartsReviewAndCmdShiftEnterSendsSingle() = runComposeUiTest {
+    val actions = FakeActions()
+    showPost("x", actions)
+    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(Key.MetaLeft) { pressKey(Key.Enter) } }
+    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(Key.MetaLeft) { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } } }
+    assertEquals(listOf("review", "submit"), actions.calls)
+  }
+
+  @Test
+  fun singleHiddenWhenNotOffered() = runComposeUiTest {
+    val actions = FakeActions()
+    showPost("x", actions, inProgress = true, single = false)
+    onNodeWithText("Add single comment").assertDoesNotExist()
+    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(Key.MetaLeft) { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } } }
+    assertEquals(emptyList(), actions.calls)
+  }
+
+  @Test
+  fun saveShowsOnlySave() = runComposeUiTest {
+    show("x")
+    onNodeWithText("Save").assertIsDisplayed()
+    onNodeWithText("Start a review").assertDoesNotExist()
+    onNodeWithText("Add single comment").assertDoesNotExist()
   }
 }
