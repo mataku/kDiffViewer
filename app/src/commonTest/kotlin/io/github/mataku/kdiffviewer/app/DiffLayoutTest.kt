@@ -310,4 +310,14 @@ class DiffLayoutTest {
     assertEquals(2, removedOnly.unifiedOf(2))
     assertEquals(ui.rows.size, split.unifiedOf(ui.split.size))
   }
+
+  @Test
+  fun negativeRowsPassThroughDisplayRows() {
+    val ui = state(listOf(file("a.kt", 2)))
+    val display = ui.displayRows(DiffMode.Split)
+    assertEquals(-1, display.unifiedOf(-1))
+    assertEquals(-1, display.unifiedOf(-1, Side.Old))
+    assertEquals(-1, display.displayOf(-1))
+    assertEquals(-1, ui.displayRows(DiffMode.Unified).unifiedOf(-1))
+  }
 }

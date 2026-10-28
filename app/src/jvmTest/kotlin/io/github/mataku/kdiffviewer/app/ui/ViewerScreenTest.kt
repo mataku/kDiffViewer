@@ -1381,9 +1381,27 @@ class ViewerScreenTest {
     val b = onNodeWithText("bbb", useUnmergedTree = true).getUnclippedBoundsInRoot()
     val c = onNodeWithText("ccc", useUnmergedTree = true).getUnclippedBoundsInRoot()
     assertEquals(a.top, c.top)
-    assertTrue(b.top > a.top, "a=$a b=$b")
+    assertTrue(abs((a.bottom - b.top).value) < 0.5f, "a=$a b=$b")
     onAllNodesWithText("+", useUnmergedTree = true).assertCountEquals(1)
     onAllNodesWithText("-", useUnmergedTree = true).assertCountEquals(2)
+    val pixels = onNodeWithTag("diff-list").captureToImage().toPixelMap()
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val x = (list.left + (list.width * 0.9f)).toInt() - list.left.toInt()
+    val y = with(density) { ((b.top + b.bottom) / 2).toPx() }.toInt() - list.top.toInt()
+    assertEquals(LightDiffColors.emptySideBackground, pixels[x, y])
+  }
+
+  @Test
+  fun splitOrphanPressWithNoFilesDoesNotCrash() = runComposeUiTest {
+    val ui = stateOf(emptyList()).copy(loadId = 1)
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshotOf(1, 1, listOf(staticThread()), null), mode = DiffMode.Split) } }
+    onNodeWithTag("diff-list").performMouseInput {
+      moveTo(Offset(20f, 10f))
+      press()
+      release()
+    }
+    waitForIdle()
+    onNodeWithTag("thread-t1").assertIsDisplayed()
   }
 
   @Test

@@ -12,7 +12,7 @@ class DisplayRows(
   private val unifiedSize: Int,
 ) {
   fun unifiedOf(displayRow: Int, side: Side? = null): Int {
-    if (mode == DiffMode.Unified) return displayRow
+    if (mode == DiffMode.Unified || displayRow < 0) return displayRow
     if (displayRow == split.size) return unifiedSize
     return when (side) {
       Side.Old -> split.leftOf(displayRow)
@@ -22,7 +22,7 @@ class DisplayRows(
   }
 
   fun displayOf(unifiedRow: Int): Int {
-    if (mode == DiffMode.Unified) return unifiedRow
+    if (mode == DiffMode.Unified || unifiedRow < 0) return unifiedRow
     return if (unifiedRow == unifiedSize) split.size else split.splitIndexOf(unifiedRow)
   }
 }
