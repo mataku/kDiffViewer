@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app.selection
 
+import io.github.mataku.kdiffviewer.core.model.Side
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -18,6 +19,18 @@ class DiffSelectionStateTest {
     state.start(TextPosition(1, 2))
     state.extendTo(TextPosition(3, 4))
     assertEquals(DiffSelection(TextPosition(1, 2), TextPosition(3, 4)), state.selection)
+  }
+
+  @Test
+  fun extendKeepsSide() {
+    val state = DiffSelectionState()
+    state.start(TextPosition(1, 2), Side.Old)
+    state.extendTo(TextPosition(3, 4))
+    assertEquals(DiffSelection(TextPosition(1, 2), TextPosition(3, 4), Side.Old), state.selection)
+    state.select(TextPosition(0, 0), TextPosition(2, 2))
+    assertEquals(Side.Old, state.selection?.side)
+    state.select(TextPosition(0, 0), TextPosition(2, 2), Side.New)
+    assertEquals(Side.New, state.selection?.side)
   }
 
   @Test

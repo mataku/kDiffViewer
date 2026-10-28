@@ -4,14 +4,15 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import io.github.mataku.kdiffviewer.core.model.Side
 
 @Stable
 class DiffSelectionState {
   var selection: DiffSelection? by mutableStateOf(null)
     private set
 
-  fun start(position: TextPosition) {
-    selection = DiffSelection(position, position)
+  fun start(position: TextPosition, side: Side? = null) {
+    selection = DiffSelection(position, position, side)
   }
 
   fun extendTo(position: TextPosition) {
@@ -24,7 +25,11 @@ class DiffSelectionState {
   }
 
   fun select(anchor: TextPosition, focus: TextPosition) {
-    selection = DiffSelection(anchor, focus)
+    selection = DiffSelection(anchor, focus, selection?.side)
+  }
+
+  fun select(anchor: TextPosition, focus: TextPosition, side: Side?) {
+    selection = DiffSelection(anchor, focus, side)
   }
 
   private var key: Any? = null

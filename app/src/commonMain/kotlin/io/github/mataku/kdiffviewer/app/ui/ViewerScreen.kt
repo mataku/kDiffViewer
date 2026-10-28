@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.LoadStatus
@@ -50,15 +52,19 @@ import io.github.mataku.kdiffviewer.app.ScrollRestorer
 import io.github.mataku.kdiffviewer.app.ViewerError
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.diffLayoutOf
+import io.github.mataku.kdiffviewer.app.displayRows
 import io.github.mataku.kdiffviewer.app.filterTree
 import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.isLargeDiff
+import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.notesFiles
 import io.github.mataku.kdiffviewer.app.review.threadFiles
+import io.github.mataku.kdiffviewer.app.review.toSide
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
+import io.github.mataku.kdiffviewer.app.ui.mac.MacSegmented
 import io.github.mataku.kdiffviewer.app.ui.mac.TAG_FILL_ALPHA
 import io.github.mataku.kdiffviewer.app.ui.mac.TagPadding
 import io.github.mataku.kdiffviewer.app.ui.mac.TagShape
@@ -75,6 +81,7 @@ import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
+import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -91,6 +98,8 @@ fun ViewerScreen(
   loadBranches: suspend () -> List<BranchRef> = { emptyList() },
   onSwitchBase: suspend (BaseSpec) -> ViewerError? = { null },
   scrollJumps: ScrollJumps? = null,
+  mode: DiffMode = DiffMode.Unified,
+  onModeChange: (DiffMode) -> Unit = {},
 ) {
   val colors = LocalDiffColors.current
   val listState = rememberLazyListState()
@@ -102,10 +111,12 @@ fun ViewerScreen(
   val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(draftTarget) else emptySet() }
   val hasOrphans = shown && (review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
   val hasEnd = state.status == LoadStatus.Done && state.files.isNotEmpty()
-  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasOrphans, hasEnd) {
-    diffLayoutOf(state, notesFiles, hasOrphans, hasEnd)
+  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasOrphans, hasEnd, mode, state.split) {
+    diffLayoutOf(state, mode, notesFiles, hasOrphans, hasEnd)
   }
   val currentLayout by rememberUpdatedState(layout)
+  val display = remember(state.rows, state.split, mode) { state.displayRows(mode) }
+  val currentDisplay by rememberUpdatedState(display)
   LaunchedEffect(scrollJumps, listState) {
     scrollJumps?.requests?.collect { jump ->
       val count = currentLayout.visibleCount
@@ -114,12 +125,12 @@ fun ViewerScreen(
   }
   val coordinator = LocalTextSelectionCoordinator.current
   val diffSelection = remember { DiffSelectionState() }
-  diffSelection.resetFor(Triple(state.loadId, state.collapsed, state.expanded))
+  diffSelection.resetFor(listOf(state.loadId, state.collapsed, state.expanded, mode))
   val selectionSource = remember(diffSelection) {
     DiffSelectionSource(
       diffSelection,
       { currentState.rows },
-      { row -> !currentLayout.isCollapsed(currentLayout.fileIndexOfVisible(currentLayout.visibleIndexOf(row))) },
+      { row -> (currentState.rows[row] as? DiffRow.Line)?.let { !currentLayout.isCollapsed(it.fileIndex) } ?: false },
     )
   }
   DisposableEffect(coordinator, selectionSource) {
@@ -147,18 +158,19 @@ fun ViewerScreen(
       currentOnExpandFile(fileIndex)
       withTimeoutOrNull(1_000) { snapshotFlow { currentLayout }.first { !it.isCollapsed(fileIndex) } }
     }
-    val index = revealIndex(placement, currentLayout, currentState.rows)
+    val index = revealIndex(placement, currentLayout, currentState.rows, currentDisplay, ((target as? DraftTarget.NewThread)?.anchor as? Anchor.Lines)?.side?.toSide())
     listState.scrollToItem(index)
     if (fileIndex != null && placement is Placement.OnLine) {
-      val headerKey = (currentState.rows[currentLayout.headerRowIndex(fileIndex)]).key
+      val headerKey = currentState.rows[currentDisplay.unifiedOf(currentLayout.headerRowIndex(fileIndex))].key
       val pinned = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == headerKey && it.index != index }
       if (pinned != null) listState.scrollBy(-pinned.size.toFloat())
     }
     focusRequests.intValue++
   }
   LaunchedEffect(listState) {
-    snapshotFlow { Triple(currentState, currentLayout, listState.firstVisibleItemIndex) }.collect { (ui, uiLayout, firstVisible) ->
-      restorer.next(ui, uiLayout, firstVisible)?.let { listState.scrollToItem(it) }
+    snapshotFlow { Pair(Triple(currentState, currentLayout, currentDisplay), listState.firstVisibleItemIndex) }.collect { (inputs, firstVisible) ->
+      val (ui, uiLayout, uiDisplay) = inputs
+      restorer.next(ui, uiLayout, uiDisplay, firstVisible)?.let { listState.scrollToItem(it) }
     }
   }
   var collapsed by remember(state.repo) { mutableStateOf(emptySet<String>()) }
@@ -255,15 +267,31 @@ fun ViewerScreen(
             }
           }
         }
-        GlassIconButton(
-          icon = KdvIcons.Reload,
-          contentDescription = "Reload",
-          tooltip = "Reload (⌘R)",
-          onClick = onReload,
-          modifier = Modifier
-            .testTag("reload-button")
-            .titleBarClientRegion("reload-button"),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          MacSegmented(
+            options = DiffMode.entries,
+            selected = mode,
+            label = { it.name },
+            tag = { "diff-mode-${it.name.lowercase()}" },
+            onSelect = { if (it != mode) onModeChange(it) },
+            modifier = Modifier
+              .testTag("diff-mode-control")
+              .titleBarClientRegion("diff-mode"),
+            segmentWidth = 32.dp,
+            icon = { if (it == DiffMode.Unified) KdvIcons.Unified else KdvIcons.Split },
+            tooltip = { it.name },
+          )
+          Spacer(Modifier.width(8.dp))
+          GlassIconButton(
+            icon = KdvIcons.Reload,
+            contentDescription = "Reload",
+            tooltip = "Reload (⌘R)",
+            onClick = onReload,
+            modifier = Modifier
+              .testTag("reload-button")
+              .titleBarClientRegion("reload-button"),
+          )
+        }
       }
       Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
       if (state.truncated) {
@@ -286,6 +314,7 @@ fun ViewerScreen(
             DiffView(
               rows = state.rows,
               layout = layout,
+              display = display,
               highlights = state.highlights,
               listState = listState,
               files = state.files,

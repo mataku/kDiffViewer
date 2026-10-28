@@ -9,25 +9,18 @@ import kotlin.math.abs
 val FileDiff.anchorPath: String
   get() = if (change == ChangeType.Deleted) oldPath!! else newPath!!
 
-fun anchorOf(file: FileDiff, hunkIndex: Int, lineIndex: Int): Anchor.Lines? {
+fun anchorOf(file: FileDiff, hunkIndex: Int, lineIndex: Int, side: Side? = null): Anchor.Lines? {
   val hunks = (file.content as? DiffContent.Text)?.hunks ?: return null
   val line = hunks.getOrNull(hunkIndex)?.lines?.getOrNull(lineIndex) ?: return null
-  val side: Side
-  val lineNo: Int
-  when (line.kind) {
+  val resolvedSide = when (line.kind) {
     LineKind.NoNewlineAtEof -> return null
-
-    LineKind.Removed -> {
-      side = Side.Old
-      lineNo = line.oldLineNo ?: return null
-    }
-
-    else -> {
-      side = Side.New
-      lineNo = line.newLineNo ?: return null
-    }
+    LineKind.Removed -> Side.Old
+    LineKind.Added -> Side.New
+    LineKind.Context -> side ?: Side.New
   }
-  return Anchor.Lines(file.anchorPath, side, lineNo, lineNo, listOf(line.text))
+  if (side != null && side != resolvedSide) return null
+  val lineNo = (if (resolvedSide == Side.Old) line.oldLineNo else line.newLineNo) ?: return null
+  return Anchor.Lines(file.anchorPath, resolvedSide, lineNo, lineNo, listOf(line.text))
 }
 
 fun reanchor(anchor: Anchor, files: List<FileDiff>): Pair<Anchor, Placement> = resolve(anchor, files).let { it.anchor to it.placement }

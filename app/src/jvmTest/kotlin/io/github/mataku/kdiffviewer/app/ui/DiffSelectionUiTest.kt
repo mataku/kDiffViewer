@@ -1,11 +1,15 @@
 package io.github.mataku.kdiffviewer.app.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ComposeUiTest
@@ -13,8 +17,10 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.doubleClick
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -25,7 +31,9 @@ import androidx.compose.ui.test.tripleClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.dp
 import io.github.mataku.kdiffviewer.app.CollapsedFile
+import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ViewerUiState
@@ -40,6 +48,7 @@ import io.github.mataku.kdiffviewer.app.selection.LocalNativeContextMenu
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.selection.NativeContextMenu
 import io.github.mataku.kdiffviewer.app.selection.TextSelectionCoordinator
+import io.github.mataku.kdiffviewer.app.splitRowsOf
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
@@ -275,6 +284,217 @@ class DiffSelectionUiTest {
     drag(codePosition("alpha beta", 6), codePosition("delta", 2))
     assertTrue(coordinator.hasSelection)
     onNodeWithTag("comment-composer").assertIsNotFocused()
+  }
+
+  @Test
+  fun copyAfterCollapsedFile() = runComposeUiTest {
+    val fileC = FileDiff("c.kt", "c.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", listOf(DiffLine(LineKind.Context, "zeta", 1, 1))))))
+    val files = listOf(fileA, fileB, fileC)
+    show(stateOf(files).toggled(1))
+    drag(codePosition("alpha beta", 6), codePosition("zeta", 2))
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("beta\n\tgamma\ndelta\nze"), clipboard.writes)
+  }
+
+  private fun splitStateOf(vararg files: FileDiff): ViewerUiState {
+    val state = stateOf(files.toList())
+    return state.copy(split = splitRowsOf(state.rows))
+  }
+
+  private fun ComposeUiTest.showSplit(state: ViewerUiState) {
+    setContent {
+      CompositionLocalProvider(LocalTextSelectionCoordinator provides coordinator, LocalNativeContextMenu provides menu) {
+        Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split) }
+      }
+    }
+  }
+
+  private fun ComposeUiTest.splitCodePosition(text: String, half: Int, displayColumn: Int): Offset {
+    val node = onAllNodesWithText(text)[half].fetchSemanticsNode()
+    val layouts = mutableListOf<TextLayoutResult>()
+    node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts)
+    val layout = layouts.single()
+    val bounds = node.boundsInRoot
+    val list = listBounds()
+    return Offset(
+      bounds.left + layout.getHorizontalPosition(displayColumn, usePrimaryDirection = true) + 1f - list.left,
+      bounds.top + layout.size.height / 2f - list.top,
+    )
+  }
+
+  private val mixedFile = FileDiff(
+    "m.kt",
+    "m.kt",
+    ChangeType.Modified,
+    false,
+    DiffContent.Text(
+      listOf(
+        Hunk(
+          1,
+          3,
+          1,
+          3,
+          "",
+          listOf(
+            DiffLine(LineKind.Context, "alpha", 1, 1),
+            DiffLine(LineKind.Removed, "bravo", 2, null),
+            DiffLine(LineKind.Added, "charlie", null, 2),
+            DiffLine(LineKind.Context, "delta", 3, 3),
+          ),
+        ),
+      ),
+    ),
+  )
+
+  @Test
+  fun splitDragOnLeftCopiesOldSide() = runComposeUiTest {
+    showSplit(splitStateOf(mixedFile))
+    drag(splitCodePosition("alpha", 0, 0), splitCodePosition("delta", 0, 5))
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("alpha\nbravo\ndelta"), clipboard.writes)
+  }
+
+  @Test
+  fun splitDragOnRightCopiesNewSide() = runComposeUiTest {
+    showSplit(splitStateOf(mixedFile))
+    drag(splitCodePosition("alpha", 1, 0), splitCodePosition("delta", 1, 5))
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("alpha\ncharlie\ndelta"), clipboard.writes)
+  }
+
+  @Test
+  fun oldSideDragLeavesRightContextUnhighlighted() = runComposeUiTest {
+    showSplit(splitStateOf(mixedFile))
+    drag(splitCodePosition("alpha", 0, 0), splitCodePosition("alpha", 0, 5))
+    val selected = LightDiffColors.selectionBackground
+    fun ComposeUiTest.hasSelectionPixels(half: Int): Boolean {
+      val pixels = onAllNodesWithText("alpha")[half].captureToImage().toPixelMap()
+      return (0 until pixels.width).any { x -> (0 until pixels.height).any { y -> pixels[x, y] == selected } }
+    }
+    assertTrue(hasSelectionPixels(0))
+    assertFalse(hasSelectionPixels(1))
+  }
+
+  @Test
+  fun copyAfterCollapsedFileInSplit() = runComposeUiTest {
+    val fileC = FileDiff("c.kt", "c.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", listOf(DiffLine(LineKind.Context, "zeta", 1, 1))))))
+    val state = splitStateOf(mixedFile, fileB, fileC).toggled(0)
+    showSplit(state)
+    drag(splitCodePosition("epsilon", 0, 0), splitCodePosition("zeta", 1, 2))
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("epsilon\nze"), clipboard.writes)
+  }
+
+  @Test
+  fun doubleClickSelectsWordOnPressedSide() = runComposeUiTest {
+    showSplit(splitStateOf(mixedFile))
+    drag(splitCodePosition("bravo", 0, 0), splitCodePosition("bravo", 0, 3))
+    onNodeWithTag("diff-list").performMouseInput { doubleClick(splitCodePosition("charlie", 0, 3)) }
+    waitForIdle()
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("charlie"), clipboard.writes)
+  }
+
+  @Test
+  fun tripleClickSelectsRowOnPressedSide() = runComposeUiTest {
+    showSplit(splitStateOf(mixedFile))
+    drag(splitCodePosition("bravo", 0, 0), splitCodePosition("bravo", 0, 3))
+    onNodeWithTag("diff-list").performMouseInput { tripleClick(splitCodePosition("charlie", 0, 2)) }
+    waitForIdle()
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("charlie\n"), clipboard.writes)
+  }
+
+  @Test
+  fun leftDragOverUnpairedAddedLineCopiesOnlyOldRows() = runComposeUiTest {
+    val file = FileDiff(
+      "u.kt",
+      "u.kt",
+      ChangeType.Modified,
+      false,
+      DiffContent.Text(
+        listOf(
+          Hunk(
+            1,
+            2,
+            1,
+            3,
+            "",
+            listOf(
+              DiffLine(LineKind.Context, "above", 1, 1),
+              DiffLine(LineKind.Added, "solo", null, 2),
+              DiffLine(LineKind.Context, "below", 2, 3),
+            ),
+          ),
+        ),
+      ),
+    )
+    showSplit(splitStateOf(file))
+    drag(splitCodePosition("above", 0, 0), splitCodePosition("below", 0, 5))
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("above\nbelow"), clipboard.writes)
+  }
+
+  @Test
+  fun leftPressDraggedOverRightHalfCopiesOnlyOldText() = runComposeUiTest {
+    showSplit(splitStateOf(mixedFile))
+    drag(splitCodePosition("alpha", 0, 0), splitCodePosition("charlie", 0, 4))
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("alpha\nbravo"), clipboard.writes)
+  }
+
+  @Test
+  fun splitPressBelowShorterHalfTextSelectsFromEndOfRow() = runComposeUiTest {
+    val wrapped = FileDiff(
+      "w.kt",
+      "w.kt",
+      ChangeType.Modified,
+      false,
+      DiffContent.Text(
+        listOf(
+          Hunk(
+            1,
+            2,
+            1,
+            2,
+            "",
+            listOf(
+              DiffLine(LineKind.Context, "head", 1, 1),
+              DiffLine(LineKind.Removed, "left", 2, null),
+              DiffLine(LineKind.Added, "wrap ".repeat(40).trim(), null, 2),
+            ),
+          ),
+        ),
+      ),
+    )
+    showSplit(splitStateOf(wrapped))
+    val node = onAllNodesWithText("left")[0].fetchSemanticsNode()
+    val layouts = mutableListOf<TextLayoutResult>()
+    node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts)
+    val bounds = node.boundsInRoot
+    val list = listBounds()
+    val below = Offset(bounds.right - 20f - list.left, bounds.bottom - 6f - list.top)
+    drag(below, splitCodePosition("head", 0, 0))
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("head\nleft"), clipboard.writes)
+  }
+
+  @Test
+  fun modeSwitchClearsSelection() = runComposeUiTest {
+    val state = splitStateOf(mixedFile)
+    var mode by mutableStateOf(DiffMode.Split)
+    setContent {
+      CompositionLocalProvider(LocalTextSelectionCoordinator provides coordinator, LocalNativeContextMenu provides menu) {
+        Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = mode) }
+      }
+    }
+    drag(splitCodePosition("alpha", 0, 0), splitCodePosition("delta", 0, 5))
+    assertTrue(coordinator.hasSelection)
+    mode = DiffMode.Unified
+    waitForIdle()
+    assertFalse(coordinator.hasSelection)
+    assertFalse(coordinator.copy())
+    assertEquals(emptyList(), clipboard.writes)
   }
 
   @Test

@@ -29,4 +29,11 @@ class DiffColorsTest {
   fun dimBackgroundIsDarkBlueRatherThanNearBlack() {
     assertEquals(Color(0xFF15202B), DimDiffColors.background)
   }
+
+  @Test
+  fun emptySideBackgroundPerTheme() {
+    assertEquals(Color(0xFFF6F8FA), LightDiffColors.emptySideBackground)
+    assertEquals(Color(0xFF161B22), DarkDiffColors.emptySideBackground)
+    assertEquals(Color(0xFF1C2732), DimDiffColors.emptySideBackground)
+  }
 }

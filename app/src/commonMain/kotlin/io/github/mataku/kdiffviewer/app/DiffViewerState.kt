@@ -88,6 +88,7 @@ data class ViewerUiState(
   val baseSpec: BaseSpec = BaseSpec.Default,
   val base: ResolvedBase? = null,
   val truncated: Boolean = false,
+  val split: SplitRows = SplitRows.Empty,
 )
 
 @Immutable
@@ -356,6 +357,7 @@ class DiffViewerState(
   private fun ViewerUiState.withContentOf(accumulator: LoadAccumulator, tree: List<TreeRow>): ViewerUiState = copy(
     files = accumulator.files.snapshot(),
     rows = accumulator.rows.snapshot(),
+    split = accumulator.split.snapshot(),
     fileHeaderRowIndex = accumulator.fileHeaderRowIndex.snapshot(),
     tree = tree,
     highlights = accumulator.highlights.snapshot(),
@@ -369,6 +371,7 @@ class DiffViewerState(
   private class LoadAccumulator(val loadId: Long, var holding: Boolean, private val largeDiffLines: Int) {
     val files = AppendBuffer<FileDiff>()
     val rows = AppendBuffer<DiffRow>()
+    val split = SplitRowsBuilder()
     val fileHeaderRowIndex = AppendBuffer<Int>()
     val highlights = AppendBuffer<HighlightSlot>()
     val fingerprints = AppendBuffer<Long>()
@@ -390,6 +393,7 @@ class DiffViewerState(
       for (file in loaded) fingerprints.add(file.fingerprint)
       highlights.addAll(entries.map { it.slot })
       rows.addAll(newRows)
+      split.append(rows.snapshot(), rowCount)
       tree.add(batch)
       fileCount += batch.size
       rowCount += newRows.size

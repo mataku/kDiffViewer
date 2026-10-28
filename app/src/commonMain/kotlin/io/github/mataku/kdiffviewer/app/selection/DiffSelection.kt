@@ -3,13 +3,14 @@ package io.github.mataku.kdiffviewer.app.selection
 import androidx.compose.runtime.Immutable
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.core.model.LineKind
+import io.github.mataku.kdiffviewer.core.model.Side
 
 data class TextPosition(val row: Int, val column: Int) : Comparable<TextPosition> {
   override fun compareTo(other: TextPosition): Int = if (row != other.row) row.compareTo(other.row) else column.compareTo(other.column)
 }
 
 @Immutable
-data class DiffSelection(val anchor: TextPosition, val focus: TextPosition) {
+data class DiffSelection(val anchor: TextPosition, val focus: TextPosition, val side: Side? = null) {
   val start: TextPosition get() = if (anchor <= focus) anchor else focus
   val end: TextPosition get() = if (anchor <= focus) focus else anchor
   val isEmpty: Boolean get() = anchor == focus
@@ -24,24 +25,30 @@ data class DiffSelection(val anchor: TextPosition, val focus: TextPosition) {
   }
 }
 
-fun List<DiffRow>.selectableRow(row: Int): Boolean {
+fun List<DiffRow>.selectableRow(row: Int, side: Side? = null): Boolean {
   val candidate = getOrNull(row)
-  return candidate is DiffRow.Line && candidate.line.kind != LineKind.NoNewlineAtEof
+  if (candidate !is DiffRow.Line) return false
+  return when (candidate.line.kind) {
+    LineKind.NoNewlineAtEof -> false
+    LineKind.Added -> side != Side.Old
+    LineKind.Removed -> side != Side.New
+    else -> true
+  }
 }
 
-fun List<DiffRow>.positionAtOrAfter(row: Int): TextPosition? {
+fun List<DiffRow>.positionAtOrAfter(row: Int, side: Side? = null): TextPosition? {
   for (index in row.coerceAtLeast(0) until size) {
-    if (selectableRow(index)) return TextPosition(index, 0)
+    if (selectableRow(index, side)) return TextPosition(index, 0)
   }
   for (index in minOf(row, size) - 1 downTo 0) {
-    if (selectableRow(index)) return TextPosition(index, (get(index) as DiffRow.Line).line.text.length)
+    if (selectableRow(index, side)) return TextPosition(index, (get(index) as DiffRow.Line).line.text.length)
   }
   return null
 }
 
-fun List<DiffRow>.nextSelectableRow(row: Int): Int? {
+fun List<DiffRow>.nextSelectableRow(row: Int, side: Side? = null): Int? {
   for (index in (row + 1).coerceAtLeast(0) until size) {
-    if (selectableRow(index)) return index
+    if (selectableRow(index, side)) return index
   }
   return null
 }
@@ -53,7 +60,7 @@ fun selectedText(rows: List<DiffRow>, selection: DiffSelection, isVisible: (row:
   val builder = StringBuilder()
   var contributed = false
   for (index in start.row.coerceAtLeast(0)..minOf(end.row, rows.lastIndex)) {
-    if (!rows.selectableRow(index) || !isVisible(index)) continue
+    if (!rows.selectableRow(index, selection.side) || !isVisible(index)) continue
     val text = (rows[index] as DiffRow.Line).line.text
     val from = if (index == start.row) start.column.coerceIn(0, text.length) else 0
     val to = if (index == end.row) end.column.coerceIn(0, text.length) else text.length

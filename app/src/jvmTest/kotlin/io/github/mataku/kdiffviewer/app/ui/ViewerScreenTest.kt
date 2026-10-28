@@ -23,7 +23,9 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -46,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.compose.highlight.core.HighlightSpan
 import io.github.mataku.kdiffviewer.app.CollapsedFile
+import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.LARGE_DIFF_LINES
 import io.github.mataku.kdiffviewer.app.LoadStatus
@@ -60,6 +63,7 @@ import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.ReviewState
 import io.github.mataku.kdiffviewer.app.review.buildPlacements
+import io.github.mataku.kdiffviewer.app.splitRowsOf
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.BranchRef
@@ -252,11 +256,75 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun modeSwitchKeepsRemovedLineAtTheTop() = runComposeUiTest {
+    val body = buildList {
+      repeat(60) { add(DiffLine(LineKind.Context, "before$it", it + 1, it + 1)) }
+      add(DiffLine(LineKind.Removed, "REMOVED_LINE", 61, null))
+      add(DiffLine(LineKind.Added, "ADDED_LINE", null, 61))
+      repeat(60) { add(DiffLine(LineKind.Context, "after$it", it + 62, it + 62)) }
+    }
+    val file = FileDiff("long.kt", "long.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 121, 1, 121, "", body))))
+    val ui = stateOf(listOf(file)).let { it.copy(split = splitRowsOf(it.rows)) }
+    var mode by mutableStateOf(DiffMode.Unified)
+    setContent { ViewerScreen(ui, {}, mode = mode) }
+    onNodeWithTag("diff-list").performScrollToIndex(ui.rows.indexOfFirst { it is DiffRow.Line && it.line.text == "REMOVED_LINE" })
+    waitForIdle()
+    val listTop = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot.top
+    val unifiedTop = onNodeWithText("REMOVED_LINE").fetchSemanticsNode().boundsInRoot.top - listTop
+    mode = DiffMode.Split
+    waitForIdle()
+    val splitTop = onNodeWithText("REMOVED_LINE").fetchSemanticsNode().boundsInRoot.top - listTop
+    assertEquals(unifiedTop, splitTop)
+    onAllNodesWithText("before59").assertCountEquals(0)
+  }
+
+  @Test
   fun reloadButtonInvokesCallback() = runComposeUiTest {
     var count = 0
     setContent { ViewerScreen(stateOf(emptyList()), { count++ }) }
     onNodeWithTag("reload-button").performClick()
     assertEquals(1, count)
+  }
+
+  @Test
+  fun modeControlSwitchesToSplit() = runComposeUiTest {
+    val changes = mutableListOf<DiffMode>()
+    setContent { ViewerScreen(stateOf(emptyList()), {}, mode = DiffMode.Unified, onModeChange = { changes += it }) }
+    onNodeWithTag("diff-mode-split").performClick()
+    assertEquals(listOf(DiffMode.Split), changes)
+  }
+
+  @Test
+  fun clickingCurrentModeIsNoOp() = runComposeUiTest {
+    val changes = mutableListOf<DiffMode>()
+    setContent { ViewerScreen(stateOf(emptyList()), {}, mode = DiffMode.Unified, onModeChange = { changes += it }) }
+    onNodeWithTag("diff-mode-unified").performClick()
+    assertEquals(emptyList(), changes)
+  }
+
+  @Test
+  fun modeControlMarksSelected() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()), {}, mode = DiffMode.Split) }
+    assertEquals(true, onNodeWithTag("diff-mode-split").fetchSemanticsNode().config[SemanticsProperties.Selected])
+    assertEquals(false, onNodeWithTag("diff-mode-unified").fetchSemanticsNode().config[SemanticsProperties.Selected])
+  }
+
+  @Test
+  fun modeControlSitsLeftOfReloadInsideTitleBarClientRegion() = runComposeUiTest {
+    val regions = TitleBarRegions()
+    setContent {
+      CompositionLocalProvider(LocalTitleBarRegions provides regions) {
+        ViewerScreen(stateOf(emptyList()), {})
+      }
+    }
+    val control = onNodeWithTag("diff-mode-control").fetchSemanticsNode().boundsInRoot
+    val reload = onNodeWithTag("reload-button").fetchSemanticsNode().boundsInRoot
+    assertTrue(regions.isClientArea(control.center))
+    val header = onNodeWithTag("repo-header").fetchSemanticsNode().boundsInRoot
+    val gap = reload.left - control.right
+    assertTrue(kotlin.math.abs(gap - with(density) { 8.dp.toPx() }) <= with(density) { 0.5.dp.toPx() }, "gap=$gap control=$control reload=$reload")
+    assertTrue(control.right > header.center.x, "control=$control header=$header")
+    onNodeWithTag("diff-mode-split").assertWidthIsEqualTo(32.dp)
   }
 
   @Test
@@ -1348,6 +1416,182 @@ class ViewerScreenTest {
     jumps.request(ScrollJump.Top)
     waitForIdle()
     onNodeWithText("No changes").assertIsDisplayed()
+  }
+
+  private fun splitState(vararg body: DiffLine): ViewerUiState {
+    val file = FileDiff("a.kt", "a.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", body.toList()))))
+    val state = stateOf(listOf(file))
+    return state.copy(split = splitRowsOf(state.rows))
+  }
+
+  @Test
+  fun splitShowsPairInOneItem() = runComposeUiTest {
+    val state = splitState(DiffLine(LineKind.Removed, "oldtext", 1, null), DiffLine(LineKind.Added, "newtext", null, 1))
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split) } }
+    val old = onNodeWithText("oldtext", useUnmergedTree = true).getUnclippedBoundsInRoot()
+    val new = onNodeWithText("newtext", useUnmergedTree = true).getUnclippedBoundsInRoot()
+    assertEquals(old.top, new.top)
+    assertTrue(new.left > old.right, "old=$old new=$new")
+  }
+
+  @Test
+  fun splitPadsUnpairedLine() = runComposeUiTest {
+    val state = splitState(
+      DiffLine(LineKind.Removed, "aaa", 1, null),
+      DiffLine(LineKind.Removed, "bbb", 2, null),
+      DiffLine(LineKind.Added, "ccc", null, 1),
+    )
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split) } }
+    val a = onNodeWithText("aaa", useUnmergedTree = true).getUnclippedBoundsInRoot()
+    val b = onNodeWithText("bbb", useUnmergedTree = true).getUnclippedBoundsInRoot()
+    val c = onNodeWithText("ccc", useUnmergedTree = true).getUnclippedBoundsInRoot()
+    assertEquals(a.top, c.top)
+    assertTrue(abs((a.bottom - b.top).value) < 0.5f, "a=$a b=$b")
+    onAllNodesWithText("+", useUnmergedTree = true).assertCountEquals(1)
+    onAllNodesWithText("-", useUnmergedTree = true).assertCountEquals(2)
+    val pixels = onNodeWithTag("diff-list").captureToImage().toPixelMap()
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val x = (list.left + (list.width * 0.9f)).toInt() - list.left.toInt()
+    val y = with(density) { ((b.top + b.bottom) / 2).toPx() }.toInt() - list.top.toInt()
+    assertEquals(LightDiffColors.emptySideBackground, pixels[x, y])
+  }
+
+  @Test
+  fun splitOrphanPressWithNoFilesDoesNotCrash() = runComposeUiTest {
+    val ui = stateOf(emptyList()).copy(loadId = 1)
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshotOf(1, 1, listOf(staticThread()), null), mode = DiffMode.Split) } }
+    onNodeWithTag("diff-list").performMouseInput {
+      moveTo(Offset(20f, 10f))
+      press()
+      release()
+    }
+    waitForIdle()
+    onNodeWithTag("thread-t1").assertIsDisplayed()
+  }
+
+  @Test
+  fun splitContextOnBothSides() = runComposeUiTest {
+    val state = splitState(DiffLine(LineKind.Context, "same", 1, 1))
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split) } }
+    onAllNodesWithText("same", useUnmergedTree = true).assertCountEquals(2)
+  }
+
+  private fun anchoredThread(id: String, side: io.github.mataku.kdiffviewer.core.review.Side, line: Int) = ReviewThread(id, Anchor.Lines("a.kt", side, line, line, listOf("same")), listOf(Comment("c$id", Author.User, "note $id", at)), false, false)
+
+  private fun splitReviewUi(vararg body: DiffLine): ViewerUiState = splitState(*body).copy(loadId = 1)
+
+  @Test
+  fun splitHoverShowsPlusOnHoveredSide() = runComposeUiTest {
+    val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 4, 6))
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
+    }
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    onAllNodesWithText("same", useUnmergedTree = true)[0].performMouseInput { moveTo(center) }
+    waitForIdle()
+    onAllNodesWithTag("add-comment").assertCountEquals(1)
+    assertTrue(onNodeWithTag("add-comment").fetchSemanticsNode().boundsInRoot.right < list.center.x)
+    onAllNodesWithText("same", useUnmergedTree = true)[1].performMouseInput { moveTo(center) }
+    waitForIdle()
+    onAllNodesWithTag("add-comment").assertCountEquals(1)
+    assertTrue(onNodeWithTag("add-comment").fetchSemanticsNode().boundsInRoot.left > list.center.x)
+  }
+
+  @Test
+  fun splitPlusOnLeftContextAnchorsOld() = runComposeUiTest {
+    val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 4, 6))
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
+    }
+    onAllNodesWithText("same", useUnmergedTree = true)[0].performMouseInput { moveTo(center) }
+    waitForIdle()
+    onNodeWithTag("add-comment").performClick()
+    waitForIdle()
+    val anchor = ((review.snapshot.value.draft!!.target) as DraftTarget.NewThread).anchor as Anchor.Lines
+    assertEquals(io.github.mataku.kdiffviewer.core.review.Side.Old, anchor.side)
+    assertEquals(4, anchor.startLine)
+  }
+
+  @Test
+  fun splitPlusOnRightAddedLineBesideNoNewlineLeft() = runComposeUiTest {
+    val ui = splitReviewUi(
+      DiffLine(LineKind.Removed, "gone", 1, null),
+      DiffLine(LineKind.NoNewlineAtEof, "", null, null),
+      DiffLine(LineKind.Added, "first", null, 1),
+      DiffLine(LineKind.Added, "fresh", null, 2),
+    )
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
+    }
+    onNodeWithText("fresh", useUnmergedTree = true).performMouseInput { moveTo(center) }
+    waitForIdle()
+    onAllNodesWithTag("add-comment").assertCountEquals(1)
+  }
+
+  @Test
+  fun splitThreadRendersInItsColumn() = runComposeUiTest {
+    val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 1, 1))
+    val threads = listOf(anchoredThread("t1", io.github.mataku.kdiffviewer.core.review.Side.Old, 1), anchoredThread("t2", io.github.mataku.kdiffviewer.core.review.Side.New, 1))
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshotOf(1, 1, threads, Placement.OnLine(LineLocation(0, 0, 0))), mode = DiffMode.Split) } }
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val old = onNodeWithTag("thread-t1").fetchSemanticsNode().boundsInRoot
+    val new = onNodeWithTag("thread-t2").fetchSemanticsNode().boundsInRoot
+    assertTrue(old.left < list.center.x && old.right <= list.center.x, "old=$old list=$list")
+    assertTrue(new.left > list.center.x, "new=$new list=$list")
+  }
+
+  @Test
+  fun splitDraftRendersInItsColumn() = runComposeUiTest {
+    val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 1, 1))
+    val review = reviewState(ui)
+    review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 0, io.github.mataku.kdiffviewer.core.review.Side.Old)!!, Placement.OnLine(LineLocation(0, 0, 0))))
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
+    }
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val composer = onNodeWithTag("comment-composer").fetchSemanticsNode().boundsInRoot
+    assertTrue(composer.right <= list.center.x, "composer=$composer list=$list")
+  }
+
+  @Test
+  fun draftSurvivesModeSwitch() = runComposeUiTest {
+    val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 1, 1))
+    val review = reviewState(ui)
+    review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 0, io.github.mataku.kdiffviewer.core.review.Side.New)!!, Placement.OnLine(LineLocation(0, 0, 0))))
+    var mode by mutableStateOf(DiffMode.Unified)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = mode) } }
+    }
+    onNodeWithTag("comment-composer").performTextInput("typed")
+    mode = DiffMode.Split
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertTextEquals("typed")
+    mode = DiffMode.Unified
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertTextEquals("typed")
+  }
+
+  @Test
+  fun splitKeepsFileHeaderFullWidth() = runComposeUiTest {
+    val state = splitState(DiffLine(LineKind.Removed, "oldtext", 1, null), DiffLine(LineKind.Added, "newtext", null, 1))
+    var mode by mutableStateOf(DiffMode.Unified)
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = mode) } }
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val margin = with(density) { ContentHorizontalMargin.toPx() }
+    val unified = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot.width
+    mode = DiffMode.Split
+    waitForIdle()
+    val split = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot.width
+    assertEquals(unified, split)
+    assertTrue(abs(list.width - 2 * margin - split) <= 1f, "list=$list header=$split")
   }
 }
 
