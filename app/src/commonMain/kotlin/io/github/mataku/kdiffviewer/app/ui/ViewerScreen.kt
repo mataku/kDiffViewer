@@ -266,6 +266,10 @@ fun ViewerScreen(
         )
       }
       Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+      if (state.truncated) {
+        TruncatedNotice()
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+      }
       Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
         if (state.status == LoadStatus.Done && state.files.isEmpty() && !hasOrphans) {
           BasicText(
@@ -304,5 +308,22 @@ fun ViewerScreen(
         }
       }
     }
+  }
+}
+
+@Composable
+private fun TruncatedNotice() {
+  val colors = LocalDiffColors.current
+  val style = remember(colors) { TextStyle(color = colors.mutedText, fontSize = 12.sp) }
+  Row(
+    modifier = Modifier
+      .testTag("diff-truncated-notice")
+      .fillMaxWidth()
+      .background(colors.background)
+      .padding(horizontal = 20.dp, vertical = 8.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    BasicText(text = "ⓘ", modifier = Modifier.padding(end = 6.dp), style = style)
+    BasicText(text = "Some files are not shown because the diff is too large.", style = style)
   }
 }

@@ -123,6 +123,27 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun truncatedNoticeShownWhenTruncated() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("src/a.kt"))).copy(truncated = true), {}) }
+    onNodeWithTag("diff-truncated-notice").assertIsDisplayed()
+    onNodeWithText("Some files are not shown because the diff is too large.", useUnmergedTree = true).assertIsDisplayed()
+  }
+
+  @Test
+  fun truncatedNoticeHiddenOtherwise() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("src/a.kt"))), {}) }
+    onNodeWithTag("diff-truncated-notice").assertDoesNotExist()
+  }
+
+  @Test
+  fun noticeDoesNotShiftListItems() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("src/a.kt"))).copy(truncated = true), {}) }
+    val notice = onNodeWithTag("diff-truncated-notice").fetchSemanticsNode().boundsInRoot
+    val header = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot
+    assertTrue(header.top >= notice.bottom)
+  }
+
+  @Test
   fun expandsTabsInLineText() = runComposeUiTest {
     val line = DiffLine(LineKind.Added, "\tval x = 1", null, 1)
     val file = FileDiff(null, "t.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", listOf(line)))))
