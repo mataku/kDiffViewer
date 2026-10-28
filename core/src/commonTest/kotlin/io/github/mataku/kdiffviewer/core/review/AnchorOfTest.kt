@@ -21,6 +21,30 @@ class AnchorOfTest {
   }
 
   @Test
+  fun contextLineWithOldSideUsesOldLineNumber() {
+    val file = modified("a.kt", hunk(ctx("c", 4, 6)))
+    assertEquals(linesAnchor("a.kt", Side.Old, 4, 4, "c"), anchorOf(file, 0, 0, Side.Old))
+  }
+
+  @Test
+  fun contextLineWithNewSideUsesNewLineNumber() {
+    val file = modified("a.kt", hunk(ctx("c", 4, 6)))
+    assertEquals(linesAnchor("a.kt", Side.New, 6, 6, "c"), anchorOf(file, 0, 0, Side.New))
+  }
+
+  @Test
+  fun addedLineWithOldSideIsNull() {
+    val file = modified("a.kt", hunk(added("y", 6)))
+    assertNull(anchorOf(file, 0, 0, Side.Old))
+  }
+
+  @Test
+  fun removedLineWithNewSideIsNull() {
+    val file = modified("a.kt", hunk(removed("x", 7)))
+    assertNull(anchorOf(file, 0, 0, Side.New))
+  }
+
+  @Test
   fun noNewlineAtEofIsNull() {
     val file = modified("a.kt", hunk(added("y", 1), DiffLine(LineKind.NoNewlineAtEof, "\\ No newline at end of file", null, null)))
     assertNull(anchorOf(file, 0, 1))
