@@ -148,7 +148,7 @@ class DiffLayoutTest {
     val visible = layout.visibleIndexOf(layout.headerRowIndex(1) + 3)
     assertEquals(ScrollAnchor("b.kt", 3), scrollAnchorOf(ui, layout, ui.displayRows(DiffMode.Unified), visible))
     assertEquals(visible, restoreTargetOf(ScrollAnchor("b.kt", 3), ui, layout, ui.displayRows(DiffMode.Unified)))
-    assertEquals(ScrollAnchor("a.kt", 0), scrollAnchorOf(ui, layout, ui.displayRows(DiffMode.Unified), 0))
+    assertEquals(ScrollAnchor("a.kt", 0, AnchorEdge.Orphans), scrollAnchorOf(ui, layout, ui.displayRows(DiffMode.Unified), 0))
   }
 
   @Test

@@ -44,7 +44,7 @@ class ScrollRestorerTest {
 
   private fun targetOf(anchor: ScrollAnchor, ui: ViewerUiState) = restoreTargetOf(anchor, ui, diffLayoutOf(ui), ui.displayRows(DiffMode.Unified))
 
-  private fun ScrollRestorer.nextFor(ui: ViewerUiState, firstVisibleIndex: Int, mode: DiffMode = DiffMode.Unified, hasEnd: Boolean = false) = next(ui, diffLayoutOf(ui, mode, hasEnd = hasEnd), ui.displayRows(mode), firstVisibleIndex)
+  private fun ScrollRestorer.nextFor(ui: ViewerUiState, firstVisibleIndex: Int, mode: DiffMode = DiffMode.Unified, hasEnd: Boolean = false, hasOrphans: Boolean = false) = next(ui, diffLayoutOf(ui, mode, hasOrphans = hasOrphans, hasEnd = hasEnd), ui.displayRows(mode), firstVisibleIndex)
 
   private val hunkFile = FileDiff(
     "h.kt",
@@ -203,12 +203,32 @@ class ScrollRestorerTest {
     val ui = state(listOf(hunkFile), 1)
     val restorer = ScrollRestorer()
     val unifiedLast = diffLayoutOf(ui, DiffMode.Unified, hasEnd = true).visibleCount - 1
+    val splitLast = diffLayoutOf(ui, DiffMode.Split, hasEnd = true).visibleCount - 1
     assertNull(restorer.nextFor(ui, unifiedLast, DiffMode.Unified, hasEnd = true))
     val target = restorer.nextFor(ui, unifiedLast, DiffMode.Split, hasEnd = true)!!
-    assertEquals(3, target)
+    assertEquals(splitLast, target)
     assertNull(restorer.nextFor(ui, target, DiffMode.Split, hasEnd = true))
-    val back = restorer.nextFor(ui, target, DiffMode.Unified, hasEnd = true)!!
-    assertEquals(5, back)
+    assertEquals(unifiedLast, restorer.nextFor(ui, target, DiffMode.Unified, hasEnd = true))
+  }
+
+  @Test
+  fun modeSwitchWithOrphansFirstVisible() {
+    val ui = state(listOf(hunkFile), 1)
+    val restorer = ScrollRestorer()
+    assertNull(restorer.nextFor(ui, 0, DiffMode.Unified, hasOrphans = true))
+    assertEquals(0, restorer.nextFor(ui, 0, DiffMode.Split, hasOrphans = true))
+    assertNull(restorer.nextFor(ui, 0, DiffMode.Split, hasOrphans = true))
+    assertEquals(0, restorer.nextFor(ui, 0, DiffMode.Unified, hasOrphans = true))
+  }
+
+  @Test
+  fun modeRoundTripFromRemovedLineKeepsRow() {
+    val ui = state(listOf(hunkFile), 1)
+    val restorer = ScrollRestorer()
+    assertNull(restorer.nextFor(ui, 2))
+    val split = restorer.nextFor(ui, 2, DiffMode.Split)!!
+    assertNull(restorer.nextFor(ui, split, DiffMode.Split))
+    assertEquals(2, restorer.nextFor(ui, split, DiffMode.Unified))
   }
 
   @Test
