@@ -11,6 +11,7 @@ import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class SplitRowsTest {
   private fun removed(text: String, old: Int) = DiffLine(LineKind.Removed, text, old, null)
@@ -71,6 +72,50 @@ class SplitRowsTest {
   }
 
   @Test
+  fun backToBackRunsWithoutContextPairSeparately() {
+    assertEquals(headers + listOf(2 to 3, 4 to 5), pairsFor(removed("a", 1), added("b", 1), removed("c", 2), added("d", 2)))
+  }
+
+  @Test
+  fun noNewlineAfterAddedWithRemovedRun() {
+    assertEquals(headers + listOf(2 to 3, -1 to 4), pairsFor(removed("a", 1), added("b", 1), noNewline()))
+  }
+
+  @Test
+  fun everyUnifiedRowAppearsOnceAndOrderIsMonotonic() {
+    val fixtures = listOf(
+      rowsOf(textFile("a.txt", hunk(removed("a", 1), added("b", 1), removed("c", 2), added("d", 2)))),
+      rowsOf(textFile("a.txt", hunk(removed("a", 1), noNewline(), added("b", 1), noNewline(), context("x"), added("y", 3)))),
+      rowsOf(
+        textFile("a.txt", hunk(context("a"), removed("b", 2), added("c", 2), added("d", 3)), hunk(removed("e", 9), removed("f", 10))),
+        textFile("b.txt", hunk(added("g", 1), noNewline())),
+        FileDiff("c.bin", "c.bin", ChangeType.Modified, false, DiffContent.Binary),
+      ),
+    )
+    for (rows in fixtures) {
+      val split = splitRowsOf(rows)
+      val seen = IntArray(rows.size)
+      var lastLeft = -1
+      var lastRight = -1
+      for (s in 0 until split.size) {
+        val l = split.leftOf(s)
+        val r = split.rightOf(s)
+        if (l >= 0) {
+          seen[l]++
+          assertTrue(l > lastLeft, "left not increasing at $s")
+          lastLeft = l
+        }
+        if (r >= 0) {
+          if (r != l) seen[r]++
+          assertTrue(r > lastRight, "right not increasing at $s")
+          lastRight = r
+        }
+      }
+      assertEquals(List(rows.size) { 1 }, seen.toList())
+    }
+  }
+
+  @Test
   fun splitIndexOfIsInverse() {
     val rows = rowsOf(
       textFile("a.txt", hunk(removed("a", 1), noNewline(), added("b", 1), added("c", 2), context("x"), removed("d", 3))),
@@ -79,7 +124,7 @@ class SplitRowsTest {
     val split = splitRowsOf(rows)
     for (u in rows.indices) {
       val s = split.splitIndexOf(u)
-      assertEquals(true, split.leftOf(s) == u || split.rightOf(s) == u, "row $u")
+      assertTrue(split.leftOf(s) == u || split.rightOf(s) == u, "row $u")
     }
   }
 

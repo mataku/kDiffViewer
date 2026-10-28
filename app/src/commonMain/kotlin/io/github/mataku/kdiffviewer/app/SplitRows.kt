@@ -55,8 +55,12 @@ class SplitRowsBuilder {
       val inRemovedRun = removedEnd > removedStart
       when {
         kind == LineKind.Removed -> {
-          if (inAddedRun) flush()
-          if (!inRemovedRun) removedStart = index
+          if (inAddedRun) {
+            flush()
+            removedStart = index
+          } else if (!inRemovedRun) {
+            removedStart = index
+          }
           removedEnd = index + 1
         }
 
