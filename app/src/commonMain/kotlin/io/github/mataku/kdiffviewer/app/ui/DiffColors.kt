@@ -93,4 +93,33 @@ val DarkDiffColors = DiffColors(
   controlMarkerBackground = Color(0xFF6B5A1E),
 )
 
+val DimDiffColors = DiffColors(
+  background = Color(0xFF15202B),
+  text = Color(0xFFE1E8ED),
+  mutedText = Color(0xFF8899A6),
+  border = Color(0xFF38444D),
+  fileHeaderBackground = Color(0xFF1C2732),
+  addedBackground = Color(0xFF1A322F),
+  addedLineNumberBackground = Color(0xFF204634),
+  removedBackground = Color(0xFF30262F),
+  removedLineNumberBackground = Color(0xFF4E2D33),
+  hunkBackground = Color(0xFF1D3044),
+  addedText = Color(0xFF3FB950),
+  removedText = Color(0xFFF85149),
+  modifiedText = Color(0xFFD29922),
+  renamedText = Color(0xFF58A6FF),
+  glassFill = Color(0x14FFFFFF),
+  glassFillHovered = Color(0x24FFFFFF),
+  glassFillPressed = Color(0x33FFFFFF),
+  glassHighlight = Color(0x40FFFFFF),
+  glassEdge = Color(0x0FFFFFFF),
+  accent = Color(0xFF0A84FF),
+  threadBackground = Color(0xFF1C2732),
+  threadBorder = Color(0xFF38444D),
+  agentBadge = Color(0xFFA371F7),
+  outdatedBadge = Color(0xFFD29922),
+  selectionBackground = Color(0xFF3F638B),
+  controlMarkerBackground = Color(0xFF6B5A1E),
+)
+
 val LocalDiffColors: ProvidableCompositionLocal<DiffColors> = staticCompositionLocalOf { LightDiffColors }

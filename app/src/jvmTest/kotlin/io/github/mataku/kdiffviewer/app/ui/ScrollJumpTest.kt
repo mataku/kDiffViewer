@@ -131,7 +131,7 @@ class ScrollJumpTest {
     val outer = mutableListOf<ScrollJump>()
     runComposeUiTest {
       setContent {
-        KdvTheme(darkTheme = false) {
+        KdvTheme(colorTheme = ColorTheme.Light) {
           Box(
             Modifier.onKeyEvent { event ->
               scrollJumpOf(event)?.let(outer::add)

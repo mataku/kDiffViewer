@@ -28,7 +28,7 @@ class EndOfDiffFooterTest {
 
   @Test
   fun rendersCaptionAndImage() = runComposeUiTest {
-    setContent { KdvTheme(darkTheme = true) { EndOfDiffFooter() } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Dark) { EndOfDiffFooter() } }
     onNodeWithText("It fits. You're done.").assertIsDisplayed()
     val footer = onNodeWithTag("end-of-diff").fetchSemanticsNode().size
     assertTrue(footer.height > 0)
@@ -36,26 +36,26 @@ class EndOfDiffFooterTest {
 
   @Test
   fun artIsOneHundredEightyDpWide() = runComposeUiTest {
-    setContent { KdvTheme(darkTheme = false) { EndOfDiffFooter() } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Light) { EndOfDiffFooter() } }
     onNodeWithTag("end-of-diff-art").assertWidthIsEqualTo(180.dp)
   }
 
   @Test
   fun artKeepsTheImageAspectRatio() = runComposeUiTest {
-    setContent { KdvTheme(darkTheme = false) { EndOfDiffFooter() } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Light) { EndOfDiffFooter() } }
     onNodeWithTag("end-of-diff-art").assertHeightIsEqualTo((180f * 172f / 270f).dp)
   }
 
   @Test
   fun artAndCaptionHiddenWhenFooterIsNarrowerThanArt() = runComposeUiTest {
-    setContent { KdvTheme(darkTheme = false) { Box(Modifier.width(179.dp)) { EndOfDiffFooter() } } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Light) { Box(Modifier.width(179.dp)) { EndOfDiffFooter() } } }
     onNodeWithTag("end-of-diff-art").assertDoesNotExist()
     onNodeWithText("It fits. You're done.").assertDoesNotExist()
   }
 
   @Test
   fun artShownWhenFooterFitsArt() = runComposeUiTest {
-    setContent { KdvTheme(darkTheme = false) { Box(Modifier.width(180.dp)) { EndOfDiffFooter() } } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Light) { Box(Modifier.width(180.dp)) { EndOfDiffFooter() } } }
     onNodeWithTag("end-of-diff-art").assertIsDisplayed()
   }
 }

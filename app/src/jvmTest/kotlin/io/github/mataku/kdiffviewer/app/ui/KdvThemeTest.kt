@@ -15,7 +15,7 @@ class KdvThemeTest {
   @Test
   fun darkThemeProvidesDarkDiffColors() = runComposeUiTest {
     var provided: DiffColors? = null
-    setContent { KdvTheme(darkTheme = true) { provided = LocalDiffColors.current } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Dark) { provided = LocalDiffColors.current } }
     waitForIdle()
     assertEquals(DarkDiffColors, provided)
   }
@@ -23,9 +23,27 @@ class KdvThemeTest {
   @Test
   fun lightThemeProvidesLightDiffColors() = runComposeUiTest {
     var provided: DiffColors? = null
-    setContent { KdvTheme(darkTheme = false) { provided = LocalDiffColors.current } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Light) { provided = LocalDiffColors.current } }
     waitForIdle()
     assertEquals(LightDiffColors, provided)
+  }
+
+  @Test
+  fun dimThemeProvidesDimColorsWithDarkSyntaxAndFlag() = runComposeUiTest {
+    var colors: DiffColors? = null
+    var syntax: SyntaxTheme? = null
+    var dark: Boolean? = null
+    setContent {
+      KdvTheme(colorTheme = ColorTheme.Dim) {
+        colors = LocalDiffColors.current
+        syntax = LocalSyntaxTheme.current
+        dark = LocalDarkTheme.current
+      }
+    }
+    waitForIdle()
+    assertEquals(DimDiffColors, colors)
+    assertSame(DarkSyntaxTheme, syntax)
+    assertEquals(true, dark)
   }
 
   @Test
@@ -33,7 +51,7 @@ class KdvThemeTest {
     var background = Color.Unspecified
     var onBackground = Color.Unspecified
     setContent {
-      KdvTheme(darkTheme = true) {
+      KdvTheme(colorTheme = ColorTheme.Dark) {
         background = MaterialTheme.colorScheme.background
         onBackground = MaterialTheme.colorScheme.onBackground
       }
@@ -48,8 +66,8 @@ class KdvThemeTest {
     var dark: SyntaxTheme? = null
     var light: SyntaxTheme? = null
     setContent {
-      KdvTheme(darkTheme = true) { dark = LocalSyntaxTheme.current }
-      KdvTheme(darkTheme = false) { light = LocalSyntaxTheme.current }
+      KdvTheme(colorTheme = ColorTheme.Dark) { dark = LocalSyntaxTheme.current }
+      KdvTheme(colorTheme = ColorTheme.Light) { light = LocalSyntaxTheme.current }
     }
     waitForIdle()
     assertSame(DarkSyntaxTheme, dark)
@@ -61,8 +79,8 @@ class KdvThemeTest {
     var dark: Boolean? = null
     var light: Boolean? = null
     setContent {
-      KdvTheme(darkTheme = true) { dark = LocalDarkTheme.current }
-      KdvTheme(darkTheme = false) { light = LocalDarkTheme.current }
+      KdvTheme(colorTheme = ColorTheme.Dark) { dark = LocalDarkTheme.current }
+      KdvTheme(colorTheme = ColorTheme.Light) { light = LocalDarkTheme.current }
     }
     waitForIdle()
     assertEquals(true, dark)

@@ -62,6 +62,8 @@ fun AppearanceCard(
 
           Appearance.Dark -> drawDiffPreview(DarkDiffColors)
 
+          Appearance.Dim -> drawDiffPreview(DimDiffColors)
+
           Appearance.System -> {
             clipRect(left = 0f, right = size.width / 2) { drawDiffPreview(LightDiffColors) }
             clipRect(left = size.width / 2, right = size.width) { drawDiffPreview(DarkDiffColors) }

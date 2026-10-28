@@ -9,6 +9,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.text.AnnotatedString
 import io.github.mataku.compose.highlight.core.highlightLines
 import io.github.mataku.kdiffviewer.app.DiffViewerState
+import io.github.mataku.kdiffviewer.app.ui.ColorTheme
 import io.github.mataku.kdiffviewer.app.ui.KdvTheme
 import io.github.mataku.kdiffviewer.app.ui.LightSyntaxTheme
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
@@ -121,7 +122,7 @@ class HighlightEndToEndTest {
         val state = viewer(source, content, scope)
         setContent {
           val ui by state.uiState.collectAsState()
-          KdvTheme(darkTheme = false) { ViewerScreen(ui, state::reload) }
+          KdvTheme(colorTheme = ColorTheme.Light) { ViewerScreen(ui, state::reload) }
         }
         state.open(RepoPath("/repo"))
         test(state)

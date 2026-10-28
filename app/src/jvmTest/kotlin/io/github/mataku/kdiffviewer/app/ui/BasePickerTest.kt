@@ -54,7 +54,7 @@ class BasePickerTest {
     loadBranches: suspend () -> List<BranchRef> = { branches },
   ) {
     setContent {
-      KdvTheme(darkTheme = false) {
+      KdvTheme(colorTheme = ColorTheme.Light) {
         BasePicker(base, baseSpec, head, loadBranches, recorder::switch, TextStyle(fontSize = 12.sp))
       }
     }
@@ -224,7 +224,7 @@ class BasePickerTest {
     val gate = CompletableDeferred<ViewerError?>()
     val specs = mutableListOf<BaseSpec>()
     setContent {
-      KdvTheme(darkTheme = false) {
+      KdvTheme(colorTheme = ColorTheme.Light) {
         BasePicker(
           base,
           BaseSpec.Default,
@@ -255,7 +255,7 @@ class BasePickerTest {
     val results = ArrayDeque<ViewerError?>(listOf(ViewerError.UnknownBase("x"), null))
     var calls = 0
     setContent {
-      KdvTheme(darkTheme = false) {
+      KdvTheme(colorTheme = ColorTheme.Light) {
         BasePicker(
           base,
           BaseSpec.Default,

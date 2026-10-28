@@ -8,7 +8,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 
 @Serializable
-enum class Appearance { System, Light, Dark }
+enum class Appearance { System, Light, Dark, Dim }
 
 @Serializable
 data class Settings(

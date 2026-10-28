@@ -12,36 +12,42 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.font.FontFamily
 import io.github.mataku.compose.highlight.core.LocalSyntaxTheme
+import io.github.mataku.compose.highlight.core.SyntaxTheme
 import io.github.mataku.kdiffviewer.app.ui.markdown.LocalMarkdownStyles
 import io.github.mataku.kdiffviewer.app.ui.markdown.MarkdownStyles
+
+enum class ColorTheme(val diffColors: DiffColors, val syntaxTheme: SyntaxTheme, val isDark: Boolean) {
+  Light(LightDiffColors, LightSyntaxTheme, isDark = false),
+  Dark(DarkDiffColors, DarkSyntaxTheme, isDark = true),
+  Dim(DimDiffColors, DarkSyntaxTheme, isDark = true),
+}
 
 val LocalDarkTheme: ProvidableCompositionLocal<Boolean> = staticCompositionLocalOf { false }
 
 @Composable
 fun KdvTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
+  colorTheme: ColorTheme = if (isSystemInDarkTheme()) ColorTheme.Dark else ColorTheme.Light,
   fontFamily: FontFamily = FontFamily.Monospace,
   fontSize: Int = 12,
   tabWidth: Int = 8,
   treeFontSize: Int = 13,
   content: @Composable () -> Unit,
 ) {
-  val diffColors = if (darkTheme) DarkDiffColors else LightDiffColors
+  val diffColors = colorTheme.diffColors
   val typography = remember(fontFamily, fontSize, tabWidth, diffColors) {
     diffTypography(fontFamily, fontSize, tabWidth, diffColors)
   }
   val treeTypography = remember(treeFontSize, diffColors) { treeTypography(treeFontSize, diffColors) }
   val markdownStyles = remember(diffColors, typography) { MarkdownStyles(diffColors, typography) }
-  val syntaxTheme = if (darkTheme) DarkSyntaxTheme else LightSyntaxTheme
-  val base = if (darkTheme) darkColorScheme() else lightColorScheme()
+  val base = if (colorTheme.isDark) darkColorScheme() else lightColorScheme()
   MaterialTheme(colorScheme = base.withTokens(diffColors)) {
     CompositionLocalProvider(
-      LocalDarkTheme provides darkTheme,
+      LocalDarkTheme provides colorTheme.isDark,
       LocalDiffColors provides diffColors,
       LocalDiffTypography provides typography,
       LocalTreeTypography provides treeTypography,
       LocalMarkdownStyles provides markdownStyles,
-      LocalSyntaxTheme provides syntaxTheme,
+      LocalSyntaxTheme provides colorTheme.syntaxTheme,
       content = content,
     )
   }

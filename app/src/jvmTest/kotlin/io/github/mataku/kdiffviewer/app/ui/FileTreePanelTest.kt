@@ -124,7 +124,7 @@ class FileTreePanelTest {
   @Test
   fun treeRowGrowsWithFontSize() = runComposeUiTest {
     var size by mutableStateOf(13)
-    setContent { KdvTheme(darkTheme = false, treeFontSize = size) { FileTreePanel(entries, {}, {}) } }
+    setContent { KdvTheme(colorTheme = ColorTheme.Light, treeFontSize = size) { FileTreePanel(entries, {}, {}) } }
     val small = onNodeWithTag("tree-dir-0").getUnclippedBoundsInRoot().height
     size = 20
     waitForIdle()
