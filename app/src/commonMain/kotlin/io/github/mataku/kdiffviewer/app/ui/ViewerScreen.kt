@@ -232,7 +232,7 @@ fun ViewerScreen(
           val head = state.head
           if (base != null || head != null) {
             val labelStyle = TextStyle(color = colors.mutedText, fontSize = 12.sp)
-            Row(modifier = Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
               if (base != null) {
                 val uncommittedOnly = base.label == "HEAD"
                 BasePicker(base, state.baseSpec, head, loadBranches, onSwitchBase, labelStyle, Modifier.weight(1f, fill = false).titleBarClientRegion("base-picker"))
