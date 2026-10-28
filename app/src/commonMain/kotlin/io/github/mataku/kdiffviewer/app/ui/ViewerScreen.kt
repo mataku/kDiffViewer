@@ -3,7 +3,6 @@ package io.github.mataku.kdiffviewer.app.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -91,7 +89,9 @@ fun ViewerScreen(
   state: ViewerUiState,
   onReload: () -> Unit,
   modifier: Modifier = Modifier,
-  titleBarInset: Dp = 0.dp,
+  titleBarLeadingInset: Dp = 0.dp,
+  sidebarVisible: Boolean = true,
+  onToggleSidebar: () -> Unit = {},
   onToggleFile: (Int) -> Unit = {},
   onExpandFile: (Int) -> Unit = {},
   review: ReviewSnapshot = ReviewSnapshot.Empty,
@@ -190,153 +190,189 @@ fun ViewerScreen(
   val treeEntries = remember(state.tree, state.files, collapsed, needle) {
     if (filtering) visibleTree(filterTree(state.tree, state.files, needle), emptySet()) else visibleTree(state.tree, collapsed)
   }
-  Row(modifier = modifier.fillMaxSize().background(colors.background)) {
-    FileTreePanel(
-      entries = treeEntries,
-      topInset = titleBarInset + 12.dp,
-      onFileClick = { fileIndex ->
-        onExpandFile(fileIndex)
-        listState.requestScrollToItem(layout.headerVisibleIndex(fileIndex))
-      },
-      onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
-      statsOf = statsOf,
-      statusOf = statusOf,
-      width = treeWidth,
-      query = treeQuery,
-      onQueryChange = { treeQuery = it },
-      filtering = filtering,
+  Column(modifier = modifier.fillMaxSize().background(colors.background)) {
+    RepoHeader(
+      state = state,
+      titleBarLeadingInset = titleBarLeadingInset,
+      sidebarVisible = sidebarVisible,
+      onToggleSidebar = onToggleSidebar,
+      loadBranches = loadBranches,
+      onSwitchBase = onSwitchBase,
+      mode = mode,
+      onModeChange = onModeChange,
+      onReload = onReload,
     )
-    PaneDivider(
-      onDrag = { delta ->
-        treeWidth = (treeWidth + with(density) { delta.toDp() }).coerceIn(MinTreeWidth, MaxTreeWidth)
-      },
-    )
-    Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-      Row(
-        modifier = Modifier
-          .testTag("repo-header")
-          .fillMaxWidth()
-          .heightIn(min = TitleBarHeight)
-          .background(colors.fileHeaderBackground)
-          .padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-      ) {
-        Column {
-          BasicText(
-            text = state.repo?.let(::repoName).orEmpty(),
-            modifier = Modifier.testTag("repo-name"),
-            style = TextStyle(color = colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-          )
-          val base = state.base as? ResolvedBase.Commit
-          val head = state.head
-          if (base != null || head != null) {
-            val labelStyle = TextStyle(color = colors.mutedText, fontSize = 12.sp)
-            Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-              if (base != null) {
-                val uncommittedOnly = base.label == "HEAD"
-                BasePicker(base, state.baseSpec, head, loadBranches, onSwitchBase, labelStyle, Modifier.weight(1f, fill = false).titleBarClientRegion("base-picker"))
-                if (head != null) {
-                  BasicText(text = if (uncommittedOnly) "·" else "...", modifier = Modifier.padding(horizontal = 6.dp), style = labelStyle)
-                }
-              }
-              if (head != null) {
-                val (icon, iconTag, label) = when (head) {
-                  is HeadRef.Branch -> Triple(KdvIcons.Branch, "head-branch-icon", head.name)
-                  is HeadRef.Detached -> Triple(KdvIcons.Commit, "head-commit-icon", head.shortHash)
-                }
-                Row(
-                  modifier = Modifier.clip(TagShape).background(colors.text.copy(alpha = TAG_FILL_ALPHA)).padding(TagPadding),
-                  verticalAlignment = Alignment.CenterVertically,
-                ) {
-                  Image(
-                    imageVector = icon,
-                    contentDescription = null,
-                    modifier = Modifier.testTag(iconTag).padding(end = 4.dp).size(12.dp),
-                    colorFilter = ColorFilter.tint(colors.mutedText),
-                  )
-                  BasicText(
-                    text = label,
-                    modifier = Modifier.testTag("head-label"),
-                    style = labelStyle,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                  )
-                }
-              }
+    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+    Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+      FileTreePanel(
+        entries = treeEntries,
+        topInset = 12.dp,
+        onFileClick = { fileIndex ->
+          onExpandFile(fileIndex)
+          listState.requestScrollToItem(layout.headerVisibleIndex(fileIndex))
+        },
+        onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
+        statsOf = statsOf,
+        statusOf = statusOf,
+        width = treeWidth,
+        query = treeQuery,
+        onQueryChange = { treeQuery = it },
+        filtering = filtering,
+      )
+      PaneDivider(
+        onDrag = { delta ->
+          treeWidth = (treeWidth + with(density) { delta.toDp() }).coerceIn(MinTreeWidth, MaxTreeWidth)
+        },
+      )
+      Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+        if (state.truncated) {
+          TruncatedNotice()
+          Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+        }
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+          if (state.status == LoadStatus.Done && state.files.isEmpty() && !hasOrphans) {
+            BasicText(
+              text = "No changes",
+              modifier = Modifier.align(Alignment.Center),
+              style = TextStyle(color = colors.mutedText, fontSize = 14.sp),
+            )
+          } else {
+            CompositionLocalProvider(
+              LocalDraftText provides draftText,
+              LocalDraftFocusRequests provides focusRequests,
+              LocalReviewActions provides actions,
+            ) {
+              DiffView(
+                rows = state.rows,
+                layout = layout,
+                display = display,
+                highlights = state.highlights,
+                listState = listState,
+                files = state.files,
+                placements = review.placements,
+                draftTarget = draftTarget,
+                loadId = state.loadId,
+                selection = diffSelection,
+                selectionSource = selectionSource,
+                onHeaderClick = { fileIndex ->
+                  val header = layout.headerVisibleIndex(fileIndex)
+                  val pinned = listState.firstVisibleItemIndex >= header
+                  onToggleFile(fileIndex)
+                  if (pinned) listState.requestScrollToItem(header)
+                },
+              )
             }
           }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          MacSegmented(
-            options = DiffMode.entries,
-            selected = mode,
-            label = { it.name },
-            tag = { "diff-mode-${it.name.lowercase()}" },
-            onSelect = { if (it != mode) onModeChange(it) },
-            modifier = Modifier
-              .testTag("diff-mode-control")
-              .titleBarClientRegion("diff-mode"),
-            segmentWidth = 32.dp,
-            icon = { if (it == DiffMode.Unified) KdvIcons.Unified else KdvIcons.Split },
-            tooltip = { it.name },
-          )
-          Spacer(Modifier.width(8.dp))
-          GlassIconButton(
-            icon = KdvIcons.Reload,
-            contentDescription = "Reload",
-            tooltip = "Reload (⌘R)",
-            onClick = onReload,
-            modifier = Modifier
-              .testTag("reload-button")
-              .titleBarClientRegion("reload-button"),
-          )
-        }
-      }
-      Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-      if (state.truncated) {
-        TruncatedNotice()
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-      }
-      Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-        if (state.status == LoadStatus.Done && state.files.isEmpty() && !hasOrphans) {
-          BasicText(
-            text = "No changes",
-            modifier = Modifier.align(Alignment.Center),
-            style = TextStyle(color = colors.mutedText, fontSize = 14.sp),
-          )
-        } else {
-          CompositionLocalProvider(
-            LocalDraftText provides draftText,
-            LocalDraftFocusRequests provides focusRequests,
-            LocalReviewActions provides actions,
-          ) {
-            DiffView(
-              rows = state.rows,
-              layout = layout,
-              display = display,
-              highlights = state.highlights,
-              listState = listState,
-              files = state.files,
-              placements = review.placements,
-              draftTarget = draftTarget,
-              loadId = state.loadId,
-              selection = diffSelection,
-              selectionSource = selectionSource,
-              onHeaderClick = { fileIndex ->
-                val header = layout.headerVisibleIndex(fileIndex)
-                val pinned = listState.firstVisibleItemIndex >= header
-                onToggleFile(fileIndex)
-                if (pinned) listState.requestScrollToItem(header)
-              },
-            )
+          if (state.status == LoadStatus.Loading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
           }
-        }
-        if (state.status == LoadStatus.Loading) {
-          LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
         }
       }
     }
+  }
+}
+
+@Composable
+private fun RepoHeader(
+  state: ViewerUiState,
+  titleBarLeadingInset: Dp,
+  sidebarVisible: Boolean,
+  onToggleSidebar: () -> Unit,
+  loadBranches: suspend () -> List<BranchRef>,
+  onSwitchBase: suspend (BaseSpec) -> ViewerError?,
+  mode: DiffMode,
+  onModeChange: (DiffMode) -> Unit,
+  onReload: () -> Unit,
+) {
+  val colors = LocalDiffColors.current
+  Row(
+    modifier = Modifier
+      .testTag("repo-header")
+      .fillMaxWidth()
+      .height(ViewerTitleBarHeight)
+      .background(colors.fileHeaderBackground)
+      .padding(start = if (titleBarLeadingInset > 0.dp) titleBarLeadingInset + 8.dp else 20.dp, end = 20.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    GlassIconButton(
+      icon = KdvIcons.Sidebar,
+      contentDescription = "Toggle Sidebar",
+      tooltip = if (sidebarVisible) "Hide Sidebar (⌃⌘S)" else "Show Sidebar (⌃⌘S)",
+      onClick = onToggleSidebar,
+      modifier = Modifier
+        .testTag("sidebar-toggle")
+        .titleBarClientRegion("sidebar-toggle"),
+    )
+    Spacer(Modifier.width(12.dp))
+    Column(modifier = Modifier.weight(1f)) {
+      BasicText(
+        text = state.repo?.let(::repoName).orEmpty(),
+        modifier = Modifier.testTag("repo-name"),
+        style = TextStyle(color = colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+      )
+      val base = state.base as? ResolvedBase.Commit
+      val head = state.head
+      if (base != null || head != null) {
+        val labelStyle = TextStyle(color = colors.mutedText, fontSize = 12.sp)
+        Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+          if (base != null) {
+            val uncommittedOnly = base.label == "HEAD"
+            BasePicker(base, state.baseSpec, head, loadBranches, onSwitchBase, labelStyle, Modifier.weight(1f, fill = false).titleBarClientRegion("base-picker"))
+            if (head != null) {
+              BasicText(text = if (uncommittedOnly) "·" else "...", modifier = Modifier.padding(horizontal = 6.dp), style = labelStyle)
+            }
+          }
+          if (head != null) {
+            val (icon, iconTag, label) = when (head) {
+              is HeadRef.Branch -> Triple(KdvIcons.Branch, "head-branch-icon", head.name)
+              is HeadRef.Detached -> Triple(KdvIcons.Commit, "head-commit-icon", head.shortHash)
+            }
+            Row(
+              modifier = Modifier.clip(TagShape).background(colors.text.copy(alpha = TAG_FILL_ALPHA)).padding(TagPadding),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Image(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.testTag(iconTag).padding(end = 4.dp).size(12.dp),
+                colorFilter = ColorFilter.tint(colors.mutedText),
+              )
+              BasicText(
+                text = label,
+                modifier = Modifier.testTag("head-label"),
+                style = labelStyle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+            }
+          }
+        }
+      }
+    }
+    Spacer(Modifier.width(12.dp))
+    MacSegmented(
+      options = DiffMode.entries,
+      selected = mode,
+      label = { it.name },
+      tag = { "diff-mode-${it.name.lowercase()}" },
+      onSelect = { if (it != mode) onModeChange(it) },
+      modifier = Modifier
+        .testTag("diff-mode-control")
+        .titleBarClientRegion("diff-mode"),
+      segmentWidth = 32.dp,
+      icon = { if (it == DiffMode.Unified) KdvIcons.Unified else KdvIcons.Split },
+      tooltip = { it.name },
+    )
+    Spacer(Modifier.width(8.dp))
+    GlassIconButton(
+      icon = KdvIcons.Reload,
+      contentDescription = "Reload",
+      tooltip = "Reload (⌘R)",
+      onClick = onReload,
+      modifier = Modifier
+        .testTag("reload-button")
+        .titleBarClientRegion("reload-button"),
+    )
   }
 }
 

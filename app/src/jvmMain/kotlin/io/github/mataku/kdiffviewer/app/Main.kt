@@ -220,7 +220,6 @@ private fun runApplication(
   ) {
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     val titleBarRegions = remember { installCustomTitleBar(window, TitleBarHeight) }
-    val titleBarInset = if (titleBarRegions != null) TitleBarHeight else 0.dp
     val coordinator = remember { TextSelectionCoordinator(AwtClipboardWriter) { repository.settings.value.copyOnSelect } }
     val nativeMenu = remember(window) { AwtNativeContextMenu(window) }
     MenuBar {
@@ -267,7 +266,6 @@ private fun runApplication(
           else -> ViewerScreen(
             uiState,
             onReload = state::reload,
-            titleBarInset = titleBarInset,
             onToggleFile = state::toggleCollapsed,
             onExpandFile = state::expand,
             review = reviewSnapshot,

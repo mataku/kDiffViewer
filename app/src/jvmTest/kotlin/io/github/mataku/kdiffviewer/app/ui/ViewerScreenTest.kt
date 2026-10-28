@@ -438,10 +438,39 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun titleBarInsetPushesTreeRowsDown() = runComposeUiTest {
-    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, titleBarInset = 28.dp) }
-    val row = onNodeWithTag("tree-file-0").fetchSemanticsNode().boundsInRoot
-    assertTrue(row.top >= with(density) { 28.dp.toPx() }, "row=$row")
+  fun leadingInsetPushesToggleRight() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, titleBarLeadingInset = 78.dp) }
+    val toggle = onNodeWithTag("sidebar-toggle").fetchSemanticsNode().boundsInRoot
+    assertTrue(toggle.left >= with(density) { 78.dp.toPx() }, "toggle=$toggle")
+  }
+
+  @Test
+  fun toggleSitsLeftOfRepoName() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) }
+    val toggle = onNodeWithTag("sidebar-toggle").fetchSemanticsNode().boundsInRoot
+    val name = onNodeWithTag("repo-name").fetchSemanticsNode().boundsInRoot
+    assertTrue(toggle.right <= name.left, "toggle=$toggle name=$name")
+  }
+
+  @Test
+  fun toggleButtonCallsOnToggleSidebarAndIsClientRegion() = runComposeUiTest {
+    val regions = TitleBarRegions()
+    var toggles = 0
+    setContent {
+      CompositionLocalProvider(LocalTitleBarRegions provides regions) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, onToggleSidebar = { toggles++ })
+      }
+    }
+    val toggle = onNodeWithTag("sidebar-toggle").fetchSemanticsNode().boundsInWindow
+    assertTrue(regions.isClientArea(toggle.center))
+    onNodeWithTag("sidebar-toggle").performClick()
+    assertEquals(1, toggles)
+  }
+
+  @Test
+  fun toggleShowsInEmptyState() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()), {}) }
+    onNodeWithTag("sidebar-toggle").assertIsDisplayed()
   }
 
   @Test
@@ -449,7 +478,7 @@ class ViewerScreenTest {
     setContent { ViewerScreen(stateOf(emptyList()).copy(head = HeadRef.Branch("main")), {}) }
     val header = onNodeWithTag("repo-header").fetchSemanticsNode().boundsInRoot
     val reload = onNodeWithTag("reload-button").fetchSemanticsNode().boundsInRoot
-    val minHeight = with(density) { 52.dp.toPx() }
+    val minHeight = with(density) { 64.dp.toPx() }
     val margin = with(density) { 16.dp.toPx() }
     assertTrue(header.height >= minHeight, "header=$header")
     assertTrue(header.right - reload.right >= margin, "reload=$reload header=$header")
@@ -619,7 +648,7 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun treeSpansFullHeightAndHeaderSitsRightOfIt() = runComposeUiTest {
+  fun headerSpansFullWidthAndTreeSitsBelowIt() = runComposeUiTest {
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {
         ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
@@ -627,13 +656,13 @@ class ViewerScreenTest {
     }
     val tree = onNodeWithTag("tree-panel").fetchSemanticsNode().boundsInRoot
     val header = onNodeWithTag("repo-header").fetchSemanticsNode().boundsInRoot
-    val reload = onNodeWithTag("reload-button").fetchSemanticsNode().boundsInRoot
     val root = onRoot().fetchSemanticsNode().boundsInRoot
-    assertEquals(root.top, tree.top)
-    assertEquals(root.bottom, tree.bottom)
-    assertTrue(header.left >= tree.right, "header=$header tree=$tree")
-    assertTrue(reload.left >= tree.right, "reload=$reload tree=$tree")
+    assertEquals(root.left, header.left)
+    assertEquals(root.right, header.right)
     assertEquals(root.top, header.top)
+    assertEquals(with(density) { 64.dp.toPx() }, header.height)
+    assertTrue(tree.top >= header.bottom, "tree=$tree header=$header")
+    assertEquals(root.bottom, tree.bottom)
   }
 
   private fun keywordFile(): FileDiff {
