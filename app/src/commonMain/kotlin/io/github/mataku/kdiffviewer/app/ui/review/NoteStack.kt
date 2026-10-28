@@ -13,6 +13,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.mataku.kdiffviewer.app.review.DraftMode
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
 import io.github.mataku.kdiffviewer.core.review.ReviewThread
@@ -31,7 +32,7 @@ fun NoteStack(threads: List<ReviewThread>, draftTarget: DraftTarget?, composeNew
       CommentComposer(
         submitLabel = "Comment",
         onTextChange = actions::updateDraft,
-        onSubmit = actions::submitDraft,
+        onSubmit = { actions.submitDraft(DraftMode.Single) },
         onCancel = actions::cancelDraft,
       )
     }

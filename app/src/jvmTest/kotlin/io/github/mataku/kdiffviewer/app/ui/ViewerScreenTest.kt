@@ -59,6 +59,7 @@ import io.github.mataku.kdiffviewer.app.flattenRows
 import io.github.mataku.kdiffviewer.app.highlight.FileHighlight
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.app.isCollapsed
+import io.github.mataku.kdiffviewer.app.review.DraftMode
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.ReviewState
@@ -1222,7 +1223,7 @@ class ViewerScreenTest {
     val review = reviewState(ui)
     review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
     review.updateDraft("mine")
-    review.submitDraft()
+    review.submitDraft(DraftMode.Single)
     setContent {
       val snapshot by review.snapshot.collectAsState()
       CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }

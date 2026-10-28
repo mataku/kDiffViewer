@@ -10,6 +10,10 @@ import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.core.review.Comment
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.ReviewThread
+import io.github.mataku.kdiffviewer.core.review.Submission
+import io.github.mataku.kdiffviewer.core.review.SubmissionState
+import io.github.mataku.kdiffviewer.core.review.isPending
+import io.github.mataku.kdiffviewer.core.review.published
 import io.github.mataku.kdiffviewer.core.review.reanchor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +33,9 @@ data class ReviewSnapshot(
   val settledLoadId: Long,
   val lastLoadFailed: Boolean,
   val core: ReviewCore = ReviewCore.Empty,
+  val submissions: List<Submission> = emptyList(),
+  val pendingCount: Int = 0,
+  val waiting: Boolean = false,
 ) {
   companion object {
     val Empty = ReviewSnapshot(emptyList(), ReviewPlacements.Empty, null, 0L, false)
@@ -44,11 +51,16 @@ data class ReviewCore(
   val generation: Int,
   val nextThreadNumber: Int,
   val nextCommentNumber: Int,
+  val nextSubmissionNumber: Int = 1,
+  val deliveredThrough: Int = 0,
+  val waiterToken: Int = 0,
 ) {
   companion object {
     val Empty = ReviewCore(null, emptyMap(), 0, 0L, 0, 1, 1)
   }
 }
+
+enum class DraftMode { Single, Review }
 
 data class LoadSettlement(val failed: Boolean, val files: Int, val outdated: Int)
 
@@ -152,14 +164,15 @@ class ReviewState(
     }
   }
 
-  override fun submitDraft() {
+  override fun submitDraft(mode: DraftMode) {
     mutate { current ->
       val draft = current.draft ?: return@mutate current to Unit
       if (draft.text.isBlank()) return@mutate current to Unit
       val core = current.core
+      val pending = mode == DraftMode.Review
       val next = when (val target = draft.target) {
         is DraftTarget.NewThread -> {
-          val comment = Comment("c${core.nextCommentNumber}", Author.User, draft.text, now())
+          val comment = Comment("c${core.nextCommentNumber}", Author.User, draft.text, now(), pending)
           val thread = ReviewThread("t${core.nextThreadNumber}", target.anchor, listOf(comment), resolved = false, outdated = false)
           current.withThreads(
             current.threads + thread,
@@ -176,7 +189,7 @@ class ReviewState(
           if (index < 0) {
             current
           } else {
-            val comment = Comment("c${core.nextCommentNumber}", Author.User, draft.text, now())
+            val comment = Comment("c${core.nextCommentNumber}", Author.User, draft.text, now(), pending)
             current.withThreads(
               current.threads.replaced(index) { it.copy(comments = it.comments + comment) },
               core.copy(nextCommentNumber = core.nextCommentNumber + 1),
@@ -198,12 +211,42 @@ class ReviewState(
           }
         }
       }
-      next.copy(draft = null) to Unit
+      val published = next !== current && draft.target !is DraftTarget.Edit && !pending
+      val delivered = if (published) next.withSubmission(SubmissionState.Comment, null, listOf("c${core.nextCommentNumber}")) else next
+      delivered.copy(draft = null) to Unit
     }
   }
 
+  override fun submitReview(summary: String?, approve: Boolean) {
+    mutate { current ->
+      val text = summary?.trim()?.takeIf { it.isNotEmpty() }
+      if (text != null && text.length > MAX_REPLY_BODY_CHARS) return@mutate current to Unit
+      val pendingIds = current.threads.flatMap { thread -> thread.comments.filter { it.pending }.map { it.id } }
+      if (pendingIds.isEmpty() && text == null && !approve) return@mutate current to Unit
+      val threads = if (pendingIds.isEmpty()) {
+        current.threads
+      } else {
+        current.threads.map { thread ->
+          if (thread.comments.none { it.pending }) thread else thread.copy(comments = thread.comments.map { it.copy(pending = false) })
+        }
+      }
+      val state = if (approve) SubmissionState.Approved else SubmissionState.Comment
+      current.withThreads(threads, current.core).withSubmission(state, text, pendingIds) to Unit
+    }
+  }
+
+  fun agentThread(threadId: String): ReviewThread? = snapshot.value.threads.firstOrNull { it.id == threadId }?.published()
+
+  private fun ReviewSnapshot.withSubmission(state: SubmissionState, summary: String?, commentIds: List<String>): ReviewSnapshot {
+    val number = core.nextSubmissionNumber
+    return copy(
+      submissions = submissions + Submission(number, state, summary, now(), commentIds),
+      core = core.copy(nextSubmissionNumber = number + 1),
+    )
+  }
+
   fun reply(threadId: String, author: Author, body: String): ReviewResult<Comment> = mutate { current ->
-    val index = current.threads.indexOfFirst { it.id == threadId }
+    val index = current.agentThreadIndex(threadId)
     if (index < 0) return@mutate current to ReviewResult.Err(ReviewError.ThreadNotFound(threadId))
     val core = current.core
     val comment = Comment("c${core.nextCommentNumber}", author, body, now())
@@ -219,11 +262,13 @@ class ReviewState(
   }
 
   fun resolveThread(threadId: String, resolved: Boolean): ReviewResult<ReviewThread> = mutate { current ->
-    val index = current.threads.indexOfFirst { it.id == threadId }
+    val index = current.agentThreadIndex(threadId)
     if (index < 0) return@mutate current to ReviewResult.Err(ReviewError.ThreadNotFound(threadId))
     val next = current.withThreads(current.threads.replaced(index) { it.copy(resolved = resolved) }, current.core)
-    next to ReviewResult.Ok(next.threads[index])
+    next to ReviewResult.Ok(next.threads[index].published()!!)
   }
+
+  private fun ReviewSnapshot.agentThreadIndex(threadId: String): Int = threads.indexOfFirst { it.id == threadId && !it.isPending }
 
   override fun delete(commentId: String) {
     mutate { current ->
@@ -249,7 +294,7 @@ class ReviewState(
   }
 
   fun threads(includeResolved: Boolean): List<ReviewThread> {
-    val all = snapshot.value.threads
+    val all = snapshot.value.threads.mapNotNull { it.published() }
     return if (includeResolved) all else all.filterNot { it.resolved }
   }
 
@@ -261,6 +306,7 @@ class ReviewState(
     threads = threads,
     placements = buildPlacements(placements.loadId, threads, core.placementById),
     core = core,
+    pendingCount = threads.sumOf { thread -> thread.comments.count { it.pending } },
   )
 
   private class Reanchored(

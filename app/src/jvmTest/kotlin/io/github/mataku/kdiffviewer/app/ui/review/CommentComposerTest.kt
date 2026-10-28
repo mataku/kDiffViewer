@@ -19,6 +19,7 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.withKeyDown
 import androidx.compose.ui.unit.height
+import io.github.mataku.kdiffviewer.app.review.DraftMode
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,7 +36,10 @@ class CommentComposerTest {
     override fun cancelDraft() {
       calls += "cancel"
     }
-    override fun submitDraft() {
+    override fun submitReview(summary: String?, approve: Boolean) {
+    }
+
+    override fun submitDraft(mode: DraftMode) {
       calls += "submit"
     }
     override fun setResolved(threadId: String, resolved: Boolean) = Unit
@@ -45,7 +49,7 @@ class CommentComposerTest {
   private fun androidx.compose.ui.test.ComposeUiTest.show(draft: String, actions: FakeActions = FakeActions()) {
     setContent {
       CompositionLocalProvider(LocalDraftText provides mutableStateOf(draft)) {
-        CommentComposer("Comment", actions::updateDraft, actions::submitDraft, actions::cancelDraft)
+        CommentComposer("Comment", actions::updateDraft, { actions.submitDraft(DraftMode.Single) }, actions::cancelDraft)
       }
     }
   }

@@ -40,6 +40,7 @@ import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.buildFileTree
 import io.github.mataku.kdiffviewer.app.fingerprint
 import io.github.mataku.kdiffviewer.app.flattenRows
+import io.github.mataku.kdiffviewer.app.review.DraftMode
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewState
 import io.github.mataku.kdiffviewer.app.selection.ClipboardWriter
@@ -662,7 +663,7 @@ class DiffSelectionUiTest {
     val review = ReviewState(CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined) { Instant.fromEpochSeconds(0) }.also { it.onViewerState(ui) }
     review.startDraft(DraftTarget.NewThread(Anchor.Lines("a.kt", Side.New, 1, 1, listOf("alpha beta")), Placement.OnLine(LineLocation(0, 0, 0))))
     review.updateDraft("hello world")
-    review.submitDraft()
+    review.submitDraft(DraftMode.Single)
     setContent {
       val snapshot by review.snapshot.collectAsState()
       CompositionLocalProvider(
@@ -685,7 +686,7 @@ class DiffSelectionUiTest {
     val review = ReviewState(CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined) { Instant.fromEpochSeconds(0) }.also { it.onViewerState(ui) }
     review.startDraft(DraftTarget.NewThread(Anchor.Lines("a.kt", Side.New, 1, 1, listOf("alpha beta")), Placement.OnLine(LineLocation(0, 0, 0))))
     review.updateDraft("hello world")
-    review.submitDraft()
+    review.submitDraft(DraftMode.Single)
     setContent {
       val snapshot by review.snapshot.collectAsState()
       CompositionLocalProvider(

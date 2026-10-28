@@ -70,7 +70,7 @@ class ReviewRequestHandlerTest {
     val anchor = anchorOf(base, 0, lineIndex)!!
     review.startDraft(DraftTarget.NewThread(anchor, Placement.OnLine(LineLocation(0, 0, lineIndex))))
     review.updateDraft(text)
-    review.submitDraft()
+    review.submitDraft(DraftMode.Single)
   }
 
   private fun request(method: String, vararg params: Pair<String, Any>, v: Int = PROTOCOL_VERSION): String {

@@ -3,6 +3,7 @@ package io.github.mataku.kdiffviewer.app.ui.review
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
+import io.github.mataku.kdiffviewer.app.review.DraftMode
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 
 interface ReviewActions {
@@ -12,7 +13,9 @@ interface ReviewActions {
 
   fun cancelDraft()
 
-  fun submitDraft()
+  fun submitDraft(mode: DraftMode)
+
+  fun submitReview(summary: String?, approve: Boolean)
 
   fun setResolved(threadId: String, resolved: Boolean)
 

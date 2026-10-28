@@ -27,6 +27,7 @@ import androidx.compose.ui.test.rightClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.withKeyDown
 import androidx.compose.ui.unit.DpOffset
+import io.github.mataku.kdiffviewer.app.review.DraftMode
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.selection.ClipboardWriter
 import io.github.mataku.kdiffviewer.app.selection.ContextMenuItem
@@ -60,7 +61,10 @@ class ThreadCardTest {
     override fun cancelDraft() {
       calls += "cancel"
     }
-    override fun submitDraft() {
+    override fun submitReview(summary: String?, approve: Boolean) {
+    }
+
+    override fun submitDraft(mode: DraftMode) {
       calls += "submit"
     }
     override fun setResolved(threadId: String, resolved: Boolean) {

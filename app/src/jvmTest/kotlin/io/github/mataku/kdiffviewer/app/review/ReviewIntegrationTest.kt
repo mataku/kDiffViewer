@@ -67,7 +67,7 @@ class ReviewIntegrationTest {
     val review = ReviewState(reviewScope, Dispatchers.Unconfined) { Instant.fromEpochSeconds(0) }
     review.startDraft(DraftTarget.NewThread(Anchor.File("a.kt"), Placement.OnFile(0)))
     review.updateDraft("please fix")
-    review.submitDraft()
+    review.submitDraft(DraftMode.Single)
     val registry = SessionRegistry(dir, 4242L, { java.time.Instant.EPOCH }, ::processAlive)
     val handler = ReviewRequestHandler(review, { 1L }, { WindowInfoResult(4242L, null, PROTOCOL_VERSION) })
     val started = ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, handler::handle, warn = {}).also { integration = it }

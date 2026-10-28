@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.mataku.kdiffviewer.app.review.DraftMode
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.selection.LocalNativeContextMenu
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
@@ -153,7 +154,7 @@ fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
             CommentComposer(
               submitLabel = "Reply",
               onTextChange = actions::updateDraft,
-              onSubmit = actions::submitDraft,
+              onSubmit = { actions.submitDraft(DraftMode.Single) },
               onCancel = actions::cancelDraft,
             )
           }
@@ -209,7 +210,7 @@ private fun CommentView(comment: Comment, editing: Boolean, actions: ReviewActio
         CommentComposer(
           submitLabel = "Save",
           onTextChange = actions::updateDraft,
-          onSubmit = actions::submitDraft,
+          onSubmit = { actions.submitDraft(DraftMode.Single) },
           onCancel = actions::cancelDraft,
         )
       }
