@@ -107,6 +107,16 @@ class DiffViewerStateTest {
 
   private fun TestScope.stateFor(source: DiffSource?) = DiffViewerState(source, this, 16)
 
+  private fun TestScope.largeDiffState(source: DiffSource) = DiffViewerState(source, this, 16, largeDiffLines = 2)
+
+  private fun changedFile(path: String, changedLines: Int, text: String = "x") = FileDiff(
+    path,
+    path,
+    ChangeType.Modified,
+    false,
+    DiffContent.Text(listOf(Hunk(1, 0, 1, changedLines, "", (1..changedLines).map { DiffLine(LineKind.Added, "$text $it", null, it) }))),
+  )
+
   @Test
   fun failShowsErrorWithoutLoading() = runTest(StandardTestDispatcher()) {
     val source = FakeSource { flow { emit(file("a")) } }
@@ -1190,5 +1200,74 @@ class DiffViewerStateTest {
     advanceUntilIdle()
     assertTrue(state.uiState.value.isCollapsed(0))
     assertTrue(state.uiState.value.isCollapsed(1))
+  }
+
+  @Test
+  fun largeFileStartsCollapsed() = runTest(StandardTestDispatcher()) {
+    val state = largeDiffState(
+      FakeSource {
+        flow {
+          emit(changedFile("big", 2))
+          emit(changedFile("small", 1))
+        }
+      },
+    )
+    state.open(repo)
+    advanceUntilIdle()
+    assertTrue(state.uiState.value.isCollapsed(0))
+    assertFalse(state.uiState.value.isCollapsed(1))
+    assertEquals(emptySet(), state.uiState.value.collapsed)
+    assertEquals(emptySet(), state.uiState.value.expanded)
+  }
+
+  @Test
+  fun toggleOnLargeFileUsesExpandedSet() = runTest(StandardTestDispatcher()) {
+    val big = changedFile("big", 2)
+    val state = largeDiffState(FakeSource { flow { emit(big) } })
+    state.open(repo)
+    advanceUntilIdle()
+    state.toggleCollapsed(0)
+    assertFalse(state.uiState.value.isCollapsed(0))
+    assertEquals(setOf(CollapsedFile("big", big.fingerprint())), state.uiState.value.expanded)
+    assertEquals(emptySet(), state.uiState.value.collapsed)
+    state.toggleCollapsed(0)
+    assertTrue(state.uiState.value.isCollapsed(0))
+    assertEquals(emptySet(), state.uiState.value.expanded)
+    assertEquals(emptySet(), state.uiState.value.collapsed)
+  }
+
+  @Test
+  fun expandOpensLargeFile() = runTest(StandardTestDispatcher()) {
+    val state = largeDiffState(FakeSource { flow { emit(changedFile("big", 2)) } })
+    state.open(repo)
+    advanceUntilIdle()
+    state.expand(0)
+    assertFalse(state.uiState.value.isCollapsed(0))
+    val before = state.uiState.value
+    state.expand(0)
+    assertSame(before, state.uiState.value)
+  }
+
+  @Test
+  fun reloadWithSameLargeDiffKeepsItExpanded() = runTest(StandardTestDispatcher()) {
+    val state = largeDiffState(FakeSource { flow { emit(changedFile("big", 2)) } })
+    state.open(repo)
+    advanceUntilIdle()
+    state.toggleCollapsed(0)
+    state.reload()
+    advanceUntilIdle()
+    assertFalse(state.uiState.value.isCollapsed(0))
+  }
+
+  @Test
+  fun reloadWithChangedLargeDiffCollapsesAndPrunes() = runTest(StandardTestDispatcher()) {
+    val state = largeDiffState(FakeSource { call -> flow { emit(changedFile("big", 2, "v$call")) } })
+    state.open(repo)
+    advanceUntilIdle()
+    state.toggleCollapsed(0)
+    state.reload()
+    advanceUntilIdle()
+    assertTrue(state.uiState.value.isCollapsed(0))
+    assertEquals(emptySet(), state.uiState.value.expanded)
   }
 }

@@ -8,12 +8,14 @@ import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.stats
 
+const val LARGE_DIFF_LINES = 1_000
+
 @Immutable
 sealed interface DiffRow {
   val key: String
 
   @Immutable
-  data class FileHeader(val fileIndex: Int, val file: FileDiff, val stats: DiffStats) : DiffRow {
+  data class FileHeader(val fileIndex: Int, val file: FileDiff, val stats: DiffStats, val largeDiff: Boolean = false) : DiffRow {
     override val key: String get() = "f$fileIndex"
   }
 
@@ -33,11 +35,12 @@ sealed interface DiffRow {
   }
 }
 
-fun flattenRows(files: List<FileDiff>, startIndex: Int = 0): List<DiffRow> {
+fun flattenRows(files: List<FileDiff>, startIndex: Int = 0, largeDiffLines: Int = LARGE_DIFF_LINES): List<DiffRow> {
   val rows = ArrayList<DiffRow>()
   files.forEachIndexed { position, file ->
     val fileIndex = startIndex + position
-    rows += DiffRow.FileHeader(fileIndex, file, file.stats)
+    val stats = file.stats
+    rows += DiffRow.FileHeader(fileIndex, file, stats, largeDiff = stats.additions + stats.deletions >= largeDiffLines)
     when (val content = file.content) {
       is DiffContent.Text -> content.hunks.forEachIndexed { hunkIndex, hunk ->
         rows += DiffRow.HunkHeader(fileIndex, hunkIndex, hunk)

@@ -28,6 +28,20 @@ class DiffRowTest {
   private fun fileWith(content: DiffContent) = FileDiff("a.bin", "a.bin", ChangeType.Modified, false, content)
 
   @Test
+  fun largeDiffCountsChangedLinesAgainstThreshold() {
+    val context = DiffLine(LineKind.Context, "ctx", 2, 2)
+    val file = FileDiff(
+      "a.txt",
+      "a.txt",
+      ChangeType.Modified,
+      false,
+      DiffContent.Text(listOf(Hunk(1, 6, 1, 7, "@@", listOf(removed, added, added.copy(newLineNo = 2)) + List(5) { context }))),
+    )
+    assertEquals(true, (flattenRows(listOf(file), largeDiffLines = 3)[0] as DiffRow.FileHeader).largeDiff)
+    assertEquals(false, (flattenRows(listOf(file), largeDiffLines = 4)[0] as DiffRow.FileHeader).largeDiff)
+  }
+
+  @Test
   fun flattensHeaderHunksAndLines() {
     val file = textFile()
     val rows = flattenRows(listOf(file))
