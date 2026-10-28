@@ -565,7 +565,7 @@ class ReviewStateTest {
     state.addThread(base, 1)
     val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
     assertEquals(listOf("r1"), outcome.submissions.map { it.id })
-    state.markDelivered(outcome.generation, 1)
+    state.markDelivered(outcome)
     assertEquals(WaitOutcome.TimedOut, state.awaitSubmissions(10))
     assertFalse(state.snapshot.value.waiting)
   }
@@ -586,12 +586,36 @@ class ReviewStateTest {
   }
 
   @Test
-  fun cursorUnchangedWithoutMarkDelivered() = runTest(StandardTestDispatcher()) {
+  fun inFlightDeliveryIsNotHandedToAnotherWaiter() = runTest(StandardTestDispatcher()) {
     val state = openState()
     state.addThread(base, 1)
     assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    assertEquals(WaitOutcome.TimedOut, state.awaitSubmissions(10))
+    assertEquals(0, state.snapshot.value.core.deliveredThrough)
+  }
+
+  @Test
+  fun releasedDeliveryIsDeliveredAgain() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 1)
+    val first = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    state.releaseDelivery(first)
     val again = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
     assertEquals(listOf("r1"), again.submissions.map { it.id })
+  }
+
+  @Test
+  fun deliveryCarriesPublishedThreadsFromTheSameSnapshot() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 0)
+    state.addReply("t1", "later", DraftMode.Review)
+    state.addThread(base, 2, mode = DraftMode.Review)
+    state.addThread(base, 1, text = "other")
+    val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    assertEquals(listOf("t1", "t3"), outcome.threads.map { it.id })
+    assertEquals(listOf("c1"), outcome.threads.first().comments.map { it.id })
+    state.onViewerState(ui(2, base, repo = RepoPath("/other"), status = LoadStatus.Loading))
+    assertEquals(listOf("t1", "t3"), outcome.threads.map { it.id })
   }
 
   @Test
@@ -600,10 +624,11 @@ class ReviewStateTest {
     state.addThread(base, 0)
     state.addThread(base, 1)
     val first = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
-    state.markDelivered(first.generation, 1)
+    assertEquals(listOf("r1", "r2"), first.submissions.map { it.id })
+    state.markDelivered(first)
     state.addThread(base, 2)
     val second = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
-    assertEquals(listOf("r2", "r3"), second.submissions.map { it.id })
+    assertEquals(listOf("r3"), second.submissions.map { it.id })
   }
 
   @Test
@@ -655,18 +680,31 @@ class ReviewStateTest {
     val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
     state.onViewerState(ui(2, base, repo = RepoPath("/other"), status = LoadStatus.Loading))
     state.addThread(base, 1)
-    state.markDelivered(outcome.generation, 1)
+    state.markDelivered(outcome)
+    state.releaseDelivery(outcome)
     assertEquals(0, state.snapshot.value.core.deliveredThrough)
+    assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
   }
 
   @Test
   fun markDeliveredNeverLowersCursor() = runTest(StandardTestDispatcher()) {
     val state = openState()
     state.addThread(base, 0)
+    val first = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
     state.addThread(base, 1)
-    val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
-    state.markDelivered(outcome.generation, 2)
-    state.markDelivered(outcome.generation, 1)
+    val second = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    state.markDelivered(second)
+    state.markDelivered(first)
     assertEquals(2, state.snapshot.value.core.deliveredThrough)
+  }
+
+  @Test
+  fun releaseAfterDeliveryIsNoOp() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 0)
+    val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    state.markDelivered(outcome)
+    state.releaseDelivery(outcome)
+    assertEquals(WaitOutcome.TimedOut, state.awaitSubmissions(10))
   }
 }

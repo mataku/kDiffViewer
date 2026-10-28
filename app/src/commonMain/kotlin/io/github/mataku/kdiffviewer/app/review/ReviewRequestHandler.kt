@@ -56,14 +56,12 @@ class ReviewRequestHandler(
     }
     return when (val outcome = review.awaitSubmissions(seconds?.let { it * 1_000L })) {
       is WaitOutcome.Delivered -> {
-        val commentIds = outcome.submissions.flatMapTo(HashSet()) { it.commentIds }
-        val threads = review.snapshot.value.threads
-          .filter { thread -> thread.comments.any { it.id in commentIds } }
-          .mapNotNull { review.agentThread(it.id)?.toDto() }
-        val result = ReviewWaitResult(false, outcome.submissions.map { it.toDto() }, threads)
-        Reply(ok(Codec.json.encodeToJsonElement(ReviewWaitResult.serializer(), result))) {
-          review.markDelivered(outcome.generation, outcome.submissions.last().number)
-        }
+        val result = ReviewWaitResult(false, outcome.submissions.map { it.toDto() }, outcome.threads.map { it.toDto() })
+        Reply(
+          ok(Codec.json.encodeToJsonElement(ReviewWaitResult.serializer(), result)),
+          onAbandoned = { review.releaseDelivery(outcome) },
+          onWritten = { review.markDelivered(outcome) },
+        )
       }
 
       WaitOutcome.TimedOut -> Reply(ok(Codec.json.encodeToJsonElement(ReviewWaitResult.serializer(), ReviewWaitResult(true, emptyList(), emptyList()))))

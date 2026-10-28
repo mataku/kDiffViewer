@@ -389,4 +389,22 @@ class ReviewRequestHandlerTest {
     reply.onWritten()
     assertEquals(1, f.review.snapshot.value.core.deliveredThrough)
   }
+
+  @Test
+  fun abandonedReplyIsDeliveredAgain() = runTest {
+    val f = fixture()
+    f.addThread(1)
+    f.handler.handle(request(Methods.REVIEW_WAIT)).onAbandoned()
+    val again = resultOf<ReviewWaitResult>(f.handler.call(request(Methods.REVIEW_WAIT)))
+    assertEquals(listOf("r1"), again.reviews.map { it.id })
+  }
+
+  @Test
+  fun inFlightReviewIsNotSentToTheNextWait() = runTest {
+    val f = fixture()
+    f.addThread(1)
+    f.handler.handle(request(Methods.REVIEW_WAIT))
+    val next = resultOf<ReviewWaitResult>(f.handler.call(request(Methods.REVIEW_WAIT, "timeoutSeconds" to 1)))
+    assertTrue(next.timedOut)
+  }
 }

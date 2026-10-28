@@ -22,6 +22,7 @@ import java.nio.channels.SocketChannel
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermissions
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.CoroutineContext
 
 class ReviewSocketServer(
@@ -85,12 +86,14 @@ class ReviewSocketServer(
         is Request.TooLarge -> Reply(Codec.failure(ErrorCodes.BAD_REQUEST, "Request too large"))
         is Request.Line -> respond(client, request.text) ?: return
       }
-      if (runInterruptible { writeLine(client, reply.line) }) reply.onWritten()
+      if (runInterruptible { writeLine(client, reply.line) }) reply.onWritten() else reply.onAbandoned()
     }
   }
 
   private suspend fun respond(client: SocketChannel, text: String): Reply? = coroutineScope {
-    val handler = async { handle(text) }
+    val produced = AtomicReference<Reply?>()
+    // The handler's own return value is lost if it is cancelled after producing it, so keep it aside to release what it claimed.
+    val handler = async { handle(text).also(produced::set) }
     // Not runInterruptible: interrupting a thread blocked in SocketChannel.read closes the channel, which would drop the response.
     // shutdownInput releases the blocked read instead, and the client never half-closes, so EOF means it went away.
     val watcher = launch(ioContext) {
@@ -100,6 +103,7 @@ class ReviewSocketServer(
     try {
       handler.await()
     } catch (e: CancellationException) {
+      produced.get()?.onAbandoned()
       ensureActive()
       null
     } finally {

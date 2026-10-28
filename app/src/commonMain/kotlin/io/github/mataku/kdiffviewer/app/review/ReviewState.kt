@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -55,6 +54,7 @@ data class ReviewCore(
   val nextCommentNumber: Int,
   val nextSubmissionNumber: Int = 1,
   val deliveredThrough: Int = 0,
+  val claimedThrough: Int = 0,
   val waiterToken: Int = 0,
 ) {
   companion object {
@@ -65,7 +65,7 @@ data class ReviewCore(
 enum class DraftMode { Single, Review }
 
 sealed interface WaitOutcome {
-  data class Delivered(val submissions: List<Submission>, val generation: Int) : WaitOutcome
+  data class Delivered(val submissions: List<Submission>, val generation: Int, val threads: List<ReviewThread>) : WaitOutcome
 
   data object TimedOut : WaitOutcome
 
@@ -259,19 +259,12 @@ class ReviewState(
     val (generation, token) = entry
     try {
       val wait: suspend () -> WaitOutcome = {
-        snapshot.mapNotNull { current ->
-          when {
-            current.core.generation != generation -> WaitOutcome.RepositoryChanged
-
-            current.core.waiterToken != token -> WaitOutcome.Superseded
-
-            else ->
-              current.submissions
-                .filter { it.number > current.core.deliveredThrough }
-                .takeIf { it.isNotEmpty() }
-                ?.let { WaitOutcome.Delivered(it, generation) }
-          }
-        }.first()
+        var outcome: WaitOutcome? = null
+        while (outcome == null) {
+          snapshot.first { it.core.generation != generation || it.core.waiterToken != token || it.submissions.any { s -> s.number > it.core.claimedThrough } }
+          outcome = mutate { current -> current.claim(generation, token) }
+        }
+        outcome
       }
       return if (timeoutMillis == null) wait() else withTimeoutOrNull(timeoutMillis) { wait() } ?: WaitOutcome.TimedOut
     } finally {
@@ -285,10 +278,31 @@ class ReviewState(
     }
   }
 
-  fun markDelivered(generation: Int, throughNumber: Int) {
+  private fun ReviewSnapshot.claim(generation: Int, token: Int): Pair<ReviewSnapshot, WaitOutcome?> {
+    if (core.generation != generation) return this to WaitOutcome.RepositoryChanged
+    if (core.waiterToken != token) return this to WaitOutcome.Superseded
+    val claimed = submissions.filter { it.number > core.claimedThrough }
+    if (claimed.isEmpty()) return this to null
+    val commentIds = claimed.flatMapTo(HashSet()) { it.commentIds }
+    val delivered = threads.filter { thread -> thread.comments.any { it.id in commentIds } }.mapNotNull { it.published() }
+    return copy(core = core.copy(claimedThrough = claimed.last().number)) to WaitOutcome.Delivered(claimed, generation, delivered)
+  }
+
+  fun markDelivered(delivery: WaitOutcome.Delivered) {
+    val through = delivery.submissions.last().number
     mutate { current ->
-      if (current.core.generation != generation || throughNumber <= current.core.deliveredThrough) return@mutate current to Unit
-      current.copy(core = current.core.copy(deliveredThrough = throughNumber)) to Unit
+      if (current.core.generation != delivery.generation || through <= current.core.deliveredThrough) return@mutate current to Unit
+      current.copy(core = current.core.copy(deliveredThrough = through, claimedThrough = maxOf(current.core.claimedThrough, through))) to Unit
+    }
+  }
+
+  fun releaseDelivery(delivery: WaitOutcome.Delivered) {
+    val from = delivery.submissions.first().number
+    mutate { current ->
+      if (current.core.generation != delivery.generation || current.core.claimedThrough < from) return@mutate current to Unit
+      val claimed = maxOf(current.core.deliveredThrough, from - 1)
+      if (claimed == current.core.claimedThrough) return@mutate current to Unit
+      current.copy(core = current.core.copy(claimedThrough = claimed)) to Unit
     }
   }
 

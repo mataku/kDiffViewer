@@ -181,10 +181,11 @@ class ReviewSocketServerTest {
     val started = kotlinx.coroutines.CompletableDeferred<Unit>()
     val release = kotlinx.coroutines.CompletableDeferred<Unit>()
     var written = false
+    val abandoned = kotlinx.coroutines.CompletableDeferred<Unit>()
     startServer {
       started.complete(Unit)
       kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { release.await() }
-      Reply("late") { written = true }
+      Reply("late", onAbandoned = { abandoned.complete(Unit) }) { written = true }
     }
     val client = connect()
     client.send("x\n")
@@ -192,7 +193,7 @@ class ReviewSocketServerTest {
     client.close()
     kotlinx.coroutines.delay(200)
     release.complete(Unit)
-    kotlinx.coroutines.delay(300)
+    kotlinx.coroutines.withTimeout(2_000) { abandoned.await() }
     assertFalse(written)
   }
 }
