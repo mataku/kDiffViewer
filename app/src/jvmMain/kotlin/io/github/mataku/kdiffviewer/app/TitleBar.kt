@@ -27,7 +27,9 @@ class TitleBarHitTester(
   }
 }
 
-fun installCustomTitleBar(window: ComposeWindow, height: Dp): TitleBarRegions? {
+class InstalledTitleBar(val regions: TitleBarRegions, val leftInset: () -> Float)
+
+fun installCustomTitleBar(window: ComposeWindow, height: Dp): InstalledTitleBar? {
   if (!JBR.isWindowDecorationsSupported()) return null
   val decorations = JBR.getWindowDecorations()
   val titleBar = decorations.createCustomTitleBar()
@@ -41,5 +43,5 @@ fun installCustomTitleBar(window: ComposeWindow, height: Dp): TitleBarRegions? {
   )
   window.addMouseListener(tester)
   window.addMouseMotionListener(tester)
-  return regions
+  return InstalledTitleBar(regions, titleBar::getLeftInset)
 }

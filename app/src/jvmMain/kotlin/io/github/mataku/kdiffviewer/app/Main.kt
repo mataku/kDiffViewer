@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
 import androidx.compose.ui.platform.LocalUriHandler
@@ -41,8 +42,8 @@ import io.github.mataku.kdiffviewer.app.ui.KdvTheme
 import io.github.mataku.kdiffviewer.app.ui.LocalTitleBarRegions
 import io.github.mataku.kdiffviewer.app.ui.OpenRepositoryScreen
 import io.github.mataku.kdiffviewer.app.ui.ScrollJumps
-import io.github.mataku.kdiffviewer.app.ui.TitleBarHeight
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
+import io.github.mataku.kdiffviewer.app.ui.ViewerTitleBarHeight
 import io.github.mataku.kdiffviewer.app.ui.markdown.SafeUriHandler
 import io.github.mataku.kdiffviewer.app.ui.resolveFontFamily
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
@@ -86,6 +87,8 @@ fun main(args: Array<String>) {
 }
 
 private val MinMainSize = DpSize(640.dp, 400.dp)
+
+private val FallbackTrafficLightsWidth = 78.dp
 
 private fun loadInitialMainSize(storage: FileSettingsStorage): DpSize? = try {
   val max = GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.let { DpSize(it.width.dp, it.height.dp) }
@@ -212,6 +215,8 @@ private fun runApplication(
   val scrollJumps = remember { ScrollJumps() }
   var diffMode by remember { mutableStateOf(DiffMode.Unified) }
   val changeMode = { mode: DiffMode -> if (mode != diffMode) diffMode = mode }
+  var sidebarVisible by remember { mutableStateOf(true) }
+  val toggleSidebar = { sidebarVisible = !sidebarVisible }
   Window(
     onCloseRequest = shutdown,
     title = "kDiffViewer",
@@ -219,7 +224,13 @@ private fun runApplication(
     onKeyEvent = { event -> scrollJumpOf(event)?.let(scrollJumps::request) ?: false },
   ) {
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
-    val titleBarRegions = remember { installCustomTitleBar(window, TitleBarHeight) }
+    val titleBar = remember { installCustomTitleBar(window, ViewerTitleBarHeight) }
+    var titleBarLeadingInset by remember { mutableStateOf(0.dp) }
+    LaunchedEffect(titleBar) {
+      if (titleBar == null) return@LaunchedEffect
+      withFrameNanos {}
+      titleBarLeadingInset = titleBar.leftInset().takeIf { it > 0f }?.dp ?: FallbackTrafficLightsWidth
+    }
     val coordinator = remember { TextSelectionCoordinator(AwtClipboardWriter) { repository.settings.value.copyOnSelect } }
     val nativeMenu = remember(window) { AwtNativeContextMenu(window) }
     MenuBar {
@@ -236,6 +247,12 @@ private fun runApplication(
         RadioButtonItem("Unified", selected = diffMode == DiffMode.Unified, onClick = { changeMode(DiffMode.Unified) })
         RadioButtonItem("Split", selected = diffMode == DiffMode.Split, onClick = { changeMode(DiffMode.Split) })
         Separator()
+        Item(
+          if (sidebarVisible) "Hide Sidebar" else "Show Sidebar",
+          shortcut = KeyShortcut(Key.S, ctrl = true, meta = true),
+          onClick = toggleSidebar,
+        )
+        Separator()
         Item("Reload", shortcut = KeyShortcut(Key.R, meta = true), onClick = state::reload)
       }
     }
@@ -243,7 +260,7 @@ private fun runApplication(
     val platformUriHandler = LocalUriHandler.current
     val safeUriHandler = remember(platformUriHandler) { SafeUriHandler(platformUriHandler) }
     CompositionLocalProvider(
-      LocalTitleBarRegions provides titleBarRegions,
+      LocalTitleBarRegions provides titleBar?.regions,
       LocalReviewActions provides review,
       LocalCodeHighlighter provides factory.codeHighlighter,
       LocalUriHandler provides safeUriHandler,
@@ -266,6 +283,9 @@ private fun runApplication(
           else -> ViewerScreen(
             uiState,
             onReload = state::reload,
+            titleBarLeadingInset = titleBarLeadingInset,
+            sidebarVisible = sidebarVisible,
+            onToggleSidebar = toggleSidebar,
             onToggleFile = state::toggleCollapsed,
             onExpandFile = state::expand,
             review = reviewSnapshot,
