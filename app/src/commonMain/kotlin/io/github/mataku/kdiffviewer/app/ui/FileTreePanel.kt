@@ -20,16 +20,20 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.TreeEntry
@@ -50,7 +54,7 @@ fun FileTreePanel(
   topInset: Dp = 0.dp,
   statsOf: (Int) -> DiffStats? = { null },
   statusOf: (Int) -> GitFileStatus? = { null },
-  width: Dp = DefaultTreeWidth,
+  width: () -> Dp = { DefaultTreeWidth },
   query: String = "",
   onQueryChange: (String) -> Unit = {},
   filtering: Boolean = false,
@@ -58,7 +62,7 @@ fun FileTreePanel(
 ) {
   val colors = LocalDiffColors.current
   val typography = LocalTreeTypography.current
-  val showStats = width >= StatsVisibleWidth
+  val showStats by remember(width) { derivedStateOf { width() >= StatsVisibleWidth } }
   val measurer = rememberTextMeasurer()
   val density = LocalDensity.current
   val emptyStyle = remember(typography, colors) { typography.name.copy(color = colors.mutedText) }
@@ -67,7 +71,11 @@ fun FileTreePanel(
   }
   Column(
     modifier
-      .width(width)
+      .layout { measurable, constraints ->
+        val w = constraints.constrainWidth(width().roundToPx())
+        val placeable = measurable.measure(constraints.copy(minWidth = w, maxWidth = w))
+        layout(w, placeable.height) { placeable.place(0, 0) }
+      }
       .fillMaxHeight()
       .testTag("tree-panel")
       .background(colors.sidebarBackground)

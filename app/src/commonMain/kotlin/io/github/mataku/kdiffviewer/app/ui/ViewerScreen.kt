@@ -245,7 +245,7 @@ fun ViewerScreen(
           onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
           statsOf = statsOf,
           statusOf = statusOf,
-          width = treeWidth,
+          width = { treeWidth },
           query = treeQuery,
           onQueryChange = { treeQuery = it },
           filtering = filtering,
