@@ -42,7 +42,7 @@ class ScrollRestorer {
       repo = state.repo
       baseSpec = state.baseSpec
     } else if (mode != null && mode != display.mode) {
-      pending = lastAnchor
+      pending = pending ?: lastAnchor
     }
     mode = display.mode
     if (pendingTop) {
@@ -56,6 +56,7 @@ class ScrollRestorer {
     val anchor = pending
     if (anchor != null) {
       val target = restoreTargetOf(anchor, state, layout, display)
+      if (target != null) lastAnchor = anchor
       if (target != null || state.status != LoadStatus.Loading) pending = null
       return target
     }

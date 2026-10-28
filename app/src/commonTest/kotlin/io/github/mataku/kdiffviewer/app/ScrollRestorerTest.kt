@@ -205,9 +205,28 @@ class ScrollRestorerTest {
     val unifiedLast = diffLayoutOf(ui, DiffMode.Unified, hasEnd = true).visibleCount - 1
     assertNull(restorer.nextFor(ui, unifiedLast, DiffMode.Unified, hasEnd = true))
     val target = restorer.nextFor(ui, unifiedLast, DiffMode.Split, hasEnd = true)!!
-    assertTrue(target <= diffLayoutOf(ui, DiffMode.Split, hasEnd = true).visibleCount - 1)
+    assertEquals(3, target)
     assertNull(restorer.nextFor(ui, target, DiffMode.Split, hasEnd = true))
     val back = restorer.nextFor(ui, target, DiffMode.Unified, hasEnd = true)!!
-    assertTrue(back <= unifiedLast)
+    assertEquals(5, back)
+  }
+
+  @Test
+  fun modeSwitchDuringPendingReloadRestoreKeepsAnchor() {
+    val restorer = ScrollRestorer()
+    val hunk = state(listOf(hunkFile), 1)
+    assertNull(restorer.nextFor(hunk, 5))
+    assertNull(restorer.nextFor(state(listOf(a), 2, LoadStatus.Loading), 0))
+    assertNull(restorer.nextFor(state(listOf(a), 2, LoadStatus.Loading), 0, DiffMode.Split))
+    assertEquals(5 + 3, restorer.nextFor(state(listOf(a, hunkFile), 2, LoadStatus.Loading), 0, DiffMode.Split))
+  }
+
+  @Test
+  fun modeSwitchRightAfterRestoreResolvedKeepsRow() {
+    val restorer = ScrollRestorer()
+    assertNull(restorer.nextFor(state(listOf(hunkFile), 1), 5))
+    val reloaded = state(listOf(hunkFile), 2)
+    assertEquals(5, restorer.nextFor(reloaded, 0))
+    assertEquals(3, restorer.nextFor(reloaded, 5, DiffMode.Split))
   }
 }
