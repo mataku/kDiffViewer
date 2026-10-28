@@ -2,8 +2,6 @@ package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
@@ -18,14 +16,13 @@ fun SidebarLayout(
   diff: @Composable () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  val slideWidth = remember { mutableFloatStateOf(0f) }
-  val sidebarLayer = Modifier.graphicsLayer { translationX = -(1f - transition.progress) * slideWidth.floatValue }
+  val sidebarLayer = Modifier.graphicsLayer { translationX = -(1f - transition.progress) * transition.slideWidthPx }
   Layout(
     contents = listOf(
       { if (transition.treeComposed) Box(sidebarLayer) { tree() } },
       { if (transition.treeComposed) Box(sidebarLayer) { divider() } },
       {
-        Box(Modifier.graphicsLayer { translationX = if (transition.diffNarrow) 0f else transition.progress * slideWidth.floatValue }) {
+        Box(Modifier.graphicsLayer { translationX = if (transition.diffNarrow) 0f else transition.progress * transition.slideWidthPx }) {
           diff()
         }
       },
@@ -36,7 +33,7 @@ fun SidebarLayout(
     val treePlaceable = trees.firstOrNull()?.measure(loose)
     val dividerPlaceable = dividers.firstOrNull()?.measure(loose)
     val slide = (treePlaceable?.width ?: 0) + (dividerPlaceable?.width ?: 0)
-    slideWidth.floatValue = slide.toFloat()
+    transition.slideWidthPx = slide.toFloat()
     val narrow = transition.diffNarrow
     val diffWidth = if (narrow) (constraints.maxWidth - slide).coerceAtLeast(0) else constraints.maxWidth
     val diffPlaceable = diffs.firstOrNull()?.measure(Constraints.fixed(diffWidth, constraints.maxHeight))

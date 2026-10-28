@@ -24,6 +24,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -83,6 +88,9 @@ import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.roundToInt
+
+private val SidebarOptions = listOf(true, false)
 
 @Composable
 fun ViewerScreen(
@@ -206,6 +214,7 @@ fun ViewerScreen(
       titleBarLeadingInset = titleBarLeadingInset,
       sidebarVisible = sidebarVisible,
       onToggleSidebar = onToggleSidebar,
+      sidebar = sidebar,
       loadBranches = loadBranches,
       onSwitchBase = onSwitchBase,
       mode = mode,
@@ -297,6 +306,7 @@ private fun RepoHeader(
   titleBarLeadingInset: Dp,
   sidebarVisible: Boolean,
   onToggleSidebar: () -> Unit,
+  sidebar: SidebarTransition,
   loadBranches: suspend () -> List<BranchRef>,
   onSwitchBase: suspend (BaseSpec) -> ViewerError?,
   mode: DiffMode,
@@ -304,26 +314,47 @@ private fun RepoHeader(
   onReload: () -> Unit,
 ) {
   val colors = LocalDiffColors.current
+  val density = LocalDensity.current
+  val repoGap = with(density) { ContentHorizontalMargin.toPx() }
+  val startPadding = if (titleBarLeadingInset > 0.dp) titleBarLeadingInset + 8.dp else 20.dp
+  val startPaddingPx = with(density) { startPadding.toPx() }
+  val naturalLeft = remember { mutableFloatStateOf(0f) }
   Row(
     modifier = Modifier
       .testTag("repo-header")
       .fillMaxWidth()
       .height(ViewerTitleBarHeight)
       .background(colors.fileHeaderBackground)
-      .padding(start = if (titleBarLeadingInset > 0.dp) titleBarLeadingInset + 8.dp else 20.dp, end = 20.dp),
+      .padding(start = startPadding, end = 20.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    GlassIconButton(
-      icon = KdvIcons.Sidebar,
-      contentDescription = "Toggle Sidebar",
-      tooltip = if (sidebarVisible) "Hide Sidebar (⌃⌘S)" else "Show Sidebar (⌃⌘S)",
-      onClick = onToggleSidebar,
+    MacSegmented(
+      options = SidebarOptions,
+      selected = sidebarVisible,
+      label = { if (it) "Show Sidebar" else "Hide Sidebar" },
+      tag = { if (it) "sidebar-shown" else "sidebar-hidden" },
+      onSelect = { if (it != sidebarVisible) onToggleSidebar() },
       modifier = Modifier
-        .testTag("sidebar-toggle")
-        .titleBarClientRegion("sidebar-toggle"),
+        .testTag("sidebar-control")
+        .titleBarClientRegion("sidebar-control"),
+      segmentWidth = 32.dp,
+      icon = { if (it) KdvIcons.Sidebar else KdvIcons.NoSidebar },
+      tooltip = { if (it) "Show Sidebar (⌃⌘S)" else "Hide Sidebar (⌃⌘S)" },
     )
     Spacer(Modifier.width(12.dp))
-    Column(modifier = Modifier.weight(1f)) {
+    Column(
+      modifier = Modifier
+        .weight(1f)
+        .onPlaced { naturalLeft.floatValue = startPaddingPx + it.positionInParent().x }
+        .layout { measurable, constraints ->
+          val shift = if (sidebar.diffNarrow) (sidebar.slideWidthPx + repoGap - naturalLeft.floatValue).coerceAtLeast(0f).roundToInt() else 0
+          val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = (constraints.maxWidth - shift).coerceAtLeast(0)))
+          layout(constraints.maxWidth, placeable.height) { placeable.placeRelative(shift, 0) }
+        }
+        .graphicsLayer {
+          translationX = if (sidebar.diffNarrow) 0f else sidebar.progress * (sidebar.slideWidthPx + repoGap - naturalLeft.floatValue).coerceAtLeast(0f)
+        },
+    ) {
       BasicText(
         text = state.repo?.let(::repoName).orEmpty(),
         modifier = Modifier.testTag("repo-name"),

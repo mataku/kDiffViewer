@@ -533,20 +533,32 @@ class ViewerScreenTest {
   @Test
   fun leadingInsetPushesToggleRight() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, titleBarLeadingInset = 78.dp) }
-    val toggle = onNodeWithTag("sidebar-toggle").fetchSemanticsNode().boundsInRoot
+    val toggle = onNodeWithTag("sidebar-control").fetchSemanticsNode().boundsInRoot
     assertTrue(toggle.left >= with(density) { 78.dp.toPx() }, "toggle=$toggle")
   }
 
   @Test
   fun toggleSitsLeftOfRepoName() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) }
-    val toggle = onNodeWithTag("sidebar-toggle").fetchSemanticsNode().boundsInRoot
+    val toggle = onNodeWithTag("sidebar-control").fetchSemanticsNode().boundsInRoot
     val name = onNodeWithTag("repo-name").fetchSemanticsNode().boundsInRoot
     assertTrue(toggle.right <= name.left, "toggle=$toggle name=$name")
   }
 
   @Test
-  fun toggleButtonCallsOnToggleSidebarAndIsClientRegion() = runComposeUiTest {
+  fun sidebarSegmentsMarkVisibility() = runComposeUiTest {
+    var visible by mutableStateOf(true)
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible) }
+    assertEquals(true, onNodeWithTag("sidebar-shown").fetchSemanticsNode().config[SemanticsProperties.Selected])
+    assertEquals(false, onNodeWithTag("sidebar-hidden").fetchSemanticsNode().config[SemanticsProperties.Selected])
+    visible = false
+    waitForIdle()
+    assertEquals(false, onNodeWithTag("sidebar-shown").fetchSemanticsNode().config[SemanticsProperties.Selected])
+    assertEquals(true, onNodeWithTag("sidebar-hidden").fetchSemanticsNode().config[SemanticsProperties.Selected])
+  }
+
+  @Test
+  fun selectingTheOtherSidebarSegmentTogglesAndControlIsClientRegion() = runComposeUiTest {
     val regions = TitleBarRegions()
     var toggles = 0
     setContent {
@@ -554,16 +566,62 @@ class ViewerScreenTest {
         ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, onToggleSidebar = { toggles++ })
       }
     }
-    val toggle = onNodeWithTag("sidebar-toggle").fetchSemanticsNode().boundsInWindow
-    assertTrue(regions.isClientArea(toggle.center))
-    onNodeWithTag("sidebar-toggle").performClick()
+    val control = onNodeWithTag("sidebar-control").fetchSemanticsNode().boundsInWindow
+    assertTrue(regions.isClientArea(control.center))
+    onNodeWithTag("sidebar-shown").performClick()
+    assertEquals(0, toggles)
+    onNodeWithTag("sidebar-hidden").performClick()
     assertEquals(1, toggles)
+    onNodeWithTag("sidebar-hidden").assertWidthIsEqualTo(32.dp)
   }
 
   @Test
   fun toggleShowsInEmptyState() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(emptyList()), {}) }
-    onNodeWithTag("sidebar-toggle").assertIsDisplayed()
+    onNodeWithTag("sidebar-control").assertIsDisplayed()
+  }
+
+  @Test
+  fun repoNameAlignsWithDiffContentWhenTreeShown() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
+      }
+    }
+    val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    val name = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
+    assertEquals(diff.left + 20.dp, name.left)
+  }
+
+  @Test
+  fun repoNameFollowsControlWhenTreeHidden() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = false)
+      }
+    }
+    val control = onNodeWithTag("sidebar-control").getUnclippedBoundsInRoot()
+    val name = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
+    assertEquals(control.right + 12.dp, name.left)
+  }
+
+  @Test
+  fun repoNameMovesWithTreeAfterDividerDrag() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
+      }
+    }
+    onNodeWithTag("tree-divider").performMouseInput {
+      moveTo(center)
+      press()
+      moveBy(Offset(100f, 0f))
+      release()
+    }
+    waitForIdle()
+    val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    val name = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
+    assertEquals(diff.left + 20.dp, name.left)
   }
 
   @Test

@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
@@ -19,6 +20,9 @@ class SidebarTransition(initiallyVisible: Boolean) {
     private set
 
   val progress: Float get() = animatable.value
+
+  var slideWidthPx by mutableFloatStateOf(0f)
+    internal set
 
   val treeComposed: Boolean by derivedStateOf { target || progress > 0f }
 
