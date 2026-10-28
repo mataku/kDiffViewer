@@ -444,6 +444,60 @@ class DiffSelectionUiTest {
   }
 
   @Test
+  fun splitPressBelowShorterHalfTextSelectsFromEndOfRow() = runComposeUiTest {
+    val wrapped = FileDiff(
+      "w.kt",
+      "w.kt",
+      ChangeType.Modified,
+      false,
+      DiffContent.Text(
+        listOf(
+          Hunk(
+            1,
+            2,
+            1,
+            2,
+            "",
+            listOf(
+              DiffLine(LineKind.Context, "head", 1, 1),
+              DiffLine(LineKind.Removed, "left", 2, null),
+              DiffLine(LineKind.Added, "wrap ".repeat(40).trim(), null, 2),
+            ),
+          ),
+        ),
+      ),
+    )
+    showSplit(splitStateOf(wrapped))
+    val node = onAllNodesWithText("left")[0].fetchSemanticsNode()
+    val layouts = mutableListOf<TextLayoutResult>()
+    node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts)
+    val bounds = node.boundsInRoot
+    val list = listBounds()
+    val below = Offset(bounds.right - 20f - list.left, bounds.bottom - 6f - list.top)
+    drag(below, splitCodePosition("head", 0, 0))
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("head\nleft"), clipboard.writes)
+  }
+
+  @Test
+  fun modeSwitchClearsSelection() = runComposeUiTest {
+    val state = splitStateOf(mixedFile)
+    var mode by mutableStateOf(DiffMode.Split)
+    setContent {
+      CompositionLocalProvider(LocalTextSelectionCoordinator provides coordinator, LocalNativeContextMenu provides menu) {
+        Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = mode) }
+      }
+    }
+    drag(splitCodePosition("alpha", 0, 0), splitCodePosition("delta", 0, 5))
+    assertTrue(coordinator.hasSelection)
+    mode = DiffMode.Unified
+    waitForIdle()
+    assertFalse(coordinator.hasSelection)
+    assertFalse(coordinator.copy())
+    assertEquals(emptyList(), clipboard.writes)
+  }
+
+  @Test
   fun collapsingFileClearsSelection() = runComposeUiTest {
     var ui by mutableStateOf(stateOf())
     setContent {

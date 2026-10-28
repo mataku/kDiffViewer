@@ -256,6 +256,29 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun modeSwitchKeepsRemovedLineAtTheTop() = runComposeUiTest {
+    val body = buildList {
+      repeat(60) { add(DiffLine(LineKind.Context, "before$it", it + 1, it + 1)) }
+      add(DiffLine(LineKind.Removed, "REMOVED_LINE", 61, null))
+      add(DiffLine(LineKind.Added, "ADDED_LINE", null, 61))
+      repeat(60) { add(DiffLine(LineKind.Context, "after$it", it + 62, it + 62)) }
+    }
+    val file = FileDiff("long.kt", "long.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 121, 1, 121, "", body))))
+    val ui = stateOf(listOf(file)).let { it.copy(split = splitRowsOf(it.rows)) }
+    var mode by mutableStateOf(DiffMode.Unified)
+    setContent { ViewerScreen(ui, {}, mode = mode) }
+    onNodeWithTag("diff-list").performScrollToIndex(ui.rows.indexOfFirst { it is DiffRow.Line && it.line.text == "REMOVED_LINE" })
+    waitForIdle()
+    val listTop = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot.top
+    val unifiedTop = onNodeWithText("REMOVED_LINE").fetchSemanticsNode().boundsInRoot.top - listTop
+    mode = DiffMode.Split
+    waitForIdle()
+    val splitTop = onNodeWithText("REMOVED_LINE").fetchSemanticsNode().boundsInRoot.top - listTop
+    assertEquals(unifiedTop, splitTop)
+    onAllNodesWithText("before59").assertCountEquals(0)
+  }
+
+  @Test
   fun reloadButtonInvokesCallback() = runComposeUiTest {
     var count = 0
     setContent { ViewerScreen(stateOf(emptyList()), { count++ }) }
