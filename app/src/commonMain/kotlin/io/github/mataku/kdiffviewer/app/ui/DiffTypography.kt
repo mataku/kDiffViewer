@@ -46,7 +46,7 @@ fun diffTypography(
   return DiffTypography(
     code = base.copy(color = colors.text).merge(row),
     lineNumber = muted.copy(textAlign = TextAlign.End).merge(row),
-    marker = base.copy(color = colors.text).merge(row),
+    marker = base.copy(color = colors.text, textAlign = TextAlign.Center).merge(row),
     hunkHeader = muted.merge(row),
     noNewline = muted.merge(row),
     headerPath = base.copy(color = colors.text, fontWeight = FontWeight.SemiBold),

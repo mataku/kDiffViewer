@@ -1642,6 +1642,39 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun unifiedWrappedLineKeepsGutterColourToRowBottom() = runComposeUiTest {
+    val text = "lorem ".repeat(80)
+    val file = FileDiff("a.kt", "a.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", listOf(DiffLine(LineKind.Added, text, null, 1))))))
+    val state = stateOf(listOf(file))
+    setContent { Box(modifier = Modifier.size(700.dp, 500.dp)) { ViewerScreen(state, {}, sidebarVisible = false) } }
+    val t = onNodeWithText(text, useUnmergedTree = true).getUnclippedBoundsInRoot()
+    assertTrue(t.bottom - t.top > 30.dp, "t=$t")
+    val pixels = listPixels()
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val y = with(density) { (t.bottom - 4.dp).toPx() }.toInt() - list.top.toInt()
+    val gutterX = with(density) { 24.dp.toPx() }.toInt() - list.left.toInt()
+    val contentX = with(density) { 124.dp.toPx() }.toInt() - list.left.toInt()
+    assertEquals(LightDiffColors.addedLineNumberBackground, pixels[gutterX, y])
+    assertEquals(LightDiffColors.addedBackground, pixels[contentX, y])
+  }
+
+  @Test
+  fun splitWrappedSideFillsOtherHalfToRowBottom() = runComposeUiTest {
+    val text = "lorem ".repeat(80)
+    val state = splitState(DiffLine(LineKind.Removed, "a", 1, null), DiffLine(LineKind.Added, text, null, 1))
+    setContent { Box(modifier = Modifier.size(900.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split, sidebarVisible = false) } }
+    val t = onNodeWithText(text, useUnmergedTree = true).getUnclippedBoundsInRoot()
+    assertTrue(t.bottom - t.top > 30.dp, "t=$t")
+    val pixels = listPixels()
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val y = with(density) { (t.bottom - 4.dp).toPx() }.toInt() - list.top.toInt()
+    val gutterX = with(density) { 24.dp.toPx() }.toInt() - list.left.toInt()
+    val contentX = with(density) { (20.dp + 48.dp + 16.dp + 40.dp).toPx() }.toInt() - list.left.toInt()
+    assertEquals(LightDiffColors.removedLineNumberBackground, pixels[gutterX, y])
+    assertEquals(LightDiffColors.removedBackground, pixels[contentX, y])
+  }
+
+  @Test
   fun splitOrphanPressWithNoFilesDoesNotCrash() = runComposeUiTest {
     val ui = stateOf(emptyList()).copy(loadId = 1)
     setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshotOf(1, 1, listOf(staticThread()), null), mode = DiffMode.Split) } }
