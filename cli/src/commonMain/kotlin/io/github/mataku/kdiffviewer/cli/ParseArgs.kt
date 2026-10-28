@@ -87,6 +87,7 @@ fun parseArgs(args: List<String>): ParseResult {
     is OptionsResult.Ok -> parsed.options
     is OptionsResult.Error -> return ParseResult.UsageError(parsed.message, topic)
   }
+  if (options.timeout != null && first != "review") return ParseResult.UsageError("--timeout is only for kdv review wait", topic)
   val target = options.target
   val positionals = options.positionals
 

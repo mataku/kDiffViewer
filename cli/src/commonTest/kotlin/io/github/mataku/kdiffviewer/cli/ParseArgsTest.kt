@@ -228,4 +228,10 @@ class ParseArgsTest {
     assertEquals(Command.Help("review"), ok("review", "--help"))
     assertEquals(Command.Help("review"), ok("review", "wait", "--timeout", "5", "-h"))
   }
+
+  @Test
+  fun timeoutOnlyForReviewWait() {
+    assertEquals("--timeout is only for kdv review wait", error("thread", "list", "--timeout", "5").message)
+    assertEquals("--timeout is only for kdv review wait", error("reload", "--timeout", "5").message)
+  }
 }
