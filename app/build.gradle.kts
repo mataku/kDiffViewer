@@ -80,6 +80,10 @@ val jbrHome = javaToolchains.launcherFor {
   vendor.set(JvmVendorSpec.JETBRAINS)
 }.get().metadata.installationPath.asFile.absolutePath
 
+val appVersion = "1.0.0"
+val appBuild = "1"
+val appCopyright = "Copyright © 2026 Takuma Homma"
+
 compose.desktop {
   application {
     mainClass = "io.github.mataku.kdiffviewer.app.MainKt"
@@ -92,12 +96,14 @@ compose.desktop {
     nativeDistributions {
       targetFormats(TargetFormat.Dmg)
       packageName = "kDiffViewer"
-      packageVersion = "1.0.0"
+      packageVersion = appVersion
+      copyright = appCopyright
       modules("java.instrument", "jdk.unsupported")
       appResourcesRootDir.set(layout.buildDirectory.dir("kdv-resources"))
 
       macOS {
         bundleID = "io.github.mataku.kdiffviewer"
+        packageBuildVersion = appBuild
         iconFile.set(project.file("packaging/kDiffViewer.icns"))
         infoPlist {
           extraKeysRawXml = """
@@ -123,11 +129,23 @@ if (System.getProperty("os.name").startsWith("Mac")) {
   val prepareRunBundle by tasks.registering {
     val javaExecutable = "$jbrHome/bin/java"
     inputs.property("javaExecutable", javaExecutable)
+    val version = appVersion
+    val build = appBuild
+    val copyright = appCopyright
+    inputs.property("appVersion", version)
+    inputs.property("appBuild", build)
+    inputs.property("appCopyright", copyright)
+    val iconFile = project.file("packaging/kDiffViewer.icns")
+    val contentResources = macAppContentResources.asFile
+    inputs.file(iconFile)
+    inputs.dir(contentResources)
     outputs.dir(runBundle)
     doLast {
       val contents = runBundle.get().dir("Contents").asFile
       contents.deleteRecursively()
       contents.resolve("MacOS").mkdirs()
+      contentResources.copyRecursively(contents.resolve("Resources"))
+      iconFile.copyTo(contents.resolve("Resources/kDiffViewer.icns"))
       contents.resolve("Info.plist").writeText(
         """
         |<?xml version="1.0" encoding="UTF-8"?>
@@ -142,6 +160,16 @@ if (System.getProperty("os.name").startsWith("Mac")) {
         |  <string>io.github.mataku.kdiffviewer.dev</string>
         |  <key>CFBundlePackageType</key>
         |  <string>APPL</string>
+        |  <key>CFBundleIconFile</key>
+        |  <string>kDiffViewer.icns</string>
+        |  <key>CFBundleIconName</key>
+        |  <string>kDiffViewer</string>
+        |  <key>CFBundleShortVersionString</key>
+        |  <string>$version</string>
+        |  <key>CFBundleVersion</key>
+        |  <string>$build</string>
+        |  <key>NSHumanReadableCopyright</key>
+        |  <string>$copyright</string>
         |</dict>
         |</plist>
         |
