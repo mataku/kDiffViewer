@@ -118,12 +118,12 @@ fun ViewerScreen(
   }
   val coordinator = LocalTextSelectionCoordinator.current
   val diffSelection = remember { DiffSelectionState() }
-  diffSelection.resetFor(Triple(state.loadId, state.collapsed, state.expanded))
+  diffSelection.resetFor(listOf(state.loadId, state.collapsed, state.expanded, DiffMode.Unified))
   val selectionSource = remember(diffSelection) {
     DiffSelectionSource(
       diffSelection,
       { currentState.rows },
-      { row -> !currentLayout.isCollapsed(currentLayout.fileIndexOfVisible(currentLayout.visibleIndexOf(row))) },
+      { row -> (currentState.rows[row] as? DiffRow.Line)?.let { !currentLayout.isCollapsed(it.fileIndex) } ?: false },
     )
   }
   DisposableEffect(coordinator, selectionSource) {

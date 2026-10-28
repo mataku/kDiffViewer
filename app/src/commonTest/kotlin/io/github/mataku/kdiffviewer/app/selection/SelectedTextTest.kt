@@ -5,6 +5,7 @@ import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.LineKind
+import io.github.mataku.kdiffviewer.core.model.Side
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -86,5 +87,35 @@ class SelectedTextTest {
   fun emptySelectionYieldsEmptyText() {
     val rows = single("a")
     assertEquals("", copy(rows, selection(TextPosition(2, 1), TextPosition(2, 1))))
+  }
+
+  private fun mixed() = rowsOf(
+    textFile(
+      "a.kt",
+      hunk(
+        context("a"),
+        DiffLine(LineKind.Removed, "b", 2, null),
+        DiffLine(LineKind.Added, "c", null, 2),
+        context("d"),
+      ),
+    ),
+  )
+
+  @Test
+  fun oldSideSkipsAddedRows() {
+    val rows = mixed()
+    assertEquals("a\nb\nd", copy(rows, DiffSelection(TextPosition(2, 0), TextPosition(5, 1), Side.Old)))
+  }
+
+  @Test
+  fun newSideSkipsRemovedRows() {
+    val rows = mixed()
+    assertEquals("a\nc\nd", copy(rows, DiffSelection(TextPosition(2, 0), TextPosition(5, 1), Side.New)))
+  }
+
+  @Test
+  fun noSideKeepsEveryRow() {
+    val rows = mixed()
+    assertEquals("a\nb\nc\nd", copy(rows, DiffSelection(TextPosition(2, 0), TextPosition(5, 1))))
   }
 }

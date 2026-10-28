@@ -278,6 +278,16 @@ class DiffSelectionUiTest {
   }
 
   @Test
+  fun copyAfterCollapsedFile() = runComposeUiTest {
+    val fileC = FileDiff("c.kt", "c.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", listOf(DiffLine(LineKind.Context, "zeta", 1, 1))))))
+    val files = listOf(fileA, fileB, fileC)
+    show(stateOf(files).toggled(1))
+    drag(codePosition("alpha beta", 6), codePosition("zeta", 2))
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("beta\n\tgamma\ndelta\nze"), clipboard.writes)
+  }
+
+  @Test
   fun collapsingFileClearsSelection() = runComposeUiTest {
     var ui by mutableStateOf(stateOf())
     setContent {

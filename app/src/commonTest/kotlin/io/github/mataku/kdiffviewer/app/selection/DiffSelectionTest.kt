@@ -5,6 +5,7 @@ import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.LineKind
+import io.github.mataku.kdiffviewer.core.model.Side
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -61,6 +62,20 @@ class DiffSelectionTest {
   fun positionAtOrAfterFallsBackToPreviousEnd() {
     assertEquals(TextPosition(4, 5), rows.positionAtOrAfter(5))
     assertNull(rowsOf().positionAtOrAfter(0))
+  }
+
+  @Test
+  fun positionAtOrAfterHonorsSide() {
+    val mixed = rowsOf(textFile("a.kt", hunk(context("a"), DiffLine(LineKind.Removed, "b", 2, null), DiffLine(LineKind.Added, "c", null, 2))))
+    assertEquals(TextPosition(3, 0), mixed.positionAtOrAfter(3))
+    assertEquals(TextPosition(3, 0), mixed.positionAtOrAfter(3, Side.Old))
+    assertEquals(TextPosition(4, 0), mixed.positionAtOrAfter(3, Side.New))
+    assertEquals(TextPosition(3, 1), mixed.positionAtOrAfter(5, Side.Old))
+    assertEquals(listOf(true, true, true), (2..4).map { mixed.selectableRow(it, null) })
+    assertEquals(listOf(true, true, false), (2..4).map { mixed.selectableRow(it, Side.Old) })
+    assertEquals(listOf(true, false, true), (2..4).map { mixed.selectableRow(it, Side.New) })
+    assertEquals(4, mixed.nextSelectableRow(2, Side.New))
+    assertNull(mixed.nextSelectableRow(3, Side.Old))
   }
 
   @Test
