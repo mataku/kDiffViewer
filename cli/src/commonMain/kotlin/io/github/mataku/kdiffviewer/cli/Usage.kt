@@ -8,15 +8,22 @@ private val THREAD_LINES = listOf(
   "kdv thread resolve <id>",
 )
 
+private val REVIEW_LINES = listOf(
+  "kdv review wait [--timeout <s>] [--json] Wait until the user sends comments from the app",
+)
+
 fun usage(topic: String?): String {
   val lines = if (topic == "thread") {
     THREAD_LINES
+  } else if (topic == "review") {
+    REVIEW_LINES
   } else {
     listOf(
       "kdv [path] [--base <ref>]                Open path in kDiffViewer (no argument: current directory)",
       "                                         Base defaults to the merge-base with origin/HEAD",
     ) +
       THREAD_LINES +
+      REVIEW_LINES +
       listOf(
         "kdv reload                               Reload the diff and re-anchor comments",
         "kdv windows                              Running windows (pid, repository)",

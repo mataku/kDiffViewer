@@ -1,10 +1,13 @@
 package io.github.mataku.kdiffviewer.cli
 
+import io.github.mataku.kdiffviewer.protocol.MAX_WAIT_SECONDS
+
 private class ParsedOptions(
   val positionals: List<String>,
   val all: Boolean,
   val json: Boolean,
   val author: String,
+  val timeout: String?,
   val target: TargetOptions,
 )
 
@@ -19,6 +22,7 @@ private fun parseOptions(args: List<String>): OptionsResult {
   var all = false
   var json = false
   var author = "agent"
+  var timeout: String? = null
   var repo: String? = null
   var pid: Long? = null
   var i = 0
@@ -34,12 +38,13 @@ private fun parseOptions(args: List<String>): OptionsResult {
 
       arg == "--json" -> json = true
 
-      arg == "--author" || arg == "--repo" || arg == "--pid" -> {
+      arg == "--author" || arg == "--repo" || arg == "--pid" || arg == "--timeout" -> {
         val value = args.getOrNull(i + 1) ?: return OptionsResult.Error("missing value for $arg")
         i++
         when (arg) {
           "--author" -> author = value
           "--repo" -> repo = value
+          "--timeout" -> timeout = value
           else -> pid = value.toLongOrNull() ?: return OptionsResult.Error("invalid --pid '$value'")
         }
       }
@@ -50,10 +55,10 @@ private fun parseOptions(args: List<String>): OptionsResult {
     }
     i++
   }
-  return OptionsResult.Ok(ParsedOptions(positionals, all, json, author, TargetOptions(repo, pid)))
+  return OptionsResult.Ok(ParsedOptions(positionals, all, json, author, timeout, TargetOptions(repo, pid)))
 }
 
-private val VALUE_OPTIONS = setOf("--author", "--repo", "--pid", "--base")
+private val VALUE_OPTIONS = setOf("--author", "--repo", "--pid", "--base", "--timeout")
 
 private fun helpRequested(args: List<String>): Boolean {
   var i = 0
@@ -73,7 +78,7 @@ fun parseArgs(args: List<String>): ParseResult {
   if (args.isEmpty()) return ParseResult.Ok(Command.Open(null))
   val first = args.first()
   val isPath = first == "." || first == ".." || first.contains('/')
-  val topic = if (first == "thread") "thread" else null
+  val topic = if (first == "thread" || first == "review") first else null
   if (helpRequested(args)) return ParseResult.Ok(Command.Help(topic))
   if (isPath || first == "--base") return parseOpen(args)
 
@@ -93,6 +98,7 @@ fun parseArgs(args: List<String>): ParseResult {
 
   return when (first) {
     "thread" -> parseThread(positionals, options)
+    "review" -> parseReview(positionals, options)
     "reload" -> noPositionals(Command.Reload(target))
     "windows" -> noPositionals(Command.Windows(target))
     "agent-guide" -> noPositionals(Command.AgentGuide(target))
@@ -123,6 +129,23 @@ private fun parseOpen(args: List<String>): ParseResult {
     i++
   }
   return ParseResult.Ok(Command.Open(path, base))
+}
+
+private fun parseReview(positionals: List<String>, options: ParsedOptions): ParseResult {
+  fun error(message: String) = ParseResult.UsageError(message, "review")
+  return when (val sub = positionals.firstOrNull()) {
+    "wait" -> {
+      positionals.getOrNull(1)?.let { return ParseResult.UsageError("unexpected argument '$it'", "review") }
+      val timeout = options.timeout?.let { raw ->
+        raw.toIntOrNull()?.takeIf { it in 1..MAX_WAIT_SECONDS } ?: return error("invalid --timeout '$raw': use 1 to $MAX_WAIT_SECONDS seconds")
+      }
+      ParseResult.Ok(Command.ReviewWait(timeout, options.json, options.target))
+    }
+
+    null -> error("review needs a subcommand: wait")
+
+    else -> error("unknown review subcommand '$sub'")
+  }
 }
 
 private fun parseThread(positionals: List<String>, options: ParsedOptions): ParseResult {

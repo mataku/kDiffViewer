@@ -6,6 +6,8 @@ import io.github.mataku.kdiffviewer.protocol.Methods
 import io.github.mataku.kdiffviewer.protocol.RegistryEntry
 import io.github.mataku.kdiffviewer.protocol.RegistryPaths
 import io.github.mataku.kdiffviewer.protocol.ReloadResult
+import io.github.mataku.kdiffviewer.protocol.ReviewWaitParams
+import io.github.mataku.kdiffviewer.protocol.ReviewWaitResult
 import io.github.mataku.kdiffviewer.protocol.ThreadDto
 import io.github.mataku.kdiffviewer.protocol.ThreadListParams
 import io.github.mataku.kdiffviewer.protocol.ThreadListResult
@@ -71,12 +73,28 @@ private fun execute(command: Command, platform: CliPlatform, out: (String) -> Un
       out("Resolved ${command.id}.")
     }
 
+    is Command.ReviewWait -> return reviewWait(command, platform, out)
+
     is Command.Reload -> {
       val result = decode(ReloadResult.serializer(), call(platform, command.target, Methods.RELOAD, JsonObject(emptyMap())))
       out("Reloaded: ${result.files} files, ${result.outdated} outdated threads.")
     }
   }
   return 0
+}
+
+private const val TIMED_OUT_EXIT = 3
+
+private fun reviewWait(command: Command.ReviewWait, platform: CliPlatform, out: (String) -> Unit): Int {
+  val params = encode(ReviewWaitParams.serializer(), ReviewWaitParams(command.timeoutSeconds))
+  val response = call(platform, command.target, Methods.REVIEW_WAIT, params, closedMessage = "the kDiffViewer window closed")
+  val result = decode(ReviewWaitResult.serializer(), response)
+  when {
+    command.json -> out(Codec.json.encodeToString(JsonElement.serializer(), response))
+    result.timedOut -> out("Timed out.")
+    else -> out(formatReviews(result))
+  }
+  return if (result.timedOut) TIMED_OUT_EXIT else 0
 }
 
 private fun open(command: Command.Open, platform: CliPlatform) {
@@ -101,13 +119,13 @@ private fun resolve(platform: CliPlatform, target: TargetOptions): RegistryEntry
 
 private fun <T> encode(serializer: KSerializer<T>, value: T): JsonObject = Codec.json.encodeToJsonElement(serializer, value) as JsonObject
 
-private fun call(platform: CliPlatform, target: TargetOptions, method: String, params: JsonObject): JsonElement {
+private fun call(platform: CliPlatform, target: TargetOptions, method: String, params: JsonObject, closedMessage: String? = null): JsonElement {
   val entry = resolve(platform, target)
   val line = Codec.encodeRequest(method, params)
   val raw = try {
     platform.request(entry.socket, line)
   } catch (e: TransportException) {
-    throw CliFailure("lost connection to kDiffViewer (${e.message})")
+    throw CliFailure(closedMessage ?: "lost connection to kDiffViewer (${e.message})")
   }
   val response = try {
     Codec.decodeResponse(raw)

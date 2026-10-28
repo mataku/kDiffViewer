@@ -173,6 +173,7 @@ class ParseArgsTest {
       kdv thread list [--all] [--json]         Unresolved threads (all with --all)
       kdv thread reply <id> <body|-> [--author <name>]
       kdv thread resolve <id>
+      kdv review wait [--timeout <s>] [--json] Wait until the user sends comments from the app
       kdv reload                               Reload the diff and re-anchor comments
       kdv windows                              Running windows (pid, repository)
       kdv agent-guide                          How a coding agent should use kdv
@@ -199,5 +200,32 @@ class ParseArgsTest {
       Common options: --repo <path>, --pid <pid>, -h/--help
     """.trimIndent() + "\n"
     assertEquals(expected, usage("thread"))
+  }
+
+  @Test
+  fun reviewWait() {
+    assertEquals(Command.ReviewWait(540, true, TargetOptions()), ok("review", "wait", "--timeout", "540", "--json"))
+    assertEquals(Command.ReviewWait(null, false, TargetOptions(repo = "/r")), ok("review", "wait", "--repo", "/r"))
+  }
+
+  @Test
+  fun reviewWaitRejectsBadTimeout() {
+    assertEquals("invalid --timeout '0': use 1 to 86400 seconds", error("review", "wait", "--timeout", "0").message)
+    assertEquals("invalid --timeout 'x': use 1 to 86400 seconds", error("review", "wait", "--timeout", "x").message)
+    assertEquals("invalid --timeout '86401': use 1 to 86400 seconds", error("review", "wait", "--timeout", "86401").message)
+    assertEquals("review", error("review", "wait", "--timeout", "x").topic)
+  }
+
+  @Test
+  fun reviewNeedsSubcommand() {
+    assertEquals("review needs a subcommand: wait", error("review").message)
+    assertEquals("unknown review subcommand 'nope'", error("review", "nope").message)
+    assertEquals("unexpected argument 'extra'", error("review", "wait", "extra").message)
+  }
+
+  @Test
+  fun reviewHelpTopic() {
+    assertEquals(Command.Help("review"), ok("review", "--help"))
+    assertEquals(Command.Help("review"), ok("review", "wait", "--timeout", "5", "-h"))
   }
 }

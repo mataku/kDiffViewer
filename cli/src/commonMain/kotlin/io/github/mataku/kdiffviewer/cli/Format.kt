@@ -1,12 +1,22 @@
 package io.github.mataku.kdiffviewer.cli
 
 import io.github.mataku.kdiffviewer.protocol.CommentDto
+import io.github.mataku.kdiffviewer.protocol.ReviewWaitResult
 import io.github.mataku.kdiffviewer.protocol.ThreadDto
 import io.github.mataku.kdiffviewer.protocol.markControls
 
 fun formatThreads(threads: List<ThreadDto>, all: Boolean): String {
   if (threads.isEmpty()) return if (all) "No threads." else "No open threads."
   return threads.joinToString("\n\n") { formatThread(it) }
+}
+
+fun formatReviews(result: ReviewWaitResult): String {
+  val lines = result.reviews.map { review ->
+    val summary = review.summary?.lineSequence()?.first()?.let { " · ${markControls(it)}" }.orEmpty()
+    "${review.id} · ${review.state}$summary"
+  }
+  if (result.threads.isEmpty()) return lines.joinToString("\n")
+  return (lines + "" + formatThreads(result.threads, all = true)).joinToString("\n")
 }
 
 private fun formatThread(thread: ThreadDto): String {
