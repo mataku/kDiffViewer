@@ -1188,6 +1188,102 @@ class DiffViewerStateTest {
     assertTrue(state.uiState.value.isCollapsed(0))
   }
 
+  private fun changeFile(path: String, removed: Int, added: Int) = FileDiff(
+    path,
+    path,
+    ChangeType.Modified,
+    false,
+    DiffContent.Text(
+      listOf(
+        Hunk(
+          1,
+          removed,
+          1,
+          added,
+          "",
+          (1..removed).map { DiffLine(LineKind.Removed, "old $it", it, null) } +
+            (1..added).map { DiffLine(LineKind.Added, "new $it", null, it) },
+        ),
+      ),
+    ),
+  )
+
+  private fun assertSplitMatchesRows(ui: ViewerUiState) {
+    val expected = splitRowsOf(ui.rows)
+    assertEquals(expected.size, ui.split.size)
+    for (i in 0 until expected.size) {
+      assertEquals(expected.leftOf(i), ui.split.leftOf(i), "left at $i")
+      assertEquals(expected.rightOf(i), ui.split.rightOf(i), "right at $i")
+    }
+  }
+
+  @Test
+  fun splitRowsMatchRows() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(
+      FakeSource {
+        flow {
+          emit(changeFile("a", 2, 1))
+          emit(changeFile("b", 1, 3))
+        }
+      },
+    )
+    state.open(repo)
+    advanceUntilIdle()
+    assertTrue(state.uiState.value.split.size > 0)
+    assertSplitMatchesRows(state.uiState.value)
+  }
+
+  @Test
+  fun splitRowsContinueAcrossBatches() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(
+      FakeSource {
+        flow {
+          emit(changeFile("a", 2, 1))
+          emit(changeFile("b", 1, 3))
+          delay(100)
+          emit(changeFile("c", 3, 2))
+        }
+      },
+    )
+    state.open(repo)
+    advanceTimeBy(50)
+    runCurrent()
+    val intermediate = state.uiState.value
+    assertEquals(2, intermediate.files.size)
+    assertTrue(intermediate.split.size > 0)
+    assertSplitMatchesRows(intermediate)
+    advanceUntilIdle()
+    assertEquals(3, state.uiState.value.files.size)
+    assertSplitMatchesRows(state.uiState.value)
+  }
+
+  @Test
+  fun reloadHoldKeepsPreviousSplit() = runTest(StandardTestDispatcher()) {
+    val state = stateFor(
+      FakeSource { call ->
+        if (call == 0) {
+          flow { emit(changeFile("a", 2, 1)) }
+        } else {
+          flow {
+            delay(200)
+            emit(changeFile("b", 1, 1))
+          }
+        }
+      },
+    )
+    state.open(repo)
+    advanceUntilIdle()
+    val before = state.uiState.value
+    state.reload()
+    advanceTimeBy(100)
+    runCurrent()
+    val during = state.uiState.value
+    assertEquals(LoadStatus.Loading, during.status)
+    assertSame(before.rows, during.rows)
+    assertSame(before.split, during.split)
+    assertSplitMatchesRows(during)
+  }
+
   @Test
   fun openingAnotherRepoClearsCollapsed() = runTest(StandardTestDispatcher()) {
     val state = stateFor(FakeSource { flow { emit(fileWithLines("a", 2)) } })
