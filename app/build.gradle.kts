@@ -1,5 +1,7 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
+import java.nio.file.Files
+import java.nio.file.Path
 
 plugins {
   alias(libs.plugins.kotlinMultiplatform)
@@ -68,13 +70,15 @@ val prepareKdvResources by tasks.registering(Sync::class) {
   filePermissions { unix("rwxr-xr-x") }
 }
 
+val jbrHome = javaToolchains.launcherFor {
+  languageVersion.set(JavaLanguageVersion.of(25))
+  vendor.set(JvmVendorSpec.JETBRAINS)
+}.get().metadata.installationPath.asFile.absolutePath
+
 compose.desktop {
   application {
     mainClass = "io.github.mataku.kdiffviewer.app.MainKt"
-    javaHome = javaToolchains.launcherFor {
-      languageVersion.set(JavaLanguageVersion.of(25))
-      vendor.set(JvmVendorSpec.JETBRAINS)
-    }.get().metadata.installationPath.asFile.absolutePath
+    javaHome = jbrHome
 
     if (System.getProperty("os.name").startsWith("Mac")) {
       jvmArgs("-Xdock:name=kDiffViewer")
@@ -107,6 +111,47 @@ if (System.getProperty("os.name").startsWith("Mac")) {
   tasks.withType<AbstractJPackageTask>().configureEach {
     inputs.dir(macAppContentResources)
     freeArgs.addAll("--app-content", macAppContentResources.asFile.absolutePath)
+  }
+
+  val runBundle = layout.buildDirectory.dir("run-bundle/kDiffViewer.app")
+  val runBundleExecutable = runBundle.map { it.file("Contents/MacOS/kDiffViewer").asFile.absolutePath }
+  val prepareRunBundle by tasks.registering {
+    val javaExecutable = "$jbrHome/bin/java"
+    inputs.property("javaExecutable", javaExecutable)
+    outputs.dir(runBundle)
+    doLast {
+      val contents = runBundle.get().dir("Contents").asFile
+      contents.deleteRecursively()
+      contents.resolve("MacOS").mkdirs()
+      contents.resolve("Info.plist").writeText(
+        """
+        |<?xml version="1.0" encoding="UTF-8"?>
+        |<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        |<plist version="1.0">
+        |<dict>
+        |  <key>CFBundleName</key>
+        |  <string>kDiffViewer</string>
+        |  <key>CFBundleExecutable</key>
+        |  <string>kDiffViewer</string>
+        |  <key>CFBundleIdentifier</key>
+        |  <string>io.github.mataku.kdiffviewer.dev</string>
+        |  <key>CFBundlePackageType</key>
+        |  <string>APPL</string>
+        |</dict>
+        |</plist>
+        |
+        """.trimMargin(),
+      )
+      Files.createSymbolicLink(contents.resolve("MacOS/kDiffViewer").toPath(), Path.of(javaExecutable))
+    }
+  }
+
+  afterEvaluate {
+    tasks.named<JavaExec>("run") {
+      dependsOn(prepareRunBundle)
+      javaLauncher.set(null as JavaLauncher?)
+      setExecutable(runBundleExecutable.get())
+    }
   }
 }
 
