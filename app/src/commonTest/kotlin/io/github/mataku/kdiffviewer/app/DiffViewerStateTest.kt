@@ -20,6 +20,7 @@ import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.Side
+import io.github.mataku.kdiffviewer.core.parse.DiffLimits
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,6 +30,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -116,6 +118,67 @@ class DiffViewerStateTest {
     false,
     DiffContent.Text(listOf(Hunk(1, 0, 1, changedLines, "", (1..changedLines).map { DiffLine(LineKind.Added, "$text $it", null, it) }))),
   )
+
+  private fun TestScope.budgetState(source: DiffSource) = DiffViewerState(source, this, 16, diffLimits = DiffLimits(maxFiles = 2, maxLines = 100))
+
+  private fun filesFlow(count: Int) = flow { repeat(count) { emit(changedFile("f$it", 1)) } }
+
+  @Test
+  fun stopsLoadingAtFileLimit() = runTest(StandardTestDispatcher()) {
+    val state = budgetState(FakeSource { filesFlow(5) })
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(listOf("f0", "f1"), state.uiState.value.files.map { it.newPath })
+    assertTrue(state.uiState.value.truncated)
+  }
+
+  @Test
+  fun upstreamIsCancelledAtLimit() = runTest(StandardTestDispatcher()) {
+    var emitted = 0
+    var cancelled = false
+    val source = FakeSource {
+      flow {
+        repeat(5) {
+          emitted++
+          emit(changedFile("f$it", 1))
+        }
+      }.onCompletion { cause -> cancelled = cause is CancellationException }
+    }
+    val state = budgetState(source)
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(3, emitted)
+    assertTrue(cancelled)
+  }
+
+  @Test
+  fun truncatedLoadEndsDone() = runTest(StandardTestDispatcher()) {
+    val state = budgetState(FakeSource { filesFlow(5) })
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(LoadStatus.Done, state.uiState.value.status)
+  }
+
+  @Test
+  fun withinLimitIsNotTruncated() = runTest(StandardTestDispatcher()) {
+    val state = budgetState(FakeSource { filesFlow(2) })
+    state.open(repo)
+    advanceUntilIdle()
+    assertEquals(listOf("f0", "f1"), state.uiState.value.files.map { it.newPath })
+    assertFalse(state.uiState.value.truncated)
+  }
+
+  @Test
+  fun reloadThatFitsClearsTruncated() = runTest(StandardTestDispatcher()) {
+    val state = budgetState(FakeSource { call -> filesFlow(if (call == 0) 5 else 1) })
+    state.open(repo)
+    advanceUntilIdle()
+    assertTrue(state.uiState.value.truncated)
+    state.reload()
+    advanceUntilIdle()
+    assertEquals(LoadStatus.Done, state.uiState.value.status)
+    assertFalse(state.uiState.value.truncated)
+  }
 
   @Test
   fun failShowsErrorWithoutLoading() = runTest(StandardTestDispatcher()) {
