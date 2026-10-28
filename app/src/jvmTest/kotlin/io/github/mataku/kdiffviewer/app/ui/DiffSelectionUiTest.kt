@@ -387,21 +387,60 @@ class DiffSelectionUiTest {
 
   @Test
   fun doubleClickSelectsWordOnPressedSide() = runComposeUiTest {
-    val file = FileDiff("w.kt", "w.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", listOf(DiffLine(LineKind.Context, "one two", 1, 1))))))
-    showSplit(splitStateOf(file))
-    onNodeWithTag("diff-list").performMouseInput { doubleClick(splitCodePosition("one two", 1, 5)) }
+    showSplit(splitStateOf(mixedFile))
+    drag(splitCodePosition("bravo", 0, 0), splitCodePosition("bravo", 0, 3))
+    onNodeWithTag("diff-list").performMouseInput { doubleClick(splitCodePosition("charlie", 0, 3)) }
     waitForIdle()
     assertTrue(coordinator.copy())
-    assertEquals(listOf("two"), clipboard.writes)
+    assertEquals(listOf("charlie"), clipboard.writes)
   }
 
   @Test
-  fun splitTripleClickOnRightSkipsOldRows() = runComposeUiTest {
+  fun tripleClickSelectsRowOnPressedSide() = runComposeUiTest {
     showSplit(splitStateOf(mixedFile))
+    drag(splitCodePosition("bravo", 0, 0), splitCodePosition("bravo", 0, 3))
     onNodeWithTag("diff-list").performMouseInput { tripleClick(splitCodePosition("charlie", 0, 2)) }
     waitForIdle()
     assertTrue(coordinator.copy())
     assertEquals(listOf("charlie\n"), clipboard.writes)
+  }
+
+  @Test
+  fun leftDragOverUnpairedAddedLineCopiesOnlyOldRows() = runComposeUiTest {
+    val file = FileDiff(
+      "u.kt",
+      "u.kt",
+      ChangeType.Modified,
+      false,
+      DiffContent.Text(
+        listOf(
+          Hunk(
+            1,
+            2,
+            1,
+            3,
+            "",
+            listOf(
+              DiffLine(LineKind.Context, "above", 1, 1),
+              DiffLine(LineKind.Added, "solo", null, 2),
+              DiffLine(LineKind.Context, "below", 2, 3),
+            ),
+          ),
+        ),
+      ),
+    )
+    showSplit(splitStateOf(file))
+    drag(splitCodePosition("above", 0, 0), splitCodePosition("below", 0, 5))
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("above\nbelow"), clipboard.writes)
+  }
+
+  @Test
+  fun leftPressDraggedOverRightHalfCopiesOnlyOldText() = runComposeUiTest {
+    showSplit(splitStateOf(mixedFile))
+    drag(splitCodePosition("alpha", 0, 0), splitCodePosition("charlie", 0, 4))
+    assertTrue(coordinator.copy())
+    assertEquals(listOf("alpha\nbravo"), clipboard.writes)
   }
 
   @Test

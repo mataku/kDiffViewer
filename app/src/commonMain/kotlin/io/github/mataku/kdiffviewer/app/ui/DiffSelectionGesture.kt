@@ -254,7 +254,7 @@ internal class DiffSelectionGesture(
     if (item == null) {
       if (press) return null
       val first = listState.layoutInfo.visibleItemsInfo.firstOrNull() ?: return null
-      return if (position.y < first.offset) rows.positionAtOrAfter(0) else rows.positionAtOrAfter(rows.size)
+      return if (position.y < first.offset) rows.positionAtOrAfter(0, side) else rows.positionAtOrAfter(rows.size, side)
     }
     val side = side
     val displayRow = layout.rowIndexOf(item.index)
