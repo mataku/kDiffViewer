@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import io.github.mataku.compose.highlight.core.HighlightSpan
 import io.github.mataku.kdiffviewer.app.CollapsedFile
 import io.github.mataku.kdiffviewer.app.DiffRow
+import io.github.mataku.kdiffviewer.app.LARGE_DIFF_LINES
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.buildFileTree
@@ -90,8 +91,8 @@ import kotlin.time.Instant
 
 @OptIn(ExperimentalTestApi::class)
 class ViewerScreenTest {
-  private fun stateOf(files: List<FileDiff>, status: LoadStatus = LoadStatus.Done): ViewerUiState {
-    val rows = flattenRows(files)
+  private fun stateOf(files: List<FileDiff>, status: LoadStatus = LoadStatus.Done, largeDiffLines: Int = LARGE_DIFF_LINES): ViewerUiState {
+    val rows = flattenRows(files, largeDiffLines = largeDiffLines)
     val headers = rows.mapIndexedNotNull { i, r -> if (r is DiffRow.FileHeader) i else null }
     return ViewerUiState(RepoPath("/repo"), status, files, rows, headers, buildFileTree(files), fingerprints = files.map { it.fingerprint() })
   }
@@ -617,6 +618,24 @@ class ViewerScreenTest {
     onNodeWithTag("file-header-0").performClick()
     waitForIdle()
     assertEquals(2, onAllNodesWithText("ONE").fetchSemanticsNodes().size)
+  }
+
+  @Test
+  fun largeDiffLabelShowsOnlyOnLargeFiles() = runComposeUiTest {
+    val small = FileDiff(null, "small.kt", ChangeType.Added, false, DiffContent.Text(listOf(Hunk(0, 0, 1, 1, "", listOf(DiffLine(LineKind.Added, "x", null, 1))))))
+    setContent { ViewerScreen(stateOf(listOf(modified("big.json"), small), largeDiffLines = 2), {}) }
+    onNodeWithTag("file-large-0", useUnmergedTree = true).assertTextEquals("Large diff")
+    onNodeWithTag("file-large-1", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun largeDiffExpandsOnHeaderClick() = runComposeUiTest {
+    var ui by mutableStateOf(stateOf(listOf(modified("big.json")), largeDiffLines = 2))
+    setContent { ViewerScreen(ui, {}, onToggleFile = { index -> ui = ui.copy(expanded = ui.expanded + CollapsedFile(ui.files[index].displayPath, ui.fingerprints[index])) }) }
+    onNodeWithText("ONE").assertDoesNotExist()
+    onNodeWithTag("file-header-0").performClick()
+    waitForIdle()
+    onNodeWithText("ONE").assertIsDisplayed()
   }
 
   @Test

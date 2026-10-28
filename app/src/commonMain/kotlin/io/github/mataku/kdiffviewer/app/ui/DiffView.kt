@@ -282,6 +282,13 @@ private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment
           .padding(horizontal = 6.dp, vertical = 1.dp),
         style = typography.headerBadge,
       )
+      if (row.largeDiff) {
+        BasicText(
+          text = "Large diff",
+          modifier = Modifier.testTag("file-large-${row.fileIndex}"),
+          style = typography.headerBadge,
+        )
+      }
     }
     val statsText = remember(row.stats, typography) { statsText(row.stats, typography.headerAdditions, typography.headerDeletions) }
     if (statsText != null) {
