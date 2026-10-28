@@ -5,8 +5,11 @@ import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.core.review.Comment
 import io.github.mataku.kdiffviewer.core.review.ReviewThread
 import io.github.mataku.kdiffviewer.core.review.Side
+import io.github.mataku.kdiffviewer.core.review.Submission
+import io.github.mataku.kdiffviewer.core.review.SubmissionState
 import io.github.mataku.kdiffviewer.protocol.AuthorDto
 import io.github.mataku.kdiffviewer.protocol.CommentDto
+import io.github.mataku.kdiffviewer.protocol.ReviewDto
 import io.github.mataku.kdiffviewer.protocol.ThreadDto
 
 fun Comment.toDto(): CommentDto = CommentDto(
@@ -44,3 +47,11 @@ fun ReviewThread.toDto(): ThreadDto {
     )
   }
 }
+
+fun Submission.toDto(): ReviewDto = ReviewDto(
+  id = id,
+  state = if (state == SubmissionState.Approved) "approved" else "comment",
+  summary = summary,
+  submittedAt = submittedAt.toString(),
+  commentIds = commentIds,
+)

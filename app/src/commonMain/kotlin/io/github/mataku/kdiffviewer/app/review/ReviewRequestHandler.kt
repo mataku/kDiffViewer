@@ -4,10 +4,13 @@ import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.protocol.Codec
 import io.github.mataku.kdiffviewer.protocol.CommentDto
 import io.github.mataku.kdiffviewer.protocol.ErrorCodes
+import io.github.mataku.kdiffviewer.protocol.MAX_WAIT_SECONDS
 import io.github.mataku.kdiffviewer.protocol.Methods
 import io.github.mataku.kdiffviewer.protocol.PROTOCOL_VERSION
 import io.github.mataku.kdiffviewer.protocol.ReloadResult
 import io.github.mataku.kdiffviewer.protocol.RequestEnvelope
+import io.github.mataku.kdiffviewer.protocol.ReviewWaitParams
+import io.github.mataku.kdiffviewer.protocol.ReviewWaitResult
 import io.github.mataku.kdiffviewer.protocol.ThreadDto
 import io.github.mataku.kdiffviewer.protocol.ThreadListParams
 import io.github.mataku.kdiffviewer.protocol.ThreadListResult
@@ -27,23 +30,50 @@ class ReviewRequestHandler(
   private val reload: suspend () -> Long?,
   private val info: () -> WindowInfoResult,
 ) {
-  suspend fun handle(line: String): Reply = Reply(handleLine(line))
-
-  private suspend fun handleLine(line: String): String = try {
+  suspend fun handle(line: String): Reply = try {
     val request = Codec.decodeRequest(line)
     if (request.v != PROTOCOL_VERSION) {
-      Codec.failure(ErrorCodes.UNSUPPORTED_VERSION, "Unsupported protocol version ${request.v}, expected $PROTOCOL_VERSION")
+      Reply(Codec.failure(ErrorCodes.UNSUPPORTED_VERSION, "Unsupported protocol version ${request.v}, expected $PROTOCOL_VERSION"))
+    } else if (request.method == Methods.REVIEW_WAIT) {
+      waitForReview(Codec.params(request))
     } else {
-      dispatch(request)
+      Reply(dispatch(request))
     }
   } catch (e: CancellationException) {
     throw e
   } catch (e: SerializationException) {
-    Codec.failure(ErrorCodes.BAD_REQUEST, e.message ?: "Malformed request")
+    Reply(Codec.failure(ErrorCodes.BAD_REQUEST, e.message ?: "Malformed request"))
   } catch (e: IllegalArgumentException) {
-    Codec.failure(ErrorCodes.BAD_REQUEST, e.message ?: "Malformed request")
+    Reply(Codec.failure(ErrorCodes.BAD_REQUEST, e.message ?: "Malformed request"))
   } catch (e: Exception) {
-    Codec.failure(ErrorCodes.BAD_REQUEST, e.message ?: "Request failed")
+    Reply(Codec.failure(ErrorCodes.BAD_REQUEST, e.message ?: "Request failed"))
+  }
+
+  private suspend fun waitForReview(params: ReviewWaitParams): Reply {
+    val seconds = params.timeoutSeconds
+    if (seconds != null && seconds !in 1..MAX_WAIT_SECONDS) {
+      return Reply(Codec.failure(ErrorCodes.BAD_REQUEST, "timeoutSeconds must be between 1 and $MAX_WAIT_SECONDS"))
+    }
+    return when (val outcome = review.awaitSubmissions(seconds?.let { it * 1_000L })) {
+      is WaitOutcome.Delivered -> {
+        val commentIds = outcome.submissions.flatMapTo(HashSet()) { it.commentIds }
+        val threads = review.snapshot.value.threads
+          .filter { thread -> thread.comments.any { it.id in commentIds } }
+          .mapNotNull { review.agentThread(it.id)?.toDto() }
+        val result = ReviewWaitResult(false, outcome.submissions.map { it.toDto() }, threads)
+        Reply(ok(Codec.json.encodeToJsonElement(ReviewWaitResult.serializer(), result))) {
+          review.markDelivered(outcome.generation, outcome.submissions.last().number)
+        }
+      }
+
+      WaitOutcome.TimedOut -> Reply(ok(Codec.json.encodeToJsonElement(ReviewWaitResult.serializer(), ReviewWaitResult(true, emptyList(), emptyList()))))
+
+      WaitOutcome.Superseded -> Reply(Codec.failure(ErrorCodes.SUPERSEDED, "Another kdv review wait replaced this one"))
+
+      WaitOutcome.RepositoryChanged -> Reply(Codec.failure(ErrorCodes.REPOSITORY_CHANGED, "The window opened another repository"))
+
+      WaitOutcome.NoRepository -> Reply(Codec.failure(ErrorCodes.NO_REPOSITORY, "No repository is open"))
+    }
   }
 
   private suspend fun dispatch(request: RequestEnvelope): String = when (request.method) {

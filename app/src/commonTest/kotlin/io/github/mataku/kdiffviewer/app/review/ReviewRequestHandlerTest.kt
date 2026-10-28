@@ -20,6 +20,8 @@ import io.github.mataku.kdiffviewer.protocol.ErrorCodes
 import io.github.mataku.kdiffviewer.protocol.Methods
 import io.github.mataku.kdiffviewer.protocol.PROTOCOL_VERSION
 import io.github.mataku.kdiffviewer.protocol.ReloadResult
+import io.github.mataku.kdiffviewer.protocol.ReviewDto
+import io.github.mataku.kdiffviewer.protocol.ReviewWaitResult
 import io.github.mataku.kdiffviewer.protocol.ThreadDto
 import io.github.mataku.kdiffviewer.protocol.ThreadListResult
 import io.github.mataku.kdiffviewer.protocol.WindowInfoResult
@@ -80,6 +82,7 @@ class ReviewRequestHandlerTest {
       for ((k, value) in params) {
         when (value) {
           is Boolean -> put(k, value)
+          is Int -> put(k, value)
           else -> put(k, value.toString())
         }
       }
@@ -291,5 +294,99 @@ class ReviewRequestHandlerTest {
     val handler = ReviewRequestHandler(review, { null }, { error("boom") })
     val line = handler.call(request(Methods.WINDOW_INFO))
     assertFalse(Codec.decodeResponse(line).ok)
+  }
+
+  @Test
+  fun waitReturnsReviewAndThreads() = runTest {
+    val f = fixture()
+    f.addThread(1)
+    val result = resultOf<ReviewWaitResult>(f.handler.call(request(Methods.REVIEW_WAIT)))
+    assertFalse(result.timedOut)
+    assertEquals(listOf(ReviewDto("r1", "comment", null, epoch.toString(), listOf("c1"))), result.reviews)
+    assertEquals(listOf("t1"), result.threads.map { it.id })
+  }
+
+  @Test
+  fun waitReportsApprovedSummary() = runTest {
+    val f = fixture()
+    f.review.onViewerState(ui(1))
+    f.review.submitReview("lgtm", approve = true)
+    val review = resultOf<ReviewWaitResult>(f.handler.call(request(Methods.REVIEW_WAIT))).reviews.single()
+    assertEquals("approved", review.state)
+    assertEquals("lgtm", review.summary)
+  }
+
+  @Test
+  fun waitTimeoutResult() = runTest {
+    val f = fixture()
+    f.review.onViewerState(ui(1))
+    val result = resultOf<ReviewWaitResult>(f.handler.call(request(Methods.REVIEW_WAIT, "timeoutSeconds" to 1)))
+    assertEquals(ReviewWaitResult(true, emptyList(), emptyList()), result)
+  }
+
+  @Test
+  fun waitRejectsTimeoutOutOfRange() = runTest {
+    val f = fixture()
+    f.review.onViewerState(ui(1))
+    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.call(request(Methods.REVIEW_WAIT, "timeoutSeconds" to 0))))
+    assertEquals(ErrorCodes.BAD_REQUEST, errorCode(f.handler.call(request(Methods.REVIEW_WAIT, "timeoutSeconds" to 86_401))))
+  }
+
+  @Test
+  fun waitWithoutRepository() = runTest {
+    assertEquals(ErrorCodes.NO_REPOSITORY, errorCode(fixture().handler.call(request(Methods.REVIEW_WAIT))))
+  }
+
+  @Test
+  fun waitSuperseded() = runTest {
+    val f = fixture()
+    f.review.onViewerState(ui(1))
+    val first = async { f.handler.call(request(Methods.REVIEW_WAIT)) }
+    runCurrent()
+    val second = async { f.handler.call(request(Methods.REVIEW_WAIT)) }
+    runCurrent()
+    assertEquals(ErrorCodes.SUPERSEDED, errorCode(first.await()))
+    second.cancel()
+  }
+
+  @Test
+  fun waitRepositoryChanged() = runTest {
+    val f = fixture()
+    f.review.onViewerState(ui(1))
+    val waiter = async { f.handler.call(request(Methods.REVIEW_WAIT)) }
+    runCurrent()
+    f.review.onViewerState(ViewerUiState(repo = RepoPath("/other"), status = LoadStatus.Loading, files = emptyList(), loadId = 2))
+    assertEquals(ErrorCodes.REPOSITORY_CHANGED, errorCode(waiter.await()))
+  }
+
+  @Test
+  fun waitSkipsDeletedThread() = runTest {
+    val f = fixture()
+    f.addThread(1)
+    f.review.delete("c1")
+    val result = resultOf<ReviewWaitResult>(f.handler.call(request(Methods.REVIEW_WAIT)))
+    assertEquals(listOf("r1"), result.reviews.map { it.id })
+    assertTrue(result.threads.isEmpty())
+  }
+
+  @Test
+  fun waitExcludesPendingCommentsFromThreads() = runTest {
+    val f = fixture()
+    f.addThread(1)
+    f.review.startDraft(DraftTarget.Reply("t1"))
+    f.review.updateDraft("later")
+    f.review.submitDraft(DraftMode.Review)
+    val thread = resultOf<ReviewWaitResult>(f.handler.call(request(Methods.REVIEW_WAIT))).threads.single()
+    assertEquals(listOf("c1"), thread.comments.map { it.id })
+  }
+
+  @Test
+  fun onWrittenMovesCursor() = runTest {
+    val f = fixture()
+    f.addThread(1)
+    val reply = f.handler.handle(request(Methods.REVIEW_WAIT))
+    assertEquals(0, f.review.snapshot.value.core.deliveredThrough)
+    reply.onWritten()
+    assertEquals(1, f.review.snapshot.value.core.deliveredThrough)
   }
 }
