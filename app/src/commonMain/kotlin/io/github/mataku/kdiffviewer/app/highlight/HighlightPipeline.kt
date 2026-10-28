@@ -9,7 +9,6 @@ import io.github.mataku.compose.highlight.core.HighlightSpan
 import io.github.mataku.compose.highlight.core.HighlightedLine
 import io.github.mataku.kdiffviewer.core.git.ContentSession
 import io.github.mataku.kdiffviewer.core.git.ContentSource
-import io.github.mataku.kdiffviewer.core.git.UNTRACKED_SIZE_LIMIT
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.FileDiff
@@ -33,6 +32,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.max
 
+const val HIGHLIGHT_SIZE_LIMIT: Long = 131_072
+
 @Stable
 class HighlightSlot {
   var value: FileHighlight? by mutableStateOf(null)
@@ -53,6 +54,7 @@ class HighlightPipeline<L>(
   private val highlighter: LineHighlighter<L>,
   private val dispatcher: CoroutineDispatcher,
   private val workers: Int = max(1, availableProcessors / 2),
+  private val sizeLimit: Long = HIGHLIGHT_SIZE_LIMIT,
   private val onFailure: (Throwable) -> Unit = { it.printStackTrace() },
 ) {
   fun start(scope: CoroutineScope, repo: RepoPath, base: ResolvedBase): HighlightRun {
@@ -118,7 +120,7 @@ class HighlightPipeline<L>(
     val ranges = file.highlightRanges(side)
     if (ranges.isEmpty()) return null
     val language = languages.languageFor(path) ?: return null
-    val text = sessions.get().read(file, side, UNTRACKED_SIZE_LIMIT) ?: return null
+    val text = sessions.get().read(file, side, sizeLimit) ?: return null
     return try {
       highlighter.highlight(text, language, ranges)
     } catch (e: CancellationException) {
