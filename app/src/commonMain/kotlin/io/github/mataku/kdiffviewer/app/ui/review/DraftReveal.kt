@@ -2,8 +2,11 @@ package io.github.mataku.kdiffviewer.app.ui.review
 
 import androidx.compose.runtime.State
 import io.github.mataku.kdiffviewer.app.DiffLayout
+import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
+import io.github.mataku.kdiffviewer.app.DisplayRows
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
+import io.github.mataku.kdiffviewer.core.model.Side
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.ReviewThread
 
@@ -34,17 +37,26 @@ internal fun Placement.fileIndexOrNull(): Int? = when (this) {
   Placement.Orphan -> null
 }
 
-internal fun revealIndex(placement: Placement, layout: DiffLayout, rows: List<DiffRow>): Int {
+internal fun revealIndex(placement: Placement, layout: DiffLayout, rows: List<DiffRow>, display: DisplayRows, side: Side?): Int {
   val fileIndex = placement.fileIndexOrNull()
   if (fileIndex == null || fileIndex >= layout.fileCount) return 0
   val header = layout.headerRowIndex(fileIndex)
   if (placement !is Placement.OnLine) return layout.headerVisibleIndex(fileIndex)
   val location = placement.location
+  fun matches(unifiedRow: Int): Boolean {
+    val row = rows.getOrNull(unifiedRow) as? DiffRow.Line ?: return false
+    return row.hunkIndex == location.hunkIndex && row.lineIndex == location.lineIndex
+  }
   for (offset in 1..layout.bodyRowCount(fileIndex)) {
-    val row = rows[header + offset]
-    if (row is DiffRow.Line && row.hunkIndex == location.hunkIndex && row.lineIndex == location.lineIndex) {
-      return layout.visibleIndexOf(header + offset)
+    val displayRow = header + offset
+    val hit = if (display.mode == DiffMode.Unified) {
+      matches(displayRow)
+    } else if (side == null) {
+      matches(display.unifiedOf(displayRow, Side.Old)) || matches(display.unifiedOf(displayRow, Side.New))
+    } else {
+      matches(display.unifiedOf(displayRow, side))
     }
+    if (hit) return layout.visibleIndexOf(displayRow)
   }
   return layout.headerVisibleIndex(fileIndex)
 }

@@ -93,6 +93,8 @@ fun ViewerScreen(
   loadBranches: suspend () -> List<BranchRef> = { emptyList() },
   onSwitchBase: suspend (BaseSpec) -> ViewerError? = { null },
   scrollJumps: ScrollJumps? = null,
+  mode: DiffMode = DiffMode.Unified,
+  onModeChange: (DiffMode) -> Unit = {},
 ) {
   val colors = LocalDiffColors.current
   val listState = rememberLazyListState()
@@ -104,11 +106,11 @@ fun ViewerScreen(
   val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(draftTarget) else emptySet() }
   val hasOrphans = shown && (review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
   val hasEnd = state.status == LoadStatus.Done && state.files.isNotEmpty()
-  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasOrphans, hasEnd) {
-    diffLayoutOf(state, DiffMode.Unified, notesFiles, hasOrphans, hasEnd)
+  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasOrphans, hasEnd, mode, state.split) {
+    diffLayoutOf(state, mode, notesFiles, hasOrphans, hasEnd)
   }
   val currentLayout by rememberUpdatedState(layout)
-  val display = remember(state.rows, state.split) { state.displayRows(DiffMode.Unified) }
+  val display = remember(state.rows, state.split, mode) { state.displayRows(mode) }
   val currentDisplay by rememberUpdatedState(display)
   LaunchedEffect(scrollJumps, listState) {
     scrollJumps?.requests?.collect { jump ->
@@ -118,7 +120,7 @@ fun ViewerScreen(
   }
   val coordinator = LocalTextSelectionCoordinator.current
   val diffSelection = remember { DiffSelectionState() }
-  diffSelection.resetFor(listOf(state.loadId, state.collapsed, state.expanded, DiffMode.Unified))
+  diffSelection.resetFor(listOf(state.loadId, state.collapsed, state.expanded, mode))
   val selectionSource = remember(diffSelection) {
     DiffSelectionSource(
       diffSelection,
@@ -151,10 +153,10 @@ fun ViewerScreen(
       currentOnExpandFile(fileIndex)
       withTimeoutOrNull(1_000) { snapshotFlow { currentLayout }.first { !it.isCollapsed(fileIndex) } }
     }
-    val index = revealIndex(placement, currentLayout, currentState.rows)
+    val index = revealIndex(placement, currentLayout, currentState.rows, currentDisplay, null)
     listState.scrollToItem(index)
     if (fileIndex != null && placement is Placement.OnLine) {
-      val headerKey = (currentState.rows[currentLayout.headerRowIndex(fileIndex)]).key
+      val headerKey = currentState.rows[currentDisplay.unifiedOf(currentLayout.headerRowIndex(fileIndex))].key
       val pinned = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == headerKey && it.index != index }
       if (pinned != null) listState.scrollBy(-pinned.size.toFloat())
     }
@@ -291,6 +293,7 @@ fun ViewerScreen(
             DiffView(
               rows = state.rows,
               layout = layout,
+              display = display,
               highlights = state.highlights,
               listState = listState,
               files = state.files,

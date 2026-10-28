@@ -23,6 +23,7 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.compose.highlight.core.HighlightSpan
 import io.github.mataku.kdiffviewer.app.CollapsedFile
+import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.LARGE_DIFF_LINES
 import io.github.mataku.kdiffviewer.app.LoadStatus
@@ -60,6 +62,7 @@ import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.ReviewState
 import io.github.mataku.kdiffviewer.app.review.buildPlacements
+import io.github.mataku.kdiffviewer.app.splitRowsOf
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.BranchRef
@@ -1348,6 +1351,61 @@ class ViewerScreenTest {
     jumps.request(ScrollJump.Top)
     waitForIdle()
     onNodeWithText("No changes").assertIsDisplayed()
+  }
+
+  private fun splitState(vararg body: DiffLine): ViewerUiState {
+    val file = FileDiff("a.kt", "a.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", body.toList()))))
+    val state = stateOf(listOf(file))
+    return state.copy(split = splitRowsOf(state.rows))
+  }
+
+  @Test
+  fun splitShowsPairInOneItem() = runComposeUiTest {
+    val state = splitState(DiffLine(LineKind.Removed, "oldtext", 1, null), DiffLine(LineKind.Added, "newtext", null, 1))
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split) } }
+    val old = onNodeWithText("oldtext", useUnmergedTree = true).getUnclippedBoundsInRoot()
+    val new = onNodeWithText("newtext", useUnmergedTree = true).getUnclippedBoundsInRoot()
+    assertEquals(old.top, new.top)
+    assertTrue(new.left > old.right, "old=$old new=$new")
+  }
+
+  @Test
+  fun splitPadsUnpairedLine() = runComposeUiTest {
+    val state = splitState(
+      DiffLine(LineKind.Removed, "aaa", 1, null),
+      DiffLine(LineKind.Removed, "bbb", 2, null),
+      DiffLine(LineKind.Added, "ccc", null, 1),
+    )
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split) } }
+    val a = onNodeWithText("aaa", useUnmergedTree = true).getUnclippedBoundsInRoot()
+    val b = onNodeWithText("bbb", useUnmergedTree = true).getUnclippedBoundsInRoot()
+    val c = onNodeWithText("ccc", useUnmergedTree = true).getUnclippedBoundsInRoot()
+    assertEquals(a.top, c.top)
+    assertTrue(b.top > a.top, "a=$a b=$b")
+    onAllNodesWithText("+", useUnmergedTree = true).assertCountEquals(1)
+    onAllNodesWithText("-", useUnmergedTree = true).assertCountEquals(2)
+  }
+
+  @Test
+  fun splitContextOnBothSides() = runComposeUiTest {
+    val state = splitState(DiffLine(LineKind.Context, "same", 1, 1))
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split) } }
+    onAllNodesWithText("same", useUnmergedTree = true).assertCountEquals(2)
+  }
+
+  @Test
+  fun splitKeepsFileHeaderFullWidth() = runComposeUiTest {
+    val state = splitState(DiffLine(LineKind.Removed, "oldtext", 1, null), DiffLine(LineKind.Added, "newtext", null, 1))
+    var mode by mutableStateOf(DiffMode.Unified)
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = mode) } }
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val margin = with(density) { ContentHorizontalMargin.toPx() }
+    val unified = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot.width
+    mode = DiffMode.Split
+    waitForIdle()
+    val split = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot.width
+    assertEquals(unified, split)
+    assertTrue(abs(list.width - 2 * margin - split) <= 1f, "list=$list header=$split")
   }
 }
 

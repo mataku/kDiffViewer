@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpOffset
 import io.github.mataku.kdiffviewer.app.DiffLayout
 import io.github.mataku.kdiffviewer.app.DiffRow
+import io.github.mataku.kdiffviewer.app.DisplayRows
 import io.github.mataku.kdiffviewer.app.selection.ClickCounter
 import io.github.mataku.kdiffviewer.app.selection.ContextMenuItem
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
@@ -43,6 +44,7 @@ import io.github.mataku.kdiffviewer.app.selection.nextSelectableRow
 import io.github.mataku.kdiffviewer.app.selection.positionAtOrAfter
 import io.github.mataku.kdiffviewer.app.selection.selectableRow
 import io.github.mataku.kdiffviewer.app.selection.selectedText
+import io.github.mataku.kdiffviewer.core.model.Side
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -53,15 +55,18 @@ private const val MAX_AUTO_SCROLL_STEP = 40f
 class VisibleLineLayouts {
   private val layouts = HashMap<Int, TextLayoutResult>()
 
-  fun register(row: Int, layout: TextLayoutResult) {
-    layouts[row] = layout
+  private fun keyOf(row: Int, side: Side?): Int = row * 2 + (if (side == Side.New) 1 else 0)
+
+  fun register(row: Int, side: Side?, layout: TextLayoutResult) {
+    layouts[keyOf(row, side)] = layout
   }
 
-  fun unregister(row: Int, layout: TextLayoutResult) {
-    if (layouts[row] === layout) layouts.remove(row)
+  fun unregister(row: Int, side: Side?, layout: TextLayoutResult) {
+    val key = keyOf(row, side)
+    if (layouts[key] === layout) layouts.remove(key)
   }
 
-  operator fun get(row: Int): TextLayoutResult? = layouts[row]
+  operator fun get(row: Int, side: Side?): TextLayoutResult? = layouts[keyOf(row, side)]
 }
 
 class DiffSelectionSource(
@@ -84,6 +89,7 @@ internal fun Modifier.diffSelectionGesture(
   layouts: VisibleLineLayouts,
   rows: List<DiffRow>,
   layout: DiffLayout,
+  display: DisplayRows,
   codeStartX: Float,
   tabWidth: Int,
 ): Modifier {
@@ -95,6 +101,7 @@ internal fun Modifier.diffSelectionGesture(
   SideEffect {
     gesture.rows = rows
     gesture.layout = layout
+    gesture.display = display
     gesture.coordinator = coordinator
     gesture.contextMenu = contextMenu
     gesture.codeStartX = codeStartX
@@ -113,6 +120,7 @@ internal class DiffSelectionGesture(
 ) {
   var rows: List<DiffRow> = emptyList()
   var layout: DiffLayout? = null
+  var display: DisplayRows? = null
   var coordinator: TextSelectionCoordinator? = null
   var contextMenu: NativeContextMenu? = null
   var codeStartX = 0f
@@ -231,14 +239,14 @@ internal class DiffSelectionGesture(
       val first = listState.layoutInfo.visibleItemsInfo.firstOrNull() ?: return null
       return if (position.y < first.offset) rows.positionAtOrAfter(0) else rows.positionAtOrAfter(rows.size)
     }
-    val row = layout.rowIndexOf(item.index)
+    val row = display?.unifiedOf(layout.rowIndexOf(item.index), null) ?: layout.rowIndexOf(item.index)
     val localY = position.y - item.offset
     val line = lineAt(row, localY)
     if (line == null) {
       if (press) return null
       return rows.positionAtOrAfter(if (rows.selectableRow(row)) row + 1 else row)
     }
-    val text = layouts[row]
+    val text = layouts[row, null]
     if (text == null || position.x < codeStartX) return TextPosition(row, 0)
     val display = text.getOffsetForPosition(Offset(position.x - codeStartX, localY))
     return TextPosition(row, displayToSource(line.line.text, display, tabWidth))
@@ -246,14 +254,14 @@ internal class DiffSelectionGesture(
 
   private fun lineAt(row: Int, localY: Float): DiffRow.Line? {
     if (!rows.selectableRow(row)) return null
-    val text = layouts[row]
+    val text = layouts[row, null]
     if (text != null && localY >= text.size.height) return null
     return rows[row] as DiffRow.Line
   }
 
   private fun selectWord(hit: TextPosition, position: Offset) {
     val item = itemAt(position.y, preferLast = false)
-    val text = layouts[hit.row]
+    val text = layouts[hit.row, null]
     if (item == null || text == null || position.x < codeStartX) {
       selection.start(hit)
       return
