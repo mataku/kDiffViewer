@@ -55,10 +55,12 @@ import io.github.mataku.kdiffviewer.app.displayRows
 import io.github.mataku.kdiffviewer.app.filterTree
 import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.isLargeDiff
+import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.notesFiles
 import io.github.mataku.kdiffviewer.app.review.threadFiles
+import io.github.mataku.kdiffviewer.app.review.toSide
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.ui.mac.TAG_FILL_ALPHA
@@ -77,6 +79,7 @@ import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
+import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -153,7 +156,7 @@ fun ViewerScreen(
       currentOnExpandFile(fileIndex)
       withTimeoutOrNull(1_000) { snapshotFlow { currentLayout }.first { !it.isCollapsed(fileIndex) } }
     }
-    val index = revealIndex(placement, currentLayout, currentState.rows, currentDisplay, null)
+    val index = revealIndex(placement, currentLayout, currentState.rows, currentDisplay, ((target as? DraftTarget.NewThread)?.anchor as? Anchor.Lines)?.side?.toSide())
     listState.scrollToItem(index)
     if (fileIndex != null && placement is Placement.OnLine) {
       val headerKey = currentState.rows[currentDisplay.unifiedOf(currentLayout.headerRowIndex(fileIndex))].key

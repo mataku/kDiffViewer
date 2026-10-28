@@ -25,6 +25,7 @@ import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -1409,6 +1410,109 @@ class ViewerScreenTest {
     val state = splitState(DiffLine(LineKind.Context, "same", 1, 1))
     setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split) } }
     onAllNodesWithText("same", useUnmergedTree = true).assertCountEquals(2)
+  }
+
+  private fun anchoredThread(id: String, side: io.github.mataku.kdiffviewer.core.review.Side, line: Int) = ReviewThread(id, Anchor.Lines("a.kt", side, line, line, listOf("same")), listOf(Comment("c$id", Author.User, "note $id", at)), false, false)
+
+  private fun splitReviewUi(vararg body: DiffLine): ViewerUiState = splitState(*body).copy(loadId = 1)
+
+  @Test
+  fun splitHoverShowsPlusOnHoveredSide() = runComposeUiTest {
+    val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 4, 6))
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
+    }
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    onAllNodesWithText("same", useUnmergedTree = true)[0].performMouseInput { moveTo(center) }
+    waitForIdle()
+    onAllNodesWithTag("add-comment").assertCountEquals(1)
+    assertTrue(onNodeWithTag("add-comment").fetchSemanticsNode().boundsInRoot.right < list.center.x)
+    onAllNodesWithText("same", useUnmergedTree = true)[1].performMouseInput { moveTo(center) }
+    waitForIdle()
+    onAllNodesWithTag("add-comment").assertCountEquals(1)
+    assertTrue(onNodeWithTag("add-comment").fetchSemanticsNode().boundsInRoot.left > list.center.x)
+  }
+
+  @Test
+  fun splitPlusOnLeftContextAnchorsOld() = runComposeUiTest {
+    val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 4, 6))
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
+    }
+    onAllNodesWithText("same", useUnmergedTree = true)[0].performMouseInput { moveTo(center) }
+    waitForIdle()
+    onNodeWithTag("add-comment").performClick()
+    waitForIdle()
+    val anchor = ((review.snapshot.value.draft!!.target) as DraftTarget.NewThread).anchor as Anchor.Lines
+    assertEquals(io.github.mataku.kdiffviewer.core.review.Side.Old, anchor.side)
+    assertEquals(4, anchor.startLine)
+  }
+
+  @Test
+  fun splitPlusOnRightAddedLineBesideNoNewlineLeft() = runComposeUiTest {
+    val ui = splitReviewUi(
+      DiffLine(LineKind.Removed, "gone", 1, null),
+      DiffLine(LineKind.NoNewlineAtEof, "", null, null),
+      DiffLine(LineKind.Added, "first", null, 1),
+      DiffLine(LineKind.Added, "fresh", null, 2),
+    )
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
+    }
+    onNodeWithText("fresh", useUnmergedTree = true).performMouseInput { moveTo(center) }
+    waitForIdle()
+    onAllNodesWithTag("add-comment").assertCountEquals(1)
+  }
+
+  @Test
+  fun splitThreadRendersInItsColumn() = runComposeUiTest {
+    val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 1, 1))
+    val threads = listOf(anchoredThread("t1", io.github.mataku.kdiffviewer.core.review.Side.Old, 1), anchoredThread("t2", io.github.mataku.kdiffviewer.core.review.Side.New, 1))
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshotOf(1, 1, threads, Placement.OnLine(LineLocation(0, 0, 0))), mode = DiffMode.Split) } }
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val old = onNodeWithTag("thread-t1").fetchSemanticsNode().boundsInRoot
+    val new = onNodeWithTag("thread-t2").fetchSemanticsNode().boundsInRoot
+    assertTrue(old.left < list.center.x && old.right <= list.center.x, "old=$old list=$list")
+    assertTrue(new.left > list.center.x, "new=$new list=$list")
+  }
+
+  @Test
+  fun splitDraftRendersInItsColumn() = runComposeUiTest {
+    val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 1, 1))
+    val review = reviewState(ui)
+    review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 0, io.github.mataku.kdiffviewer.core.review.Side.Old)!!, Placement.OnLine(LineLocation(0, 0, 0))))
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
+    }
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val composer = onNodeWithTag("comment-composer").fetchSemanticsNode().boundsInRoot
+    assertTrue(composer.right <= list.center.x, "composer=$composer list=$list")
+  }
+
+  @Test
+  fun draftSurvivesModeSwitch() = runComposeUiTest {
+    val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 1, 1))
+    val review = reviewState(ui)
+    review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 0, io.github.mataku.kdiffviewer.core.review.Side.New)!!, Placement.OnLine(LineLocation(0, 0, 0))))
+    var mode by mutableStateOf(DiffMode.Unified)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = mode) } }
+    }
+    onNodeWithTag("comment-composer").performTextInput("typed")
+    mode = DiffMode.Split
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertTextEquals("typed")
+    mode = DiffMode.Unified
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertTextEquals("typed")
   }
 
   @Test

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -50,6 +52,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
@@ -63,6 +66,7 @@ import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewPlacements
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.linePosition
+import io.github.mataku.kdiffviewer.app.review.toReviewSide
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.SelectionSource
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
@@ -75,9 +79,11 @@ import io.github.mataku.kdiffviewer.core.model.Side
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.LineLocation
 import io.github.mataku.kdiffviewer.core.review.Placement
+import io.github.mataku.kdiffviewer.core.review.ReviewThread
 import io.github.mataku.kdiffviewer.core.review.anchorOf
 import io.github.mataku.kdiffviewer.core.review.anchorPath
 import io.github.mataku.kdiffviewer.protocol.markControls
+import io.github.mataku.kdiffviewer.core.review.Side as ReviewSide
 
 private val FileHeaderTopMargin = 12.dp
 private val FileChevronSize = 12.dp
@@ -154,10 +160,11 @@ fun DiffView(
   val draftFileIndex = remember(draftPlacement) { (draftPlacement as? Placement.OnFile)?.fileIndex ?: -1 }
   val hasLineThreads = shown && placements.byLine.isNotEmpty()
   val hoveredKey = remember { mutableStateOf<String?>(null) }
-  val onAddComment: ((DiffRow.Line) -> Unit)? = remember(files, actions) {
+  val draftSide = remember(draftTarget) { ((draftTarget as? DraftTarget.NewThread)?.anchor as? Anchor.Lines)?.side }
+  val onAddComment: ((DiffRow.Line, Side?) -> Unit)? = remember(files, actions) {
     actions?.let { reviewActions ->
-      { row ->
-        anchorOf(files[row.fileIndex], row.hunkIndex, row.lineIndex)?.let { anchor ->
+      { row, side ->
+        anchorOf(files[row.fileIndex], row.hunkIndex, row.lineIndex, side?.toReviewSide())?.let { anchor ->
           reviewActions.startDraft(DraftTarget.NewThread(anchor, Placement.OnLine(LineLocation(row.fileIndex, row.hunkIndex, row.lineIndex))))
         }
       }
@@ -171,12 +178,13 @@ fun DiffView(
     }
   }
   val noteIndent = typography.lineNumberWidth * 2 + 16.dp
+  val splitNoteIndent = typography.lineNumberWidth + 16.dp
   val hoverModifier = if (onAddComment == null) {
     Modifier
   } else {
     Modifier
-      .onPointerEvent(PointerEventType.Enter) { event -> hoveredKey.value = keyAt(listState, event.changes.first().position.y) }
-      .onPointerEvent(PointerEventType.Move) { event -> hoveredKey.value = keyAt(listState, event.changes.first().position.y) }
+      .onPointerEvent(PointerEventType.Enter) { event -> hoveredKey.value = hoverKeyAt(listState, event.changes.first().position, split, contentStartX, splitHalfWidth) }
+      .onPointerEvent(PointerEventType.Move) { event -> hoveredKey.value = hoverKeyAt(listState, event.changes.first().position, split, contentStartX, splitHalfWidth) }
       .onPointerEvent(PointerEventType.Exit) { hoveredKey.value = null }
   }
   val selectionModifier = Modifier.diffSelectionGesture(listState, selection, selectionSource, layouts, rows, layout, display, contentStartX, codeStartX, splitHalfWidth, typography.tabWidth)
@@ -233,20 +241,21 @@ fun DiffView(
                 val slot = highlights.getOrNull(row.fileIndex)
                 val leftPos = if (leftRow != null && (hasLineThreads || draftLinePos >= 0)) linePosition(leftRow.fileIndex, leftRow.hunkIndex, leftRow.lineIndex) else -1L
                 val rightPos = if (rightRow != null && (hasLineThreads || draftLinePos >= 0)) linePosition(rightRow.fileIndex, rightRow.hunkIndex, rightRow.lineIndex) else -1L
-                val leftThreads = if (hasLineThreads && leftPos >= 0) placements.byLine[leftPos] else null
-                val rightThreads = if (hasLineThreads && rightPos >= 0 && rightPos != leftPos) placements.byLine[rightPos] else null
-                val composing = draftLinePos >= 0 && (leftPos == draftLinePos || rightPos == draftLinePos)
-                if (leftThreads == null && rightThreads == null && !composing) {
+                val leftAll = if (hasLineThreads && leftPos >= 0) placements.byLine[leftPos] else null
+                val rightAll = if (hasLineThreads && rightPos >= 0) placements.byLine[rightPos] else null
+                val leftThreads = leftAll?.filter { (it.anchor as? Anchor.Lines)?.side == ReviewSide.Old }.orEmpty()
+                val rightThreads = rightAll?.filter { (it.anchor as? Anchor.Lines)?.side == ReviewSide.New }.orEmpty()
+                val composingLeft = draftLinePos >= 0 && leftPos == draftLinePos && draftSide == ReviewSide.Old
+                val composingRight = draftLinePos >= 0 && rightPos == draftLinePos && draftSide == ReviewSide.New
+                if (leftThreads.isEmpty() && rightThreads.isEmpty() && !composingLeft && !composingRight) {
                   SplitLineRow(leftRow, display.unifiedOf(displayRow, Side.Old), rightRow, display.unifiedOf(displayRow, Side.New), slot, hoveredKey, onAddComment, selection, layouts)
                 } else {
-                  val threads = when {
-                    leftThreads == null -> rightThreads.orEmpty()
-                    rightThreads == null -> leftThreads
-                    else -> leftThreads + rightThreads
-                  }
                   Column {
                     SplitLineRow(leftRow, display.unifiedOf(displayRow, Side.Old), rightRow, display.unifiedOf(displayRow, Side.New), slot, hoveredKey, onAddComment, selection, layouts)
-                    NoteStack(threads, draft, composing, Modifier.padding(start = noteIndent, end = 8.dp))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                      SplitNoteColumn(leftThreads, draft, composingLeft, splitNoteIndent, Modifier.weight(1f))
+                      SplitNoteColumn(rightThreads, draft, composingRight, splitNoteIndent, Modifier.weight(1f))
+                    }
                   }
                 }
               }
@@ -291,6 +300,21 @@ fun DiffView(
 }
 
 private fun keyAt(listState: LazyListState, y: Float): String? = listState.layoutInfo.visibleItemsInfo.firstOrNull { y >= it.offset && y < it.offset + it.size }?.key as? String
+
+private fun hoverKeyAt(listState: LazyListState, position: Offset, split: Boolean, contentStartX: Float, splitHalfWidth: () -> Float): String? {
+  val key = keyAt(listState, position.y) ?: return null
+  if (!split) return key
+  return key + if (position.x - contentStartX < splitHalfWidth()) ":L" else ":R"
+}
+
+@Composable
+private fun SplitNoteColumn(threads: List<ReviewThread>, draft: DraftTarget?, composing: Boolean, indent: Dp, modifier: Modifier) {
+  if (threads.isEmpty() && !composing) {
+    Spacer(modifier)
+  } else {
+    NoteStack(threads, draft, composing, modifier.padding(start = indent, end = 8.dp))
+  }
+}
 
 private fun FileDiff.headerTitle(): String {
   val old = oldPath
@@ -411,7 +435,7 @@ private fun LineRow(
   rowIndex: Int,
   slot: HighlightSlot?,
   hoveredKey: State<String?>,
-  onAddComment: ((DiffRow.Line) -> Unit)?,
+  onAddComment: ((DiffRow.Line, Side?) -> Unit)?,
   selection: DiffSelectionState,
   layouts: VisibleLineLayouts,
 ) {
@@ -428,16 +452,18 @@ private fun SplitLineRow(
   rightIndex: Int,
   slot: HighlightSlot?,
   hoveredKey: State<String?>,
-  onAddComment: ((DiffRow.Line) -> Unit)?,
+  onAddComment: ((DiffRow.Line, Side?) -> Unit)?,
   selection: DiffSelectionState,
   layouts: VisibleLineLayouts,
 ) {
   val key = remember(left?.key, right?.key) { "s" + (left?.key ?: "-") + "|" + (right?.key ?: "-") }
-  val hovered by remember(key) { derivedStateOf { hoveredKey.value == key } }
-  val onAdd = if (hovered) onAddComment else null
+  val leftKey = remember(key) { "$key:L" }
+  val rightKey = remember(key) { "$key:R" }
+  val leftHovered by remember(leftKey) { derivedStateOf { hoveredKey.value == leftKey } }
+  val rightHovered by remember(rightKey) { derivedStateOf { hoveredKey.value == rightKey } }
   Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-    LineHalf(left, leftIndex, Side.Old, slot, onAdd, selection, layouts, Modifier.weight(1f).fillMaxHeight())
-    LineHalf(right, rightIndex, Side.New, slot, if (left == null) onAdd else null, selection, layouts, Modifier.weight(1f).fillMaxHeight())
+    LineHalf(left, leftIndex, Side.Old, slot, if (leftHovered) onAddComment else null, selection, layouts, Modifier.weight(1f).fillMaxHeight())
+    LineHalf(right, rightIndex, Side.New, slot, if (rightHovered) onAddComment else null, selection, layouts, Modifier.weight(1f).fillMaxHeight())
   }
 }
 
@@ -447,7 +473,7 @@ private fun LineHalf(
   rowIndex: Int,
   side: Side?,
   slot: HighlightSlot?,
-  onAddComment: ((DiffRow.Line) -> Unit)?,
+  onAddComment: ((DiffRow.Line, Side?) -> Unit)?,
   selection: DiffSelectionState,
   layouts: VisibleLineLayouts,
   modifier: Modifier,
@@ -493,8 +519,8 @@ private fun LineHalf(
   val controlStyle = typography.controlMarker
   val selectionColor = colors.selectionBackground
   Row(modifier = modifier) {
-    if (side != Side.New) LineNumberCell(line.oldLineNo, numberBackground, typography, row, onAddComment)
-    if (side != Side.Old) LineNumberCell(line.newLineNo, numberBackground, typography, if (side == Side.New) row else null, if (side == Side.New) onAddComment else null)
+    if (side != Side.New) LineNumberCell(line.oldLineNo, numberBackground, typography, row, side, onAddComment)
+    if (side != Side.Old) LineNumberCell(line.newLineNo, numberBackground, typography, if (side == Side.New) row else null, side, if (side == Side.New) onAddComment else null)
     Box(modifier = Modifier.width(16.dp).fillMaxHeight().background(contentBackground)) {
       BasicText(
         text = marker,
@@ -530,7 +556,7 @@ private fun LineHalf(
 }
 
 @Composable
-private fun LineNumberCell(number: Int?, background: Color, typography: DiffTypography, row: DiffRow.Line?, onAdd: ((DiffRow.Line) -> Unit)?) {
+private fun LineNumberCell(number: Int?, background: Color, typography: DiffTypography, row: DiffRow.Line?, side: Side?, onAdd: ((DiffRow.Line, Side?) -> Unit)?) {
   Box(modifier = Modifier.width(typography.lineNumberWidth).fillMaxHeight().background(background).padding(end = 6.dp)) {
     BasicText(
       text = number?.toString().orEmpty(),
@@ -549,7 +575,7 @@ private fun LineNumberCell(number: Int?, background: Color, typography: DiffTypo
           .size(size)
           .clip(RoundedCornerShape(3.dp))
           .background(colors.accent)
-          .clickable(interactionSource = null, indication = null) { onAdd(row) },
+          .clickable(interactionSource = null, indication = null) { onAdd(row, side) },
         contentAlignment = Alignment.Center,
       ) {
         Image(imageVector = KdvIcons.Plus, contentDescription = "Add comment", modifier = Modifier.size(10.dp), colorFilter = ColorFilter.tint(Color.White))
