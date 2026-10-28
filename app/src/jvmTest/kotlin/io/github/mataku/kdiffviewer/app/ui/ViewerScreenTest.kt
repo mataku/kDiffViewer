@@ -639,6 +639,44 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun largeDiffWithThreadExpandsOncePerLoad() = runComposeUiTest {
+    var ui by mutableStateOf(stateOf(listOf(modified("a.kt")), largeDiffLines = 2).copy(loadId = 1))
+    var review by mutableStateOf(snapshotOf(1, 1, listOf(staticThread()), Placement.OnFile(0)))
+    val expanded = mutableListOf<Int>()
+    val entry = CollapsedFile(ui.files[0].displayPath, ui.fingerprints[0])
+    setContent {
+      ViewerScreen(
+        ui,
+        {},
+        onToggleFile = { ui = ui.copy(expanded = if (entry in ui.expanded) ui.expanded - entry else ui.expanded + entry) },
+        onExpandFile = {
+          expanded += it
+          ui = ui.copy(expanded = ui.expanded + entry)
+        },
+        review = review,
+      )
+    }
+    waitForIdle()
+    assertEquals(listOf(0), expanded)
+    onNodeWithTag("file-header-0").performClick()
+    waitForIdle()
+    assertTrue(ui.isCollapsed(0))
+    assertEquals(listOf(0), expanded)
+    ui = ui.copy(loadId = 2)
+    review = snapshotOf(2, 2, listOf(staticThread()), Placement.OnFile(0))
+    waitForIdle()
+    assertEquals(listOf(0, 0), expanded)
+  }
+
+  @Test
+  fun largeDiffWithoutThreadStaysCollapsed() = runComposeUiTest {
+    val expanded = mutableListOf<Int>()
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt")), largeDiffLines = 2).copy(loadId = 1), {}, onExpandFile = { expanded += it }, review = snapshotOf(1, 1, emptyList(), null)) }
+    waitForIdle()
+    assertEquals(emptyList(), expanded)
+  }
+
+  @Test
   fun chevronClickTogglesFile() = runComposeUiTest {
     val toggled = mutableListOf<Int>()
     setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, onToggleFile = { toggled += it }) }

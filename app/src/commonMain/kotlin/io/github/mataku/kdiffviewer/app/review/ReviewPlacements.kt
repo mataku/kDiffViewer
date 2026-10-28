@@ -37,6 +37,12 @@ fun ReviewPlacements.notesFiles(target: DraftTarget?): Set<Int> {
   return byFile.keys + draftFile
 }
 
+fun ReviewPlacements.threadFiles(): Set<Int> {
+  val files = HashSet<Int>(byFile.keys)
+  for (position in byLine.keys) files += (position shr 40).toInt()
+  return files
+}
+
 internal fun buildPlacements(loadId: Long, threads: List<ReviewThread>, placementById: Map<String, Placement>): ReviewPlacements {
   val byLine = LinkedHashMap<Long, MutableList<ReviewThread>>()
   val byFile = LinkedHashMap<Int, MutableList<ReviewThread>>()
