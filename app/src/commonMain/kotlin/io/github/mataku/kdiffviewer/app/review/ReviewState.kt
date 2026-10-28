@@ -20,8 +20,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Instant
 
@@ -61,6 +63,18 @@ data class ReviewCore(
 }
 
 enum class DraftMode { Single, Review }
+
+sealed interface WaitOutcome {
+  data class Delivered(val submissions: List<Submission>, val generation: Int) : WaitOutcome
+
+  data object TimedOut : WaitOutcome
+
+  data object Superseded : WaitOutcome
+
+  data object RepositoryChanged : WaitOutcome
+
+  data object NoRepository : WaitOutcome
+}
 
 data class LoadSettlement(val failed: Boolean, val files: Int, val outdated: Int)
 
@@ -232,6 +246,48 @@ class ReviewState(
       }
       val state = if (approve) SubmissionState.Approved else SubmissionState.Comment
       current.withThreads(threads, current.core).withSubmission(state, text, pendingIds) to Unit
+    }
+  }
+
+  suspend fun awaitSubmissions(timeoutMillis: Long?): WaitOutcome {
+    val entry = mutate { current ->
+      if (current.core.repo == null) return@mutate current to null
+      val token = current.core.waiterToken + 1
+      current.copy(waiting = true, core = current.core.copy(waiterToken = token)) to (current.core.generation to token)
+    } ?: return WaitOutcome.NoRepository
+    val (generation, token) = entry
+    try {
+      val wait: suspend () -> WaitOutcome = {
+        snapshot.mapNotNull { current ->
+          when {
+            current.core.generation != generation -> WaitOutcome.RepositoryChanged
+
+            current.core.waiterToken != token -> WaitOutcome.Superseded
+
+            else ->
+              current.submissions
+                .filter { it.number > current.core.deliveredThrough }
+                .takeIf { it.isNotEmpty() }
+                ?.let { WaitOutcome.Delivered(it, generation) }
+          }
+        }.first()
+      }
+      return if (timeoutMillis == null) wait() else withTimeoutOrNull(timeoutMillis) { wait() } ?: WaitOutcome.TimedOut
+    } finally {
+      mutate { current ->
+        if (current.core.generation == generation && current.core.waiterToken == token && current.waiting) {
+          current.copy(waiting = false) to Unit
+        } else {
+          current to Unit
+        }
+      }
+    }
+  }
+
+  fun markDelivered(generation: Int, throughNumber: Int) {
+    mutate { current ->
+      if (current.core.generation != generation || throughNumber <= current.core.deliveredThrough) return@mutate current to Unit
+      current.copy(core = current.core.copy(deliveredThrough = throughNumber)) to Unit
     }
   }
 

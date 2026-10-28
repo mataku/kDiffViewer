@@ -529,4 +529,122 @@ class ReviewStateTest {
     state.submitReview(null, approve = true)
     assertEquals("r1", state.snapshot.value.submissions.single().id)
   }
+
+  private fun TestScope.openState(): ReviewState = newState().also { it.onViewerState(ui(1, base)) }
+
+  @Test
+  fun noRepository() = runTest(StandardTestDispatcher()) {
+    assertEquals(WaitOutcome.NoRepository, newState().awaitSubmissions(null))
+  }
+
+  @Test
+  fun queuedSubmissionReturnsImmediately() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 1)
+    val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    assertEquals(listOf("r1"), outcome.submissions.map { it.id })
+    state.markDelivered(outcome.generation, 1)
+    assertEquals(WaitOutcome.TimedOut, state.awaitSubmissions(10))
+    assertFalse(state.snapshot.value.waiting)
+  }
+
+  @Test
+  fun waitResumesOnSubmit() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    val waiter = async { state.awaitSubmissions(null) }
+    runCurrent()
+    assertTrue(state.snapshot.value.waiting)
+    state.addThread(base, 1, mode = DraftMode.Review)
+    runCurrent()
+    assertFalse(waiter.isCompleted)
+    state.submitReview(null, approve = true)
+    val outcome = assertIs<WaitOutcome.Delivered>(waiter.await())
+    assertEquals(SubmissionState.Approved, outcome.submissions.single().state)
+    assertFalse(state.snapshot.value.waiting)
+  }
+
+  @Test
+  fun cursorUnchangedWithoutMarkDelivered() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 1)
+    assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    val again = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    assertEquals(listOf("r1"), again.submissions.map { it.id })
+  }
+
+  @Test
+  fun deliveryReturnsEveryUndeliveredSubmission() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 0)
+    state.addThread(base, 1)
+    val first = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    state.markDelivered(first.generation, 1)
+    state.addThread(base, 2)
+    val second = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    assertEquals(listOf("r2", "r3"), second.submissions.map { it.id })
+  }
+
+  @Test
+  fun timeoutLeavesCursor() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    assertEquals(WaitOutcome.TimedOut, state.awaitSubmissions(1_000))
+    assertEquals(0, state.snapshot.value.core.deliveredThrough)
+    assertFalse(state.snapshot.value.waiting)
+  }
+
+  @Test
+  fun secondWaiterSupersedesFirst() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    val first = async { state.awaitSubmissions(null) }
+    runCurrent()
+    val second = async { state.awaitSubmissions(null) }
+    runCurrent()
+    assertEquals(WaitOutcome.Superseded, first.await())
+    assertTrue(state.snapshot.value.waiting)
+    state.addThread(base, 1)
+    assertIs<WaitOutcome.Delivered>(second.await())
+  }
+
+  @Test
+  fun repositorySwitchFailsWaiter() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    val waiter = async { state.awaitSubmissions(null) }
+    runCurrent()
+    state.onViewerState(ui(2, base, repo = RepoPath("/other"), status = LoadStatus.Loading))
+    assertEquals(WaitOutcome.RepositoryChanged, waiter.await())
+    assertFalse(state.snapshot.value.waiting)
+  }
+
+  @Test
+  fun cancelledWaitClearsWaiting() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    val waiter = async { state.awaitSubmissions(null) }
+    runCurrent()
+    assertTrue(state.snapshot.value.waiting)
+    waiter.cancel()
+    runCurrent()
+    assertFalse(state.snapshot.value.waiting)
+  }
+
+  @Test
+  fun markDeliveredIgnoresOldGeneration() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 1)
+    val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    state.onViewerState(ui(2, base, repo = RepoPath("/other"), status = LoadStatus.Loading))
+    state.addThread(base, 1)
+    state.markDelivered(outcome.generation, 1)
+    assertEquals(0, state.snapshot.value.core.deliveredThrough)
+  }
+
+  @Test
+  fun markDeliveredNeverLowersCursor() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 0)
+    state.addThread(base, 1)
+    val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    state.markDelivered(outcome.generation, 2)
+    state.markDelivered(outcome.generation, 1)
+    assertEquals(2, state.snapshot.value.core.deliveredThrough)
+  }
 }
