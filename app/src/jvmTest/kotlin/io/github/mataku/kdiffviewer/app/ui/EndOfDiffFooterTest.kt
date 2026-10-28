@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -49,8 +50,8 @@ class EndOfDiffFooterTest {
   @Test
   fun artAndCaptionHiddenWhenFooterIsNarrowerThanArt() = runComposeUiTest {
     setContent { KdvTheme(colorTheme = ColorTheme.Light) { Box(Modifier.width(179.dp)) { EndOfDiffFooter() } } }
-    onNodeWithTag("end-of-diff-art").assertDoesNotExist()
-    onNodeWithText("It fits. You're done.").assertDoesNotExist()
+    onNodeWithTag("end-of-diff-art").assertIsNotDisplayed()
+    onNodeWithText("It fits. You're done.").assertIsNotDisplayed()
   }
 
   @Test
