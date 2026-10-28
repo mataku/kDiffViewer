@@ -141,7 +141,7 @@ class ReviewState(
 
   suspend fun awaitSettled(loadId: Long): LoadSettlement {
     val settled = snapshot.first { it.settledLoadId >= loadId }
-    return LoadSettlement(settled.lastLoadFailed, settled.core.settledFiles, settled.threads.count { it.outdated })
+    return LoadSettlement(settled.lastLoadFailed, settled.core.settledFiles, settled.threads.count { it.outdated && !it.isPending })
   }
 
   override fun startDraft(target: DraftTarget): Boolean = mutate { current ->
@@ -183,7 +183,8 @@ class ReviewState(
       val draft = current.draft ?: return@mutate current to Unit
       if (draft.text.isBlank()) return@mutate current to Unit
       val core = current.core
-      val pending = mode == DraftMode.Review
+      val target = draft.target
+      val pending = mode == DraftMode.Review || (target is DraftTarget.Reply && current.threads.any { it.id == target.threadId && it.isPending })
       val next = when (val target = draft.target) {
         is DraftTarget.NewThread -> {
           val comment = Comment("c${core.nextCommentNumber}", Author.User, draft.text, now(), pending)

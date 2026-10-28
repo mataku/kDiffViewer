@@ -202,6 +202,28 @@ class ReviewStateTest {
   }
 
   @Test
+  fun awaitSettledExcludesPendingThreadsFromOutdated() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.onViewerState(ui(1, base))
+    advanceUntilIdle()
+    state.addThread(base, 1, mode = DraftMode.Review)
+    state.onViewerState(ui(2, file("a.kt", "a", "q", "c")))
+    advanceUntilIdle()
+    assertTrue(state.snapshot.value.threads.single().outdated)
+    assertEquals(LoadSettlement(false, 1, 0), state.awaitSettled(2))
+  }
+
+  @Test
+  fun singleReplyToPendingThreadStaysPending() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.addThread(base, 1, mode = DraftMode.Review)
+    state.addReply("t1", "more", DraftMode.Single)
+    assertTrue(state.snapshot.value.threads.single().comments.all { it.pending })
+    assertTrue(state.snapshot.value.submissions.isEmpty())
+    assertTrue(state.threads(includeResolved = true).isEmpty())
+  }
+
+  @Test
   fun awaitSettledReturnsImmediatelyWhenAlreadySettled() = runTest(StandardTestDispatcher()) {
     val state = newState()
     state.onViewerState(ui(3, base))
