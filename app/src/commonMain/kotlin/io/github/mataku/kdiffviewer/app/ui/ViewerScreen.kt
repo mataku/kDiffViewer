@@ -303,19 +303,19 @@ fun ViewerScreen(
               LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
             }
           }
-          if (review.pendingCount > 0 || review.waiting) {
-            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-            ReviewBar(
-              pendingCount = review.pendingCount,
-              waiting = review.waiting,
-              summary = reviewSummary,
-              onSummaryChange = { reviewSummary = it },
-              onSend = sendReview,
-            )
-          }
         }
       },
     )
+    if (review.pendingCount > 0 || review.waiting) {
+      Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+      ReviewBar(
+        pendingCount = review.pendingCount,
+        waiting = review.waiting,
+        summary = reviewSummary,
+        onSummaryChange = { reviewSummary = it },
+        onSend = sendReview,
+      )
+    }
   }
 }
 

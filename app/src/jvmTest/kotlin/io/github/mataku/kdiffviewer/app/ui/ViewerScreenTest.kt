@@ -1794,7 +1794,12 @@ class ViewerScreenTest {
       val snapshot by review.snapshot.collectAsState()
       CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
     }
-    onNode(hasTestTag("review-bar") and hasAnyAncestor(hasTestTag("diff-column"))).assertIsDisplayed()
+    onNode(hasTestTag("review-bar") and hasAnyAncestor(hasTestTag("diff-column"))).assertDoesNotExist()
+    val bar = onNodeWithTag("review-bar").assertIsDisplayed().getUnclippedBoundsInRoot()
+    val header = onNodeWithTag("repo-header").getUnclippedBoundsInRoot()
+    assertEquals(header.left, bar.left)
+    assertEquals(header.right, bar.right)
+    assertTrue(onNodeWithTag("diff-column").getUnclippedBoundsInRoot().bottom <= bar.top)
     onNode(hasText("Send to Agent") and hasAnyAncestor(hasTestTag("repo-header"))).assertDoesNotExist()
     onNodeWithText("Send to Agent").performClick()
     waitForIdle()
