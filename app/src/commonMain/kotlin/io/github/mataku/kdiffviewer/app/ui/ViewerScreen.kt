@@ -315,7 +315,7 @@ private fun RepoHeader(
 ) {
   val colors = LocalDiffColors.current
   val density = LocalDensity.current
-  val repoGap = with(density) { ContentHorizontalMargin.toPx() }
+  val repoAnchor = with(density) { (DefaultTreeWidth + PaneDividerWidth + ContentHorizontalMargin).toPx() }
   val startPadding = if (titleBarLeadingInset > 0.dp) titleBarLeadingInset + 8.dp else 20.dp
   val startPaddingPx = with(density) { startPadding.toPx() }
   val naturalLeft = remember { mutableFloatStateOf(0f) }
@@ -347,12 +347,12 @@ private fun RepoHeader(
         .weight(1f)
         .onPlaced { naturalLeft.floatValue = startPaddingPx + it.positionInParent().x }
         .layout { measurable, constraints ->
-          val shift = if (sidebar.diffNarrow) (sidebar.slideWidthPx + repoGap - naturalLeft.floatValue).coerceAtLeast(0f).roundToInt() else 0
+          val shift = if (sidebar.diffNarrow) (repoAnchor - naturalLeft.floatValue).coerceAtLeast(0f).roundToInt() else 0
           val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = (constraints.maxWidth - shift).coerceAtLeast(0)))
           layout(constraints.maxWidth, placeable.height) { placeable.placeRelative(shift, 0) }
         }
         .graphicsLayer {
-          translationX = if (sidebar.diffNarrow) 0f else sidebar.progress * (sidebar.slideWidthPx + repoGap - naturalLeft.floatValue).coerceAtLeast(0f)
+          translationX = if (sidebar.diffNarrow) 0f else sidebar.progress * (repoAnchor - naturalLeft.floatValue).coerceAtLeast(0f)
         },
     ) {
       BasicText(

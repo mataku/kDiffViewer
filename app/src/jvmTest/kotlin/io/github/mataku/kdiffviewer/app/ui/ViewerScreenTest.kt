@@ -606,12 +606,13 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun repoNameMovesWithTreeAfterDividerDrag() = runComposeUiTest {
+  fun repoNameStaysPutWhenDividerDragged() = runComposeUiTest {
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {
         ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
       }
     }
+    val before = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
     onNodeWithTag("tree-divider").performMouseInput {
       moveTo(center)
       press()
@@ -620,8 +621,8 @@ class ViewerScreenTest {
     }
     waitForIdle()
     val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
-    val name = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
-    assertEquals(diff.left + 20.dp, name.left)
+    assertTrue(diff.left > before.left - 20.dp, "divider drag did not move the diff column: diff=$diff")
+    assertEquals(before, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
   }
 
   @Test
