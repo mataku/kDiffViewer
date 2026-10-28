@@ -78,7 +78,7 @@ class LanguageResolverJvmTest {
   @Test
   fun realLanguagesResolve() = runTest {
     val r = resolver(defaultLanguageAccessors)
-    for (name in listOf("a.kt", "a.rb", "a.go", "a.rs", "a.swift", "a.py", "a.java", "a.js", "a.ts", "a.tsx", "a.md")) {
+    for (name in listOf("a.kt", "a.rb", "a.go", "a.rs", "a.swift", "a.py", "a.java", "a.js", "a.ts", "a.tsx", "a.md", "a.json", "a.yml", "a.html", "a.css", "a.sh")) {
       assertNotNull(r.languageFor(name), name)
     }
   }

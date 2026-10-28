@@ -2,9 +2,13 @@ package io.github.mataku.kdiffviewer.app.highlight
 
 import io.github.mataku.compose.highlight.api.Language
 import io.github.mataku.compose.highlight.api.Languages
+import io.github.mataku.compose.highlight.bash.Bash
+import io.github.mataku.compose.highlight.css.Css
 import io.github.mataku.compose.highlight.go.Go
+import io.github.mataku.compose.highlight.html.Html
 import io.github.mataku.compose.highlight.java.Java
 import io.github.mataku.compose.highlight.javascript.Javascript
+import io.github.mataku.compose.highlight.json.Json
 import io.github.mataku.compose.highlight.kotlin.Kotlin
 import io.github.mataku.compose.highlight.markdown.Markdown
 import io.github.mataku.compose.highlight.python.Python
@@ -13,10 +17,11 @@ import io.github.mataku.compose.highlight.rust.Rust
 import io.github.mataku.compose.highlight.swift.Swift
 import io.github.mataku.compose.highlight.tsx.Tsx
 import io.github.mataku.compose.highlight.typescript.Typescript
+import io.github.mataku.compose.highlight.yaml.Yaml
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-enum class LanguageId { Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScript, TypeScript, Tsx, Markdown }
+enum class LanguageId { Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScript, TypeScript, Tsx, Markdown, Json, Yaml, Html, Css, Bash }
 
 fun languageIdFor(path: String): LanguageId? {
   val name = path.substringAfterLast('/')
@@ -35,6 +40,11 @@ fun languageIdFor(path: String): LanguageId? {
       "ts" -> LanguageId.TypeScript
       "tsx" -> LanguageId.Tsx
       "md" -> LanguageId.Markdown
+      "json" -> LanguageId.Json
+      "yml", "yaml" -> LanguageId.Yaml
+      "html" -> LanguageId.Html
+      "css" -> LanguageId.Css
+      "sh", "bash", "zsh" -> LanguageId.Bash
       else -> null
     }
   }
@@ -54,6 +64,11 @@ fun languageIdForInfo(info: String): LanguageId? {
     "typescript", "ts" -> LanguageId.TypeScript
     "tsx" -> LanguageId.Tsx
     "markdown", "md" -> LanguageId.Markdown
+    "json" -> LanguageId.Json
+    "yaml", "yml" -> LanguageId.Yaml
+    "html" -> LanguageId.Html
+    "css" -> LanguageId.Css
+    "bash", "sh", "shell", "zsh" -> LanguageId.Bash
     else -> null
   }
 }
@@ -97,4 +112,9 @@ val defaultLanguageAccessors: Map<LanguageId, () -> Language> = mapOf(
   LanguageId.TypeScript to { Languages.Typescript },
   LanguageId.Tsx to { Languages.Tsx },
   LanguageId.Markdown to { Languages.Markdown },
+  LanguageId.Json to { Languages.Json },
+  LanguageId.Yaml to { Languages.Yaml },
+  LanguageId.Html to { Languages.Html },
+  LanguageId.Css to { Languages.Css },
+  LanguageId.Bash to { Languages.Bash },
 )

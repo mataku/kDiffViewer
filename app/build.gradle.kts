@@ -38,6 +38,11 @@ kotlin {
       implementation(libs.composeSyntaxHighlight.javascript)
       implementation(libs.composeSyntaxHighlight.typescript)
       implementation(libs.composeSyntaxHighlight.markdown)
+      implementation(libs.composeSyntaxHighlight.json)
+      implementation(libs.composeSyntaxHighlight.yaml)
+      implementation(libs.composeSyntaxHighlight.html)
+      implementation(libs.composeSyntaxHighlight.css)
+      implementation(libs.composeSyntaxHighlight.bash)
       implementation(libs.jetbrains.markdown)
       implementation(compose.components.resources)
     }
