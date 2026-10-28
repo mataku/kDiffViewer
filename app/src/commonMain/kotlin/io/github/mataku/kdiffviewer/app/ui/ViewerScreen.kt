@@ -267,29 +267,31 @@ fun ViewerScreen(
             }
           }
         }
-        MacSegmented(
-          options = DiffMode.entries,
-          selected = mode,
-          label = { it.name },
-          tag = { "diff-mode-${it.name.lowercase()}" },
-          onSelect = { if (it != mode) onModeChange(it) },
-          modifier = Modifier
-            .testTag("diff-mode-control")
-            .titleBarClientRegion("diff-mode"),
-          segmentWidth = 32.dp,
-          icon = { if (it == DiffMode.Unified) KdvIcons.Unified else KdvIcons.Split },
-          tooltip = { it.name },
-        )
-        Spacer(Modifier.width(8.dp))
-        GlassIconButton(
-          icon = KdvIcons.Reload,
-          contentDescription = "Reload",
-          tooltip = "Reload (⌘R)",
-          onClick = onReload,
-          modifier = Modifier
-            .testTag("reload-button")
-            .titleBarClientRegion("reload-button"),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          MacSegmented(
+            options = DiffMode.entries,
+            selected = mode,
+            label = { it.name },
+            tag = { "diff-mode-${it.name.lowercase()}" },
+            onSelect = { if (it != mode) onModeChange(it) },
+            modifier = Modifier
+              .testTag("diff-mode-control")
+              .titleBarClientRegion("diff-mode"),
+            segmentWidth = 32.dp,
+            icon = { if (it == DiffMode.Unified) KdvIcons.Unified else KdvIcons.Split },
+            tooltip = { it.name },
+          )
+          Spacer(Modifier.width(8.dp))
+          GlassIconButton(
+            icon = KdvIcons.Reload,
+            contentDescription = "Reload",
+            tooltip = "Reload (⌘R)",
+            onClick = onReload,
+            modifier = Modifier
+              .testTag("reload-button")
+              .titleBarClientRegion("reload-button"),
+          )
+        }
       }
       Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
       if (state.truncated) {

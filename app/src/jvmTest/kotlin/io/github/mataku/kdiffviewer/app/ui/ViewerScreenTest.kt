@@ -297,7 +297,10 @@ class ViewerScreenTest {
     val control = onNodeWithTag("diff-mode-control").fetchSemanticsNode().boundsInRoot
     val reload = onNodeWithTag("reload-button").fetchSemanticsNode().boundsInRoot
     assertTrue(regions.isClientArea(control.center))
-    assertTrue(control.right <= reload.left, "control=$control reload=$reload")
+    val header = onNodeWithTag("repo-header").fetchSemanticsNode().boundsInRoot
+    val gap = reload.left - control.right
+    assertTrue(kotlin.math.abs(gap - with(density) { 8.dp.toPx() }) <= with(density) { 0.5.dp.toPx() }, "gap=$gap control=$control reload=$reload")
+    assertTrue(control.right > header.center.x, "control=$control header=$header")
     onNodeWithTag("diff-mode-split").assertWidthIsEqualTo(32.dp)
   }
 
