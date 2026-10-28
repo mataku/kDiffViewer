@@ -29,6 +29,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpOffset
 import io.github.mataku.kdiffviewer.app.DiffLayout
+import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.DisplayRows
 import io.github.mataku.kdiffviewer.app.selection.ClickCounter
@@ -90,7 +91,9 @@ internal fun Modifier.diffSelectionGesture(
   rows: List<DiffRow>,
   layout: DiffLayout,
   display: DisplayRows,
+  contentStartX: Float,
   codeStartX: Float,
+  splitHalfWidth: () -> Float,
   tabWidth: Int,
 ): Modifier {
   val coordinator = LocalTextSelectionCoordinator.current
@@ -104,7 +107,9 @@ internal fun Modifier.diffSelectionGesture(
     gesture.display = display
     gesture.coordinator = coordinator
     gesture.contextMenu = contextMenu
+    gesture.contentStartX = contentStartX
     gesture.codeStartX = codeStartX
+    gesture.splitHalfWidth = splitHalfWidth
     gesture.tabWidth = tabWidth
     gesture.density = density
     gesture.focusManager = focusManager
@@ -123,7 +128,9 @@ internal class DiffSelectionGesture(
   var display: DisplayRows? = null
   var coordinator: TextSelectionCoordinator? = null
   var contextMenu: NativeContextMenu? = null
+  var contentStartX = 0f
   var codeStartX = 0f
+  var splitHalfWidth: () -> Float = { 0f }
   var tabWidth = 1
   var density = Density(1f)
   var coordinates: LayoutCoordinates? = null
@@ -132,6 +139,7 @@ internal class DiffSelectionGesture(
   private var pointer = Offset.Zero
   private var viewportHeight = 0
   private var moved = false
+  private var side: Side? = null
   private var autoScroll: Job? = null
 
   suspend fun PointerInputScope.handleGestures() = coroutineScope {
@@ -145,16 +153,17 @@ internal class DiffSelectionGesture(
         return@awaitEachGesture
       }
       if (!buttons.isPrimaryPressed) return@awaitEachGesture
+      val shift = event.keyboardModifiers.isShiftPressed
+      side = pressSide(down.position, shift)
       val hit = hitTest(down.position, press = true) ?: return@awaitEachGesture
       coordinator?.activate(source)
       focusManager?.clearFocus()
-      val shift = event.keyboardModifiers.isShiftPressed
       val clicks = counter.onPress(down.uptimeMillis, down.position)
       when {
         clicks == 2 -> selectWord(hit, down.position)
         clicks == 3 -> selectRow(hit.row)
-        shift -> selection.extendTo(hit)
-        else -> selection.start(hit)
+        shift && selection.selection != null -> selection.extendTo(hit)
+        else -> selection.start(hit, side)
       }
       moved = false
       viewportHeight = size.height
@@ -210,6 +219,14 @@ internal class DiffSelectionGesture(
     autoScroll = null
   }
 
+  private fun pressSide(position: Offset, shift: Boolean): Side? {
+    if (display?.mode != DiffMode.Split) return null
+    if (shift) selection.selection?.side?.let { return it }
+    return if (position.x - contentStartX < splitHalfWidth()) Side.Old else Side.New
+  }
+
+  private fun codeStartFor(side: Side?): Float = if (side == Side.New) codeStartX + splitHalfWidth() else codeStartX
+
   private fun clampedPointer(): Offset = Offset(pointer.x, pointer.y.coerceIn(0f, (viewportHeight - 1).coerceAtLeast(0).toFloat()))
 
   private fun extendTo(position: TextPosition?) {
@@ -239,45 +256,65 @@ internal class DiffSelectionGesture(
       val first = listState.layoutInfo.visibleItemsInfo.firstOrNull() ?: return null
       return if (position.y < first.offset) rows.positionAtOrAfter(0) else rows.positionAtOrAfter(rows.size)
     }
-    val row = display?.unifiedOf(layout.rowIndexOf(item.index), null) ?: layout.rowIndexOf(item.index)
+    val side = side
+    val displayRow = layout.rowIndexOf(item.index)
+    val row = display?.unifiedOf(displayRow, side) ?: displayRow
+    if (row < 0) {
+      if (press) return null
+      return rows.positionAtOrAfter(nextUnifiedRow(displayRow, side), side)
+    }
     val localY = position.y - item.offset
-    val line = lineAt(row, localY)
+    val line = lineAt(row, localY, side)
     if (line == null) {
       if (press) return null
-      return rows.positionAtOrAfter(if (rows.selectableRow(row)) row + 1 else row)
+      return rows.positionAtOrAfter(if (rows.selectableRow(row, side)) row + 1 else row, side)
     }
-    val text = layouts[row, null]
-    if (text == null || position.x < codeStartX) return TextPosition(row, 0)
-    val display = text.getOffsetForPosition(Offset(position.x - codeStartX, localY))
+    val codeStart = codeStartFor(side)
+    val text = layouts[row, side]
+    if (text == null || position.x < codeStart) return TextPosition(row, 0)
+    val display = text.getOffsetForPosition(Offset(position.x - codeStart, localY))
     return TextPosition(row, displayToSource(line.line.text, display, tabWidth))
   }
 
-  private fun lineAt(row: Int, localY: Float): DiffRow.Line? {
-    if (!rows.selectableRow(row)) return null
-    val text = layouts[row, null]
+  private fun nextUnifiedRow(displayRow: Int, side: Side?): Int {
+    val display = display ?: return displayRow + 1
+    val end = display.displayOf(rows.size)
+    for (next in displayRow + 1..end) {
+      val row = display.unifiedOf(next, side)
+      if (row >= 0) return row
+    }
+    return rows.size
+  }
+
+  private fun lineAt(row: Int, localY: Float, side: Side?): DiffRow.Line? {
+    if (!rows.selectableRow(row, side)) return null
+    val text = layouts[row, side]
     if (text != null && localY >= text.size.height) return null
     return rows[row] as DiffRow.Line
   }
 
   private fun selectWord(hit: TextPosition, position: Offset) {
     val item = itemAt(position.y, preferLast = false)
-    val text = layouts[hit.row, null]
-    if (item == null || text == null || position.x < codeStartX) {
-      selection.start(hit)
+    val side = side
+    val codeStart = codeStartFor(side)
+    val text = layouts[hit.row, side]
+    if (item == null || text == null || position.x < codeStart) {
+      selection.start(hit, side)
       return
     }
     val source = (rows[hit.row] as DiffRow.Line).line.text
-    val word = text.getWordBoundary(text.getOffsetForPosition(Offset(position.x - codeStartX, position.y - item.offset)))
+    val word = text.getWordBoundary(text.getOffsetForPosition(Offset(position.x - codeStart, position.y - item.offset)))
     selection.select(
       TextPosition(hit.row, displayToSource(source, word.start, tabWidth)),
       TextPosition(hit.row, displayToSource(source, word.end, tabWidth)),
+      side,
     )
   }
 
   private fun selectRow(row: Int) {
-    val next = rows.nextSelectableRow(row)
+    val next = rows.nextSelectableRow(row, side)
     val focus = if (next != null) TextPosition(next, 0) else TextPosition(row, (rows[row] as DiffRow.Line).line.text.length)
-    selection.select(TextPosition(row, 0), focus)
+    selection.select(TextPosition(row, 0), focus, side)
   }
 
   private fun showContextMenu(position: Offset) {

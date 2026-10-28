@@ -26,6 +26,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -42,6 +43,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
@@ -136,7 +138,11 @@ fun DiffView(
   val actions = LocalReviewActions.current
   val typography = LocalDiffTypography.current
   val layouts = remember { VisibleLineLayouts() }
-  val codeStartX = with(LocalDensity.current) { (ContentHorizontalMargin + typography.lineNumberWidth * 2 + 16.dp).toPx() }
+  val split = display.mode == DiffMode.Split
+  val contentStartX = with(LocalDensity.current) { ContentHorizontalMargin.toPx() }
+  val codeStartX = with(LocalDensity.current) { (ContentHorizontalMargin + typography.lineNumberWidth * (if (split) 1 else 2) + 16.dp).toPx() }
+  val listWidth = remember { mutableIntStateOf(0) }
+  val splitHalfWidth = remember(contentStartX) { { (listWidth.intValue - 2 * contentStartX) / 2f } }
   val colors = LocalDiffColors.current
   val framePainter = rememberFileFramePainter()
   val frameInset = with(LocalDensity.current) { FileHeaderTopMargin.toPx() }
@@ -173,11 +179,12 @@ fun DiffView(
       .onPointerEvent(PointerEventType.Move) { event -> hoveredKey.value = keyAt(listState, event.changes.first().position.y) }
       .onPointerEvent(PointerEventType.Exit) { hoveredKey.value = null }
   }
-  val selectionModifier = Modifier.diffSelectionGesture(listState, selection, selectionSource, layouts, rows, layout, display, codeStartX, typography.tabWidth)
+  val selectionModifier = Modifier.diffSelectionGesture(listState, selection, selectionSource, layouts, rows, layout, display, contentStartX, codeStartX, splitHalfWidth, typography.tabWidth)
   LazyColumn(
     state = listState,
     modifier = modifier
       .testTag("diff-list")
+      .onSizeChanged { listWidth.intValue = it.width }
       .then(hoverModifier)
       .then(selectionModifier)
       .fileFrames(listState, layout, framePainter, colors.border, colors.background, frameInset, frameMargin),
