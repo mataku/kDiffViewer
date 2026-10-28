@@ -88,7 +88,7 @@ fun FileTreePanel(
     } else {
       LazyColumn(
         modifier = Modifier.fillMaxWidth().testTag("file-tree"),
-        contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin),
+        contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = 12.dp),
       ) {
         itemsIndexed(entries, key = { index, _ -> index }) { index, entry ->
           val row = entry.row
