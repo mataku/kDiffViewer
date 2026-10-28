@@ -85,4 +85,15 @@ class AppendBufferTest {
 
     override fun hashCode(): Int = 0
   }
+
+  @Test
+  fun intBufferGrowsAndSnapshotsAreIsolated() {
+    val buffer = IntAppendBuffer()
+    for (i in 0 until 100) buffer.add(i)
+    val s1 = buffer.snapshot()
+    buffer.add(100)
+    assertEquals(100, s1.size)
+    assertEquals(99, s1[99])
+    assertEquals(101, buffer.snapshot().size)
+  }
 }
