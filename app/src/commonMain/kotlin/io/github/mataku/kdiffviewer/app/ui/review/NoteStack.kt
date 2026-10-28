@@ -30,9 +30,11 @@ fun NoteStack(threads: List<ReviewThread>, draftTarget: DraftTarget?, composeNew
     }
     if (composeNew && draftTarget != null && actions != null) {
       CommentComposer(
-        submitLabel = "Comment",
+        actions = ComposerActions.Post(
+          onReview = { actions.submitDraft(DraftMode.Review) },
+          onSingle = { actions.submitDraft(DraftMode.Single) },
+        ),
         onTextChange = actions::updateDraft,
-        onSubmit = { actions.submitDraft(DraftMode.Single) },
         onCancel = actions::cancelDraft,
       )
     }

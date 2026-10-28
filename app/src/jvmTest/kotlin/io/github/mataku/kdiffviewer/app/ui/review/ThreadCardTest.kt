@@ -65,7 +65,7 @@ class ThreadCardTest {
     }
 
     override fun submitDraft(mode: DraftMode) {
-      calls += "submit"
+      calls += if (mode == DraftMode.Review) "review" else "submit"
     }
     override fun setResolved(threadId: String, resolved: Boolean) {
       calls += "resolved:$threadId:$resolved"
@@ -442,19 +442,19 @@ class ThreadCardTest {
     setContent {
       Composer(text, onTextChange = { text = it }, onSubmit = {}, onCancel = {})
     }
-    onNode(hasText("Comment")).assertIsNotEnabled()
+    onNode(hasText("Save")).assertIsNotEnabled()
   }
 
   @Test
   fun submitEnabledWhenNotBlank() = runComposeUiTest {
     setContent { Composer("x", onTextChange = {}, onSubmit = {}, onCancel = {}) }
-    onNode(hasText("Comment")).assertIsEnabled()
+    onNode(hasText("Save")).assertIsEnabled()
   }
 
   @Composable
   private fun Composer(text: String, onTextChange: (String) -> Unit, onSubmit: () -> Unit, onCancel: () -> Unit) {
     CompositionLocalProvider(LocalDraftText provides mutableStateOf(text)) {
-      CommentComposer("Comment", onTextChange = onTextChange, onSubmit = onSubmit, onCancel = onCancel)
+      CommentComposer(ComposerActions.Save(onSubmit), onTextChange = onTextChange, onCancel = onCancel)
     }
   }
 
@@ -484,5 +484,45 @@ class ThreadCardTest {
       withKeyDown(Key.MetaLeft) { pressKey(Key.Enter) }
     }
     assertEquals(listOf("submit"), actions.calls)
+  }
+
+  @Test
+  fun pendingCommentShowsBadge() = runComposeUiTest {
+    setCard(thread(comments = listOf(Comment("c1", Author.User, "published", at), Comment("c2", Author.User, "later", at, pending = true))))
+    onAllNodesWithText("Pending").assertCountEquals(1)
+  }
+
+  @Test
+  fun publishedCommentHasNoPendingBadge() = runComposeUiTest {
+    setCard()
+    onNodeWithText("Pending").assertDoesNotExist()
+  }
+
+  @Test
+  fun pendingThreadOffersOnlyReviewReply() = runComposeUiTest {
+    val pending = thread(comments = listOf(Comment("c1", Author.User, "draft", at, pending = true)))
+    setContent {
+      CompositionLocalProvider(
+        LocalReviewActions provides FakeActions(),
+        LocalTextSelectionCoordinator provides coordinator,
+        LocalReviewInProgress provides mutableStateOf(true),
+      ) {
+        ThreadCard(pending, DraftTarget.Reply("t1"))
+      }
+    }
+    onNodeWithText("Add review comment").assertExists()
+    onNodeWithText("Add single comment").assertDoesNotExist()
+    onNodeWithText("Resolve").assertDoesNotExist()
+  }
+
+  @Test
+  fun publishedThreadReplyOffersBoth() = runComposeUiTest {
+    setContent {
+      CompositionLocalProvider(LocalReviewActions provides FakeActions(), LocalTextSelectionCoordinator provides coordinator) {
+        ThreadCard(helloThread, DraftTarget.Reply("t1"))
+      }
+    }
+    onNodeWithText("Start a review").assertExists()
+    onNodeWithText("Add single comment").assertExists()
   }
 }

@@ -52,20 +52,22 @@ fun MacPushButton(
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
   enabled: Boolean = true,
+  default: Boolean = false,
 ) {
   val colors = LocalDiffColors.current
   val interactionSource = remember { MutableInteractionSource() }
   val pressed by interactionSource.collectIsPressedAsState()
+  val fill = if (default) colors.accent.copy(alpha = if (pressed) 0.8f else 1f) else colors.buttonFill(pressed)
   Box(
     modifier = modifier
       .alpha(if (enabled) 1f else 0.4f)
       .height(24.dp)
-      .buttonSurface(colors, colors.buttonFill(pressed))
+      .buttonSurface(colors, fill)
       .clickable(interactionSource = interactionSource, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
       .padding(horizontal = 10.dp),
     contentAlignment = Alignment.Center,
   ) {
-    BasicText(text = text, maxLines = 1, style = TextStyle(color = colors.text, fontSize = 13.sp))
+    BasicText(text = text, maxLines = 1, style = TextStyle(color = if (default) Color.White else colors.text, fontSize = 13.sp))
   }
 }
 

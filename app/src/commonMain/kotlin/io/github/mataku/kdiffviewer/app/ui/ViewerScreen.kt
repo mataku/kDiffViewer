@@ -74,6 +74,7 @@ import io.github.mataku.kdiffviewer.app.ui.mac.TagShape
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftFocusRequests
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftText
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
+import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewInProgress
 import io.github.mataku.kdiffviewer.app.ui.review.RevealingReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.draftPlacement
 import io.github.mataku.kdiffviewer.app.ui.review.fileIndexOrNull
@@ -116,6 +117,7 @@ fun ViewerScreen(
   val shown = review.placements.loadId == state.loadId
   val draftTarget = review.draft?.target
   val draftText = rememberUpdatedState(review.draft?.text.orEmpty())
+  val reviewInProgress = rememberUpdatedState(review.pendingCount > 0)
   val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(draftTarget) else emptySet() }
   val hasOrphans = shown && (review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
   val hasEnd = state.status == LoadStatus.Done && state.files.isNotEmpty()
@@ -266,6 +268,7 @@ fun ViewerScreen(
             } else {
               CompositionLocalProvider(
                 LocalDraftText provides draftText,
+                LocalReviewInProgress provides reviewInProgress,
                 LocalDraftFocusRequests provides focusRequests,
                 LocalReviewActions provides actions,
               ) {

@@ -28,6 +28,10 @@ private val NoDraftText: State<String> = mutableStateOf("")
 
 val LocalDraftText = staticCompositionLocalOf { NoDraftText }
 
+private val NoReviewInProgress: State<Boolean> = mutableStateOf(false)
+
+val LocalReviewInProgress = staticCompositionLocalOf { NoReviewInProgress }
+
 private val NoFocusRequests: State<Int> = mutableStateOf(0)
 
 val LocalDraftFocusRequests = staticCompositionLocalOf { NoFocusRequests }
