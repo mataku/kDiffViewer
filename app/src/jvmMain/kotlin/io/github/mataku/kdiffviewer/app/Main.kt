@@ -250,6 +250,7 @@ private fun runApplication(
         Item(
           if (sidebarVisible) "Hide Sidebar" else "Show Sidebar",
           shortcut = KeyShortcut(Key.S, ctrl = true, meta = true),
+          enabled = uiState.repo != null && uiState.status !is LoadStatus.Failed,
           onClick = toggleSidebar,
         )
         Separator()
