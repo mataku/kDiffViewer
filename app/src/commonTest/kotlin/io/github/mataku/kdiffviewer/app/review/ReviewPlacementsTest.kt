@@ -29,4 +29,16 @@ class ReviewPlacementsTest {
     assertEquals(setOf(2), placements.notesFiles(orphanDraft))
     assertEquals(setOf(2), placements.notesFiles(DraftTarget.Reply("t")))
   }
+
+  @Test
+  fun threadFilesCombinesLineAndFileThreads() {
+    val thread = ReviewThread("t", Anchor.File("a"), emptyList(), false, false)
+    val placements = ReviewPlacements(
+      1L,
+      mapOf(linePosition(3, 1, 4) to listOf(thread), linePosition(700, 0, 0) to listOf(thread)),
+      mapOf(2 to listOf(thread)),
+      listOf(thread),
+    )
+    assertEquals(setOf(2, 3, 700), placements.threadFiles())
+  }
 }

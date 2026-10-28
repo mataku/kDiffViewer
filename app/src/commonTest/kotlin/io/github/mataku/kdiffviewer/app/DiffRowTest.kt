@@ -28,6 +28,20 @@ class DiffRowTest {
   private fun fileWith(content: DiffContent) = FileDiff("a.bin", "a.bin", ChangeType.Modified, false, content)
 
   @Test
+  fun largeDiffCountsChangedLinesAgainstThreshold() {
+    val context = DiffLine(LineKind.Context, "ctx", 2, 2)
+    val file = FileDiff(
+      "a.txt",
+      "a.txt",
+      ChangeType.Modified,
+      false,
+      DiffContent.Text(listOf(Hunk(1, 6, 1, 7, "@@", listOf(removed, added, added.copy(newLineNo = 2)) + List(5) { context }))),
+    )
+    assertEquals(true, (flattenRows(listOf(file), largeDiffLines = 3)[0] as DiffRow.FileHeader).largeDiff)
+    assertEquals(false, (flattenRows(listOf(file), largeDiffLines = 4)[0] as DiffRow.FileHeader).largeDiff)
+  }
+
+  @Test
   fun flattensHeaderHunksAndLines() {
     val file = textFile()
     val rows = flattenRows(listOf(file))
@@ -76,5 +90,14 @@ class DiffRowTest {
     val rows = flattenRows(listOf(fileWith(DiffContent.Text(emptyList()))))
     assertEquals(1, rows.size)
     assertIs<DiffRow.FileHeader>(rows[0])
+  }
+
+  @Test
+  fun tooManyLinesShowsPlaceholderAndIsNotLargeDiff() {
+    val rows = flattenRows(listOf(fileWith(DiffContent.TooManyLines(DiffStats(30_000, 0)))), largeDiffLines = 1)
+    val header = rows[0] as DiffRow.FileHeader
+    assertEquals(DiffStats(30_000, 0), header.stats)
+    assertEquals(false, header.largeDiff)
+    assertEquals(DiffRow.Placeholder(0, "Diff too large to display"), rows[1])
   }
 }

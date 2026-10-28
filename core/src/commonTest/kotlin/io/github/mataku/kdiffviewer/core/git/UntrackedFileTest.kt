@@ -3,6 +3,7 @@ package io.github.mataku.kdiffviewer.core.git
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
+import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
@@ -135,5 +136,11 @@ class UntrackedFileTest {
     assertEquals(DiffContent.Unparseable, diff.content)
     assertEquals(ChangeType.Added, diff.change)
     assertEquals(true, diff.isUntracked)
+  }
+
+  @Test
+  fun untrackedOverLineCapBecomesTooManyLines() {
+    assertEquals(DiffContent.TooManyLines(DiffStats(3, 0)), synthesizeUntracked("n.txt", regular("a\nb\nc\n"), maxLines = 2).content)
+    assertEquals(3, texts(synthesizeUntracked("n.txt", regular("a\nb\nc\n"), maxLines = 3)).size)
   }
 }

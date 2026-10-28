@@ -81,6 +81,7 @@ data class ViewerUiState(
   val root: RepoPath? = null,
   val fingerprints: List<Long> = emptyList(),
   val collapsed: Set<CollapsedFile> = emptySet(),
+  val expanded: Set<CollapsedFile> = emptySet(),
   val baseSpec: BaseSpec = BaseSpec.Default,
   val base: ResolvedBase? = null,
 )
@@ -88,10 +89,20 @@ data class ViewerUiState(
 @Immutable
 data class CollapsedFile(val displayPath: String, val fingerprint: Long)
 
+fun ViewerUiState.isLargeDiff(fileIndex: Int): Boolean {
+  val headerRow = fileHeaderRowIndex.getOrNull(fileIndex) ?: return false
+  return (rows.getOrNull(headerRow) as? DiffRow.FileHeader)?.largeDiff == true
+}
+
 fun ViewerUiState.isCollapsed(fileIndex: Int): Boolean {
-  val file = files.getOrNull(fileIndex) ?: return false
-  val fingerprint = fingerprints.getOrNull(fileIndex) ?: return false
-  return CollapsedFile(file.displayPath, fingerprint) in collapsed
+  val entry = collapsedFileAt(fileIndex) ?: return false
+  return if (isLargeDiff(fileIndex)) entry !in expanded else entry in collapsed
+}
+
+private fun ViewerUiState.collapsedFileAt(fileIndex: Int): CollapsedFile? {
+  val file = files.getOrNull(fileIndex) ?: return null
+  val fingerprint = fingerprints.getOrNull(fileIndex) ?: return null
+  return CollapsedFile(file.displayPath, fingerprint)
 }
 
 class DiffViewerState(
@@ -102,6 +113,7 @@ class DiffViewerState(
   private val reloadHoldMillis: Long = 300,
   private var missingSourceError: ViewerError = ViewerError.GitNotFound,
   private val loadContext: CoroutineContext = EmptyCoroutineContext,
+  private val largeDiffLines: Int = LARGE_DIFF_LINES,
 ) {
   private val mutableUiState = MutableStateFlow(ViewerUiState())
   val uiState: StateFlow<ViewerUiState> = mutableUiState.asStateFlow()
@@ -142,7 +154,7 @@ class DiffViewerState(
       )
     }
     val knownRoot = mutableUiState.value.root
-    val accumulator = LoadAccumulator(loadId, holding = keepPrevious)
+    val accumulator = LoadAccumulator(loadId, holding = keepPrevious, largeDiffLines)
     loadJob = scope.launch {
       launch {
         val head = try {
@@ -183,7 +195,7 @@ class DiffViewerState(
         holdJob?.cancel()
         updateIfCurrent(token) {
           val done = it.withContentOf(accumulator, accumulator.tree.rows())
-          done.copy(status = LoadStatus.Done, collapsed = done.prunedCollapsed())
+          done.copy(status = LoadStatus.Done, collapsed = done.pruned(done.collapsed), expanded = done.pruned(done.expanded))
         }
       } catch (e: Throwable) {
         ensureActive()
@@ -243,28 +255,31 @@ class DiffViewerState(
 
   fun toggleCollapsed(fileIndex: Int) {
     mutableUiState.update { current ->
-      val file = current.files.getOrNull(fileIndex) ?: return@update current
-      val fingerprint = current.fingerprints.getOrNull(fileIndex) ?: return@update current
-      val entry = CollapsedFile(file.displayPath, fingerprint)
-      current.copy(collapsed = if (entry in current.collapsed) current.collapsed - entry else current.collapsed + entry)
+      val entry = current.collapsedFileAt(fileIndex) ?: return@update current
+      if (current.isLargeDiff(fileIndex)) {
+        current.copy(expanded = if (entry in current.expanded) current.expanded - entry else current.expanded + entry)
+      } else {
+        current.copy(collapsed = if (entry in current.collapsed) current.collapsed - entry else current.collapsed + entry)
+      }
     }
   }
 
   fun expand(fileIndex: Int) {
     mutableUiState.update { current ->
       if (!current.isCollapsed(fileIndex)) return@update current
-      current.copy(collapsed = current.collapsed - CollapsedFile(current.files[fileIndex].displayPath, current.fingerprints[fileIndex]))
+      val entry = current.collapsedFileAt(fileIndex) ?: return@update current
+      if (current.isLargeDiff(fileIndex)) current.copy(expanded = current.expanded + entry) else current.copy(collapsed = current.collapsed - entry)
     }
   }
 
-  private fun ViewerUiState.prunedCollapsed(): Set<CollapsedFile> {
-    if (collapsed.isEmpty()) return collapsed
+  private fun ViewerUiState.pruned(entries: Set<CollapsedFile>): Set<CollapsedFile> {
+    if (entries.isEmpty()) return entries
     val kept = HashSet<CollapsedFile>()
     files.forEachIndexed { index, file ->
       val entry = CollapsedFile(file.displayPath, fingerprints[index])
-      if (entry in collapsed) kept += entry
+      if (entry in entries) kept += entry
     }
-    return if (kept.size == collapsed.size) collapsed else kept
+    return if (kept.size == entries.size) entries else kept
   }
 
   private suspend fun load(diffSource: DiffSource, repo: RepoPath, base: ResolvedBase, token: Any, accumulator: LoadAccumulator, run: HighlightRun?) = coroutineScope {
@@ -339,7 +354,7 @@ class DiffViewerState(
 
   private class LoadedFile(val file: FileDiff, val fingerprint: Long)
 
-  private class LoadAccumulator(val loadId: Long, var holding: Boolean) {
+  private class LoadAccumulator(val loadId: Long, var holding: Boolean, private val largeDiffLines: Int) {
     val files = AppendBuffer<FileDiff>()
     val rows = AppendBuffer<DiffRow>()
     val fileHeaderRowIndex = AppendBuffer<Int>()
@@ -351,7 +366,7 @@ class DiffViewerState(
 
     fun append(loaded: List<LoadedFile>): List<HighlightEntry> {
       val batch = loaded.map { it.file }
-      val newRows = flattenRows(batch, fileCount)
+      val newRows = flattenRows(batch, fileCount, largeDiffLines)
       newRows.forEachIndexed { offset, row ->
         if (row is DiffRow.FileHeader) fileHeaderRowIndex.add(rowCount + offset)
       }

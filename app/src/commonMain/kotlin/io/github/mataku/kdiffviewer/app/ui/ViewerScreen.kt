@@ -52,9 +52,11 @@ import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.diffLayoutOf
 import io.github.mataku.kdiffviewer.app.filterTree
 import io.github.mataku.kdiffviewer.app.gitStatus
+import io.github.mataku.kdiffviewer.app.isLargeDiff
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.notesFiles
+import io.github.mataku.kdiffviewer.app.review.threadFiles
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.ui.mac.TAG_FILL_ALPHA
@@ -100,7 +102,7 @@ fun ViewerScreen(
   val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(draftTarget) else emptySet() }
   val hasOrphans = shown && (review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
   val hasEnd = state.status == LoadStatus.Done && state.files.isNotEmpty()
-  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, notesFiles, hasOrphans, hasEnd) {
+  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasOrphans, hasEnd) {
     diffLayoutOf(state, notesFiles, hasOrphans, hasEnd)
   }
   val currentLayout by rememberUpdatedState(layout)
@@ -112,7 +114,7 @@ fun ViewerScreen(
   }
   val coordinator = LocalTextSelectionCoordinator.current
   val diffSelection = remember { DiffSelectionState() }
-  diffSelection.resetFor(state.loadId to state.collapsed)
+  diffSelection.resetFor(Triple(state.loadId, state.collapsed, state.expanded))
   val selectionSource = remember(diffSelection) {
     DiffSelectionSource(
       diffSelection,
@@ -129,6 +131,12 @@ fun ViewerScreen(
   val actions = remember(baseActions, draftText) { baseActions?.let { RevealingReviewActions(it, draftText) { revealRequests++ } } }
   val currentReview by rememberUpdatedState(review)
   val currentOnExpandFile by rememberUpdatedState(onExpandFile)
+  val threadFiles = remember(shown, review.placements) { if (shown) review.placements.threadFiles() else emptySet() }
+  LaunchedEffect(state.loadId, threadFiles, layout.fileCount) {
+    for (fileIndex in threadFiles) {
+      if (fileIndex < currentLayout.fileCount && currentLayout.isCollapsed(fileIndex) && currentState.isLargeDiff(fileIndex)) currentOnExpandFile(fileIndex)
+    }
+  }
   LaunchedEffect(revealRequests) {
     if (revealRequests == 0) return@LaunchedEffect
     val snapshot = currentReview

@@ -3,6 +3,7 @@ package io.github.mataku.kdiffviewer.app
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
+import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
@@ -51,5 +52,12 @@ class FingerprintTest {
   @Test
   fun fieldBoundariesMatter() {
     assertNotEquals(diff(lines("ab", "c")).fingerprint(), diff(lines("a", "bc")).fingerprint())
+  }
+
+  @Test
+  fun tooManyLinesFingerprintDependsOnStats() {
+    fun omitted(additions: Int) = FileDiff("a.kt", "a.kt", ChangeType.Modified, false, DiffContent.TooManyLines(DiffStats(additions, 0)))
+    assertNotEquals(omitted(1).fingerprint(), omitted(2).fingerprint())
+    assertNotEquals(omitted(0).fingerprint(), FileDiff("a.kt", "a.kt", ChangeType.Modified, false, DiffContent.TooLarge).fingerprint())
   }
 }

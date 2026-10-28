@@ -3,9 +3,11 @@ package io.github.mataku.kdiffviewer.core.git
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
+import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
+import io.github.mataku.kdiffviewer.core.parse.MAX_DIFF_LINES_PER_FILE
 import io.github.mataku.kdiffviewer.core.parse.splitLines
 
 sealed interface UntrackedEntry {
@@ -19,9 +21,9 @@ const val UNTRACKED_SIZE_LIMIT: Long = 1_048_576
 
 private const val BINARY_SNIFF_BYTES = 8000
 
-fun synthesizeUntracked(path: String, entry: UntrackedEntry): FileDiff {
+fun synthesizeUntracked(path: String, entry: UntrackedEntry, maxLines: Int = MAX_DIFF_LINES_PER_FILE): FileDiff {
   val content = when (entry) {
-    is UntrackedEntry.Regular -> regularContent(entry.bytes)
+    is UntrackedEntry.Regular -> regularContent(entry.bytes, maxLines)
     UntrackedEntry.TooLarge -> DiffContent.TooLarge
     is UntrackedEntry.Symlink -> addedText(listOf(entry.target), endsWithNewline = false)
     UntrackedEntry.Unreadable -> DiffContent.Unparseable
@@ -29,13 +31,14 @@ fun synthesizeUntracked(path: String, entry: UntrackedEntry): FileDiff {
   return FileDiff(null, path, ChangeType.Added, isUntracked = true, content)
 }
 
-private fun regularContent(bytes: ByteArray): DiffContent {
+private fun regularContent(bytes: ByteArray, maxLines: Int): DiffContent {
   if (bytes.isEmpty()) return DiffContent.Text(emptyList())
   val sniffEnd = minOf(bytes.size, BINARY_SNIFF_BYTES)
   for (i in 0 until sniffEnd) {
     if (bytes[i] == 0.toByte()) return DiffContent.Binary
   }
   val lines = splitLines(bytes.decodeToString())
+  if (lines.size > maxLines) return DiffContent.TooManyLines(DiffStats(lines.size, 0))
   return addedText(lines, endsWithNewline = bytes.last() == '\n'.code.toByte())
 }
 

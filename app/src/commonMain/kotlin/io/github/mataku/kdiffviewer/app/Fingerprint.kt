@@ -69,6 +69,12 @@ fun FileDiff.fingerprint(): Long {
     DiffContent.TooLarge -> hash.add(2)
 
     DiffContent.Unparseable -> hash.add(3)
+
+    is DiffContent.TooManyLines -> {
+      hash.add(4)
+      hash.add(content.stats.additions)
+      hash.add(content.stats.deletions)
+    }
   }
   return hash.value
 }

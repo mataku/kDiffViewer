@@ -236,6 +236,8 @@ private fun FileDiff.headerTitle(): String {
 
 private fun FileDiff.badge(): String = if (isUntracked) "Untracked" else change.name
 
+private fun Modifier.headerBadge(borderColor: Color): Modifier = border(1.dp, borderColor, RoundedCornerShape(10.dp)).padding(horizontal = 6.dp, vertical = 1.dp)
+
 @Composable
 private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment: ((DiffRow.FileHeader) -> Unit)?, onClick: () -> Unit) {
   val colors = LocalDiffColors.current
@@ -278,10 +280,18 @@ private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment
         text = row.file.badge(),
         modifier = Modifier
           .testTag("file-badge-${row.fileIndex}")
-          .border(1.dp, colors.border, RoundedCornerShape(10.dp))
-          .padding(horizontal = 6.dp, vertical = 1.dp),
+          .headerBadge(colors.border),
         style = typography.headerBadge,
       )
+      if (row.largeDiff) {
+        BasicText(
+          text = "Large diff",
+          modifier = Modifier
+            .testTag("file-large-${row.fileIndex}")
+            .headerBadge(colors.border),
+          style = typography.headerBadge,
+        )
+      }
     }
     val statsText = remember(row.stats, typography) { statsText(row.stats, typography.headerAdditions, typography.headerDeletions) }
     if (statsText != null) {

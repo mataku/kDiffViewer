@@ -33,6 +33,7 @@ class FakeContentSource(private val texts: Map<Pair<String, Side>, String>) : Co
   var opens = 0
   var closed = false
   val reads = mutableListOf<Pair<String, Side>>()
+  val limits = mutableListOf<Long>()
   val openedBases = mutableListOf<ResolvedBase>()
 
   override suspend fun open(repo: RepoPath, base: ResolvedBase): ContentSession {
@@ -42,7 +43,8 @@ class FakeContentSource(private val texts: Map<Pair<String, Side>, String>) : Co
       override suspend fun read(file: FileDiff, side: Side, maxBytes: Long): String? {
         val path = (if (side == Side.Old) file.oldPath else file.newPath)!!
         reads += path to side
-        return texts[path to side]
+        limits += maxBytes
+        return texts[path to side]?.takeIf { it.length <= maxBytes }
       }
 
       override fun close() {
@@ -77,6 +79,7 @@ fun span(text: String) = listOf(HighlightSpan(0, text.length, "kotlin:$text"))
 fun TestScope.pipeline(
   source: ContentSource,
   highlighter: LineHighlighter<String>,
+  sizeLimit: Long = HIGHLIGHT_SIZE_LIMIT,
   onFailure: (Throwable) -> Unit = { throw AssertionError("unexpected failure", it) },
 ) = HighlightPipeline(
   source,
@@ -84,6 +87,7 @@ fun TestScope.pipeline(
   highlighter,
   StandardTestDispatcher(testScheduler),
   workers = 1,
+  sizeLimit = sizeLimit,
   onFailure = onFailure,
 )
 
@@ -204,6 +208,25 @@ class HighlightPipelineTest {
     val spans = assertNotNull(slots[0].value).spans
     assertContentEquals(arrayOf(span("a"), null, span("B"), span("c")), spans[0])
     assertContentEquals(arrayOf(span("e"), null, span("F"), null), spans[1])
+  }
+
+  @Test
+  fun readsWithSizeLimit() = runTest {
+    val source = FakeContentSource(modifiedTexts)
+    runEntries(pipeline(source, FakeHighlighter(), sizeLimit = 64), modified)
+
+    assertEquals(listOf(64L, 64L), source.limits)
+  }
+
+  @Test
+  fun sideAboveSizeLimitStaysPlain() = runTest {
+    val source = FakeContentSource(
+      mapOf(("A.kt" to Side.Old) to "a\nb\n" + "x".repeat(20), ("A.kt" to Side.New) to "a\nB"),
+    )
+    val file = textFile("A.kt", "A.kt", listOf(line(LineKind.Removed, "b", 2, null), line(LineKind.Added, "B", null, 2)))
+    val (_, slots) = runEntries(pipeline(source, FakeHighlighter(), sizeLimit = 10), file)
+
+    assertContentEquals(arrayOf(null, span("B")), assertNotNull(slots[0].value).spans[0])
   }
 
   @Test
