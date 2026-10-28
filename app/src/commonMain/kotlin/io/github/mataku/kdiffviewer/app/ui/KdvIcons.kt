@@ -96,11 +96,48 @@ object KdvIcons {
     lineTo(12.5f, 4.5f)
   }
 
+  val Unified: ImageVector = outlineIcon("Unified") {
+    roundedRect(1.5f, 2.5f, 14.5f, 13.5f, 1.5f)
+    moveTo(4.5f, 6f)
+    lineTo(11.5f, 6f)
+    moveTo(4.5f, 8f)
+    lineTo(11.5f, 8f)
+    moveTo(4.5f, 10f)
+    lineTo(11.5f, 10f)
+  }
+
+  val Split: ImageVector = outlineIcon("Split") {
+    roundedRect(1.5f, 2.5f, 14.5f, 13.5f, 1.5f)
+    moveTo(8f, 2.5f)
+    lineTo(8f, 13.5f)
+    moveTo(3.5f, 6f)
+    lineTo(6f, 6f)
+    moveTo(3.5f, 8f)
+    lineTo(6f, 8f)
+    moveTo(10f, 6f)
+    lineTo(12.5f, 6f)
+    moveTo(10f, 8f)
+    lineTo(12.5f, 8f)
+  }
+
   val Search: ImageVector = outlineIcon("Search") {
     circle(7f, 7f, 4f)
     moveTo(10f, 10f)
     lineTo(13.5f, 13.5f)
   }
+}
+
+private fun PathBuilder.roundedRect(left: Float, top: Float, right: Float, bottom: Float, radius: Float) {
+  moveTo(left + radius, top)
+  lineTo(right - radius, top)
+  arcTo(radius, radius, 0f, false, true, right, top + radius)
+  lineTo(right, bottom - radius)
+  arcTo(radius, radius, 0f, false, true, right - radius, bottom)
+  lineTo(left + radius, bottom)
+  arcTo(radius, radius, 0f, false, true, left, bottom - radius)
+  lineTo(left, top + radius)
+  arcTo(radius, radius, 0f, false, true, left + radius, top)
+  close()
 }
 
 private fun PathBuilder.circle(centerX: Float, centerY: Float, radius: Float) {

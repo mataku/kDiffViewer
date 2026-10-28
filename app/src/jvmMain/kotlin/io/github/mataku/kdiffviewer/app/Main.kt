@@ -210,6 +210,8 @@ private fun runApplication(
   }
 
   val scrollJumps = remember { ScrollJumps() }
+  var diffMode by remember { mutableStateOf(DiffMode.Unified) }
+  val changeMode = { mode: DiffMode -> if (mode != diffMode) diffMode = mode }
   Window(
     onCloseRequest = shutdown,
     title = "kDiffViewer",
@@ -232,6 +234,9 @@ private fun runApplication(
         Item("Copy", shortcut = KeyShortcut(Key.C, meta = true), enabled = coordinator.hasSelection, onClick = { coordinator.copy() })
       }
       Menu("View") {
+        RadioButtonItem("Unified", selected = diffMode == DiffMode.Unified, onClick = { changeMode(DiffMode.Unified) })
+        RadioButtonItem("Split", selected = diffMode == DiffMode.Split, onClick = { changeMode(DiffMode.Split) })
+        Separator()
         Item("Reload", shortcut = KeyShortcut(Key.R, meta = true), onClick = state::reload)
       }
     }
@@ -269,6 +274,8 @@ private fun runApplication(
             loadBranches = state::branches,
             onSwitchBase = state::switchBase,
             scrollJumps = scrollJumps,
+            mode = diffMode,
+            onModeChange = changeMode,
           )
         }
       }

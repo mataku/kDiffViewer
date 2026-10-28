@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -63,6 +64,7 @@ import io.github.mataku.kdiffviewer.app.review.threadFiles
 import io.github.mataku.kdiffviewer.app.review.toSide
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
+import io.github.mataku.kdiffviewer.app.ui.mac.MacSegmented
 import io.github.mataku.kdiffviewer.app.ui.mac.TAG_FILL_ALPHA
 import io.github.mataku.kdiffviewer.app.ui.mac.TagPadding
 import io.github.mataku.kdiffviewer.app.ui.mac.TagShape
@@ -265,6 +267,20 @@ fun ViewerScreen(
             }
           }
         }
+        MacSegmented(
+          options = DiffMode.entries,
+          selected = mode,
+          label = { it.name },
+          tag = { "diff-mode-${it.name.lowercase()}" },
+          onSelect = { if (it != mode) onModeChange(it) },
+          modifier = Modifier
+            .testTag("diff-mode-control")
+            .titleBarClientRegion("diff-mode"),
+          segmentWidth = 32.dp,
+          icon = { if (it == DiffMode.Unified) KdvIcons.Unified else KdvIcons.Split },
+          tooltip = { it.name },
+        )
+        Spacer(Modifier.width(8.dp))
         GlassIconButton(
           icon = KdvIcons.Reload,
           contentDescription = "Reload",

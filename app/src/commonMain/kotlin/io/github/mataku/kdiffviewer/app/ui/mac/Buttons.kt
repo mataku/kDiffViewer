@@ -14,6 +14,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -138,6 +145,7 @@ private fun Chevron(color: Color) {
   }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T> MacSegmented(
   options: List<T>,
@@ -147,6 +155,8 @@ fun <T> MacSegmented(
   onSelect: (T) -> Unit,
   modifier: Modifier = Modifier,
   segmentWidth: Dp = 44.dp,
+  icon: ((T) -> ImageVector)? = null,
+  tooltip: ((T) -> String)? = null,
 ) {
   val colors = LocalDiffColors.current
   Row(
@@ -162,20 +172,41 @@ fun <T> MacSegmented(
       } else {
         Modifier
       }
-      Box(
-        modifier = Modifier
-          .testTag(tag(option))
-          .height(22.dp)
-          .width(segmentWidth)
-          .then(segmentModifier)
-          .semantics { this.selected = isSelected }
-          .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, role = Role.RadioButton) { onSelect(option) },
-        contentAlignment = Alignment.Center,
-      ) {
-        BasicText(
-          text = label(option),
-          style = TextStyle(color = colors.text, fontSize = 13.sp, textAlign = TextAlign.Center),
+      val segment: @Composable () -> Unit = {
+        Box(
+          modifier = Modifier
+            .testTag(tag(option))
+            .height(22.dp)
+            .width(segmentWidth)
+            .then(segmentModifier)
+            .semantics { this.selected = isSelected }
+            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, role = Role.RadioButton) { onSelect(option) },
+          contentAlignment = Alignment.Center,
+        ) {
+          if (icon != null) {
+            Image(
+              imageVector = icon(option),
+              contentDescription = label(option),
+              modifier = Modifier.size(14.dp),
+              colorFilter = ColorFilter.tint(colors.text),
+            )
+          } else {
+            BasicText(
+              text = label(option),
+              style = TextStyle(color = colors.text, fontSize = 13.sp, textAlign = TextAlign.Center),
+            )
+          }
+        }
+      }
+      if (tooltip != null) {
+        TooltipBox(
+          positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
+          tooltip = { PlainTooltip { Text(tooltip(option)) } },
+          state = rememberTooltipState(),
+          content = segment,
         )
+      } else {
+        segment()
       }
     }
   }

@@ -264,6 +264,44 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun modeControlSwitchesToSplit() = runComposeUiTest {
+    val changes = mutableListOf<DiffMode>()
+    setContent { ViewerScreen(stateOf(emptyList()), {}, mode = DiffMode.Unified, onModeChange = { changes += it }) }
+    onNodeWithTag("diff-mode-split").performClick()
+    assertEquals(listOf(DiffMode.Split), changes)
+  }
+
+  @Test
+  fun clickingCurrentModeIsNoOp() = runComposeUiTest {
+    val changes = mutableListOf<DiffMode>()
+    setContent { ViewerScreen(stateOf(emptyList()), {}, mode = DiffMode.Unified, onModeChange = { changes += it }) }
+    onNodeWithTag("diff-mode-unified").performClick()
+    assertEquals(emptyList(), changes)
+  }
+
+  @Test
+  fun modeControlMarksSelected() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(emptyList()), {}, mode = DiffMode.Split) }
+    assertEquals(true, onNodeWithTag("diff-mode-split").fetchSemanticsNode().config[SemanticsProperties.Selected])
+    assertEquals(false, onNodeWithTag("diff-mode-unified").fetchSemanticsNode().config[SemanticsProperties.Selected])
+  }
+
+  @Test
+  fun modeControlSitsLeftOfReloadInsideTitleBarClientRegion() = runComposeUiTest {
+    val regions = TitleBarRegions()
+    setContent {
+      CompositionLocalProvider(LocalTitleBarRegions provides regions) {
+        ViewerScreen(stateOf(emptyList()), {})
+      }
+    }
+    val control = onNodeWithTag("diff-mode-control").fetchSemanticsNode().boundsInRoot
+    val reload = onNodeWithTag("reload-button").fetchSemanticsNode().boundsInRoot
+    assertTrue(regions.isClientArea(control.center))
+    assertTrue(control.right <= reload.left, "control=$control reload=$reload")
+    onNodeWithTag("diff-mode-split").assertWidthIsEqualTo(32.dp)
+  }
+
+  @Test
   fun headerShowsRepoName() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(emptyList()).copy(repo = RepoPath("/work/my-repo")), {}) }
     onNodeWithTag("repo-name").assertTextEquals("my-repo")
