@@ -29,6 +29,7 @@ data class Comment(
   val author: Author,
   val body: String,
   val createdAt: Instant,
+  val pending: Boolean = false,
 )
 
 data class ReviewThread(
@@ -38,6 +39,14 @@ data class ReviewThread(
   val resolved: Boolean,
   val outdated: Boolean,
 )
+
+val ReviewThread.isPending: Boolean get() = comments.all { it.pending }
+
+fun ReviewThread.published(): ReviewThread? {
+  if (comments.none { it.pending }) return this
+  val visible = comments.filterNot { it.pending }
+  return if (visible.isEmpty()) null else copy(comments = visible)
+}
 
 data class LineLocation(val fileIndex: Int, val hunkIndex: Int, val lineIndex: Int)
 
