@@ -91,4 +91,13 @@ class DiffRowTest {
     assertEquals(1, rows.size)
     assertIs<DiffRow.FileHeader>(rows[0])
   }
+
+  @Test
+  fun tooManyLinesShowsPlaceholderAndIsNotLargeDiff() {
+    val rows = flattenRows(listOf(fileWith(DiffContent.TooManyLines(DiffStats(30_000, 0)))), largeDiffLines = 1)
+    val header = rows[0] as DiffRow.FileHeader
+    assertEquals(DiffStats(30_000, 0), header.stats)
+    assertEquals(false, header.largeDiff)
+    assertEquals(DiffRow.Placeholder(0, "Diff too large to display"), rows[1])
+  }
 }

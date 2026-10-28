@@ -3,23 +3,26 @@ package io.github.mataku.kdiffviewer.core.parse
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
+import io.github.mataku.kdiffviewer.core.model.DiffStats
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.Hunk
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
+const val MAX_DIFF_LINES_PER_FILE = 20_000
+
 object UnifiedDiffParser {
   private const val FILE_START = "diff --git "
   private const val DEV_NULL = "/dev/null"
   private val hunkHeader = Regex("""^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$""")
 
-  fun parse(lines: Flow<String>): Flow<FileDiff> = flow {
+  fun parse(lines: Flow<String>, maxLinesPerFile: Int = MAX_DIFF_LINES_PER_FILE): Flow<FileDiff> = flow {
     var file: FileBuilder? = null
     lines.collect { line ->
       if (line.startsWith(FILE_START)) {
         file?.build()?.let { emit(it) }
-        file = FileBuilder(parseDiffGitHeaderPaths(line.removePrefix(FILE_START)))
+        file = FileBuilder(parseDiffGitHeaderPaths(line.removePrefix(FILE_START)), maxLinesPerFile)
       } else {
         file?.accept(line)
       }
@@ -33,7 +36,7 @@ object UnifiedDiffParser {
     return unquoteGitPath(path).removePrefix(prefix)
   }
 
-  private class FileBuilder(private val headerPaths: Pair<String, String>?) {
+  private class FileBuilder(private val headerPaths: Pair<String, String>?, private val maxLines: Int) {
     private var renameFrom: String? = null
     private var renameTo: String? = null
     private var minusSeen = false
@@ -46,9 +49,15 @@ object UnifiedDiffParser {
     private var failed = false
     private val hunks = mutableListOf<Hunk>()
     private var hunk: HunkBuilder? = null
+    private var bodyLines = 0
+    private var omitted: OmittedCounter? = null
 
     fun accept(line: String) {
       if (failed) return
+      omitted?.let {
+        it.accept(line)
+        return
+      }
       val current = hunk
       if (current == null) {
         acceptHeader(line)
@@ -64,7 +73,24 @@ object UnifiedDiffParser {
         startHunk(match)
       } else if (!current.accept(line)) {
         failed = true
+      } else if (++bodyLines > maxLines) {
+        omitted = OmittedCounter(statsSoFar(current))
+        hunks.clear()
+        hunk = null
       }
+    }
+
+    private fun statsSoFar(current: HunkBuilder): DiffStats {
+      var additions = 0
+      var deletions = 0
+      for (line in hunks.flatMap { it.lines } + current.lines) {
+        when (line.kind) {
+          LineKind.Added -> additions++
+          LineKind.Removed -> deletions++
+          else -> Unit
+        }
+      }
+      return DiffStats(additions, deletions)
     }
 
     private fun acceptHeader(line: String) {
@@ -124,8 +150,10 @@ object UnifiedDiffParser {
       if (change == ChangeType.Added) oldPath = null
       if (change == ChangeType.Deleted) newPath = null
       if (oldPath == null && newPath == null) return null
+      val counter = omitted
       val content = when {
         failed -> DiffContent.Unparseable
+        counter != null -> DiffContent.TooManyLines(counter.stats())
         binary -> DiffContent.Binary
         else -> DiffContent.Text(hunks.toList())
       }
@@ -139,6 +167,20 @@ object UnifiedDiffParser {
     }
   }
 
+  private class OmittedCounter(start: DiffStats) {
+    private var additions = start.additions
+    private var deletions = start.deletions
+
+    fun accept(line: String) {
+      when (line.firstOrNull()) {
+        '+' -> additions++
+        '-' -> deletions++
+      }
+    }
+
+    fun stats(): DiffStats = DiffStats(additions, deletions)
+  }
+
   private class HunkBuilder(
     private val oldStart: Int,
     private val oldCount: Int,
@@ -146,7 +188,7 @@ object UnifiedDiffParser {
     private val newCount: Int,
     private val header: String,
   ) {
-    private val lines = mutableListOf<DiffLine>()
+    val lines = mutableListOf<DiffLine>()
     private var oldNo = oldStart
     private var newNo = newStart
     private var oldRemaining = oldCount

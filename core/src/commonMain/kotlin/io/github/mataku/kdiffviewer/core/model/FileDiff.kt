@@ -24,6 +24,7 @@ sealed interface DiffContent {
   data class Text(val hunks: List<Hunk>) : DiffContent
   data object Binary : DiffContent
   data object TooLarge : DiffContent
+  data class TooManyLines(val stats: DiffStats) : DiffContent
   data object Unparseable : DiffContent
 }
 
@@ -42,6 +43,7 @@ data class DiffStats(val additions: Int, val deletions: Int)
 
 val FileDiff.stats: DiffStats
   get() {
+    (content as? DiffContent.TooManyLines)?.let { return it.stats }
     val hunks = (content as? DiffContent.Text)?.hunks ?: return DiffStats(0, 0)
     var additions = 0
     var deletions = 0

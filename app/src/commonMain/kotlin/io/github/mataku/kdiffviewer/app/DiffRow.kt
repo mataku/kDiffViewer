@@ -40,7 +40,7 @@ fun flattenRows(files: List<FileDiff>, startIndex: Int = 0, largeDiffLines: Int 
   files.forEachIndexed { position, file ->
     val fileIndex = startIndex + position
     val stats = file.stats
-    rows += DiffRow.FileHeader(fileIndex, file, stats, largeDiff = stats.additions + stats.deletions >= largeDiffLines)
+    rows += DiffRow.FileHeader(fileIndex, file, stats, largeDiff = file.content is DiffContent.Text && stats.additions + stats.deletions >= largeDiffLines)
     when (val content = file.content) {
       is DiffContent.Text -> content.hunks.forEachIndexed { hunkIndex, hunk ->
         rows += DiffRow.HunkHeader(fileIndex, hunkIndex, hunk)
@@ -52,6 +52,8 @@ fun flattenRows(files: List<FileDiff>, startIndex: Int = 0, largeDiffLines: Int 
       DiffContent.Binary -> rows += DiffRow.Placeholder(fileIndex, "Binary file not shown")
 
       DiffContent.TooLarge -> rows += DiffRow.Placeholder(fileIndex, "File too large to display")
+
+      is DiffContent.TooManyLines -> rows += DiffRow.Placeholder(fileIndex, "Diff too large to display")
 
       DiffContent.Unparseable -> rows += DiffRow.Placeholder(fileIndex, "Could not parse this diff")
     }

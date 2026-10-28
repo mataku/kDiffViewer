@@ -118,4 +118,38 @@ class UnifiedDiffParserTest {
   fun splitLinesKeepsLoneCarriageReturn() {
     assertEquals(listOf("a", "b\rc"), splitLines("a\r\nb\rc\n"))
   }
+
+  private val cappedDiff = """
+    diff --git a/big.txt b/big.txt
+    --- a/big.txt
+    +++ b/big.txt
+    @@ -1,2 +1,3 @@
+     keep
+    -old
+    +new
+    +more
+    diff --git a/next.txt b/next.txt
+    --- a/next.txt
+    +++ b/next.txt
+    @@ -1 +1 @@
+    -a
+    +b
+  """.trimIndent() + "\n"
+
+  private suspend fun parseCapped(maxLinesPerFile: Int): List<FileDiff> = UnifiedDiffParser.parse(splitLines(cappedDiff).asFlow(), maxLinesPerFile).toList()
+
+  @Test
+  fun fileAtLineCapKeepsHunks() = runTest {
+    val files = parseCapped(4)
+    assertEquals(4, (files[0].content as DiffContent.Text).hunks.single().lines.size)
+  }
+
+  @Test
+  fun fileOverLineCapBecomesTooManyLines() = runTest {
+    val files = parseCapped(3)
+    assertEquals(DiffContent.TooManyLines(DiffStats(2, 1)), files[0].content)
+    assertEquals(DiffStats(2, 1), files[0].stats)
+    assertEquals("next.txt", files[1].newPath)
+    assertEquals(DiffStats(1, 1), files[1].stats)
+  }
 }
