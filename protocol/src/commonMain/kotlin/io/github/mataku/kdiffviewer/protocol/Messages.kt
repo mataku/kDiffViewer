@@ -6,6 +6,8 @@ import kotlinx.serialization.json.JsonObject
 
 const val PROTOCOL_VERSION = 1
 
+const val MAX_WAIT_SECONDS = 86_400
+
 @Serializable
 data class RequestEnvelope(
   val v: Int,
@@ -29,6 +31,7 @@ object Methods {
   const val THREAD_REPLY = "thread.reply"
   const val THREAD_RESOLVE = "thread.resolve"
   const val RELOAD = "reload"
+  const val REVIEW_WAIT = "review.wait"
 }
 
 object ErrorCodes {
@@ -37,6 +40,8 @@ object ErrorCodes {
   const val BAD_REQUEST = "bad_request"
   const val UNSUPPORTED_VERSION = "unsupported_version"
   const val LOAD_FAILED = "load_failed"
+  const val REPOSITORY_CHANGED = "repository_changed"
+  const val SUPERSEDED = "superseded"
 }
 
 @Serializable
@@ -81,6 +86,25 @@ data class ThreadResolveParams(val threadId: String)
 
 @Serializable
 data class ReloadResult(val files: Int, val outdated: Int)
+
+@Serializable
+data class ReviewWaitParams(val timeoutSeconds: Int? = null)
+
+@Serializable
+data class ReviewDto(
+  val id: String,
+  val state: String,
+  val summary: String? = null,
+  val submittedAt: String,
+  val commentIds: List<String>,
+)
+
+@Serializable
+data class ReviewWaitResult(
+  val timedOut: Boolean,
+  val reviews: List<ReviewDto>,
+  val threads: List<ThreadDto>,
+)
 
 @Serializable
 data class WindowInfoResult(

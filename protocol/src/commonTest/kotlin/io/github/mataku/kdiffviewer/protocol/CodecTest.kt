@@ -121,4 +121,27 @@ class CodecTest {
     val entry = RegistryEntry(7L, null, "/s.sock", "2026-10-26T00:00:00Z", 1)
     assertEquals(entry, Codec.json.decodeFromString<RegistryEntry>(Codec.json.encodeToString(entry)))
   }
+
+  @Test
+  fun reviewWaitParams() {
+    assertEquals(ReviewWaitParams(540), requestRoundTrip(Methods.REVIEW_WAIT, ReviewWaitParams(540)))
+    assertEquals(ReviewWaitParams(null), Codec.params<ReviewWaitParams>(Codec.decodeRequest(Codec.encodeRequest(Methods.REVIEW_WAIT))))
+    assertEquals("review.wait", Methods.REVIEW_WAIT)
+    assertEquals(86_400, MAX_WAIT_SECONDS)
+  }
+
+  @Test
+  fun reviewWaitResult() {
+    val review = ReviewDto("r2", "approved", "looks good", "2026-10-28T00:00:00Z", listOf("c1"))
+    val result = ReviewWaitResult(timedOut = false, reviews = listOf(review), threads = listOf(thread))
+    assertEquals(result, resultRoundTrip(result))
+    assertEquals(ReviewDto("r1", "comment", null, "2026-10-28T00:00:00Z", emptyList()), resultRoundTrip(ReviewDto("r1", "comment", null, "2026-10-28T00:00:00Z", emptyList())))
+    assertEquals(ReviewWaitResult(true, emptyList(), emptyList()), resultRoundTrip(ReviewWaitResult(true, emptyList(), emptyList())))
+  }
+
+  @Test
+  fun reviewErrorCodes() {
+    assertEquals("repository_changed", ErrorCodes.REPOSITORY_CHANGED)
+    assertEquals("superseded", ErrorCodes.SUPERSEDED)
+  }
 }
