@@ -1,13 +1,20 @@
 package io.github.mataku.kdiffviewer.app.ui.review
 
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -27,6 +34,7 @@ import androidx.compose.ui.test.rightClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.withKeyDown
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.dp
 import io.github.mataku.kdiffviewer.app.review.DraftMode
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.selection.ClipboardWriter
@@ -221,6 +229,35 @@ class ThreadCardTest {
     assertTrue(kotlin.math.abs(position.x.value - (bounds.left.value + 10f / density)) <= 1f, "x=${position.x} bounds=$bounds")
     assertTrue(kotlin.math.abs(position.y.value - (bounds.top.value + (bounds.bottom.value - bounds.top.value) / 2f)) <= 1f, "y=${position.y} bounds=$bounds")
     assertEquals(false, coordinator.hasSelection)
+  }
+
+  @Test
+  fun rightClickAfterScrollShowsMenuAtClickPosition() = runComposeUiTest {
+    val menu = RecordingMenu()
+    val scroll = ScrollState(0)
+    setContent {
+      CompositionLocalProvider(
+        LocalReviewActions provides FakeActions(),
+        LocalTextSelectionCoordinator provides coordinator,
+        LocalNativeContextMenu provides menu,
+      ) {
+        Column(Modifier.testTag("scroller").height(200.dp).verticalScroll(scroll)) {
+          Spacer(Modifier.height(150.dp))
+          ThreadCard(helloThread, null)
+        }
+      }
+    }
+    val before = onNodeWithText("hello world").getBoundsInRoot()
+    runOnIdle { scroll.dispatchRawDelta(100f) }
+    waitForIdle()
+    assertTrue(scroll.value > 0, "scroll=${scroll.value}")
+    onNodeWithText("hello world").performMouseInput { rightClick(Offset(10f, height / 2f)) }
+    waitForIdle()
+    val bounds = onNodeWithText("hello world").getBoundsInRoot()
+    assertTrue(bounds.top.value < before.top.value - 1f, "before=$before after=$bounds")
+    val position = menu.shown.single().first
+    assertTrue(kotlin.math.abs(position.x.value - (bounds.left.value + 10f)) <= 1f, "x=${position.x} bounds=$bounds")
+    assertTrue(kotlin.math.abs(position.y.value - (bounds.top.value + (bounds.bottom.value - bounds.top.value) / 2f)) <= 1f, "y=${position.y} bounds=$bounds")
   }
 
   @Test

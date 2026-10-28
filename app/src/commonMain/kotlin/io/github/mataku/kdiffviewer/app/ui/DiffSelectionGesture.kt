@@ -22,7 +22,7 @@ import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextLayoutResult
@@ -114,7 +114,7 @@ internal fun Modifier.diffSelectionGesture(
     gesture.density = density
     gesture.focusManager = focusManager
   }
-  return onGloballyPositioned { gesture.coordinates = it }.pointerInput(gesture) { gesture.run { handleGestures() } }
+  return onPlaced { gesture.coordinates = it }.pointerInput(gesture) { gesture.run { handleGestures() } }
 }
 
 internal class DiffSelectionGesture(

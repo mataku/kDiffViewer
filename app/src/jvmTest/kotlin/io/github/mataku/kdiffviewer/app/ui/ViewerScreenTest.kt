@@ -630,6 +630,20 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun headerControlsShareVerticalCentre() = runComposeUiTest {
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
+      }
+    }
+    val centres = listOf("sidebar-control", "repo-name", "reload-button").map { tag ->
+      val bounds = onNodeWithTag(tag).getUnclippedBoundsInRoot()
+      (bounds.top + bounds.bottom) / 2
+    }
+    assertTrue(centres.all { (it - centres.first()).value in -1f..1f }, "vertical centres differ: $centres")
+  }
+
+  @Test
   fun headerLeavesRoomAroundItsContent() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(emptyList()).copy(head = HeadRef.Branch("main")), {}) }
     val header = onNodeWithTag("repo-header").fetchSemanticsNode().boundsInRoot
@@ -1639,6 +1653,39 @@ class ViewerScreenTest {
     val x = (list.left + (list.width * 0.9f)).toInt() - list.left.toInt()
     val y = with(density) { ((b.top + b.bottom) / 2).toPx() }.toInt() - list.top.toInt()
     assertEquals(LightDiffColors.emptySideBackground, pixels[x, y])
+  }
+
+  @Test
+  fun unifiedWrappedLineKeepsGutterColourToRowBottom() = runComposeUiTest {
+    val text = "lorem ".repeat(80)
+    val file = FileDiff("a.kt", "a.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", listOf(DiffLine(LineKind.Added, text, null, 1))))))
+    val state = stateOf(listOf(file))
+    setContent { Box(modifier = Modifier.size(700.dp, 500.dp)) { ViewerScreen(state, {}, sidebarVisible = false) } }
+    val t = onNodeWithText(text, useUnmergedTree = true).getUnclippedBoundsInRoot()
+    assertTrue(t.bottom - t.top > 30.dp, "t=$t")
+    val pixels = listPixels()
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val y = with(density) { (t.bottom - 4.dp).toPx() }.toInt() - list.top.toInt()
+    val gutterX = with(density) { 24.dp.toPx() }.toInt() - list.left.toInt()
+    val contentX = with(density) { 124.dp.toPx() }.toInt() - list.left.toInt()
+    assertEquals(LightDiffColors.addedLineNumberBackground, pixels[gutterX, y])
+    assertEquals(LightDiffColors.addedBackground, pixels[contentX, y])
+  }
+
+  @Test
+  fun splitWrappedSideFillsOtherHalfToRowBottom() = runComposeUiTest {
+    val text = "lorem ".repeat(80)
+    val state = splitState(DiffLine(LineKind.Removed, "a", 1, null), DiffLine(LineKind.Added, text, null, 1))
+    setContent { Box(modifier = Modifier.size(900.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split, sidebarVisible = false) } }
+    val t = onNodeWithText(text, useUnmergedTree = true).getUnclippedBoundsInRoot()
+    assertTrue(t.bottom - t.top > 30.dp, "t=$t")
+    val pixels = listPixels()
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val y = with(density) { (t.bottom - 4.dp).toPx() }.toInt() - list.top.toInt()
+    val gutterX = with(density) { 24.dp.toPx() }.toInt() - list.left.toInt()
+    val contentX = with(density) { (20.dp + 48.dp + 16.dp + 40.dp).toPx() }.toInt() - list.left.toInt()
+    assertEquals(LightDiffColors.removedLineNumberBackground, pixels[gutterX, y])
+    assertEquals(LightDiffColors.removedBackground, pixels[contentX, y])
   }
 
   @Test

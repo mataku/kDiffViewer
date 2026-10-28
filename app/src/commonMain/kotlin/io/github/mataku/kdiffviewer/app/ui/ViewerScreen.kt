@@ -36,14 +36,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.onPlaced
-import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -245,7 +244,7 @@ fun ViewerScreen(
           onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
           statsOf = statsOf,
           statusOf = statusOf,
-          width = treeWidth,
+          width = { treeWidth },
           query = treeQuery,
           onQueryChange = { treeQuery = it },
           filtering = filtering,
@@ -337,111 +336,145 @@ private fun RepoHeader(
   val repoAnchor = with(density) { (DefaultTreeWidth + PaneDividerWidth + ContentHorizontalMargin).toPx() }
   val startPadding = if (titleBarLeadingInset > 0.dp) titleBarLeadingInset + 8.dp else 20.dp
   val startPaddingPx = with(density) { startPadding.toPx() }
-  val naturalLeft = remember { mutableFloatStateOf(0f) }
-  Row(
+  RepoHeaderLayout(
+    startPaddingPx = startPaddingPx,
+    repoAnchor = repoAnchor,
+    sidebar = sidebar,
     modifier = Modifier
       .testTag("repo-header")
       .fillMaxWidth()
       .height(ViewerTitleBarHeight)
       .background(colors.fileHeaderBackground)
       .padding(start = startPadding, end = 20.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    MacSegmented(
-      options = SidebarOptions,
-      selected = sidebarVisible,
-      label = { if (it) "Show Sidebar" else "Hide Sidebar" },
-      tag = { if (it) "sidebar-shown" else "sidebar-hidden" },
-      onSelect = { if (it != sidebarVisible) onToggleSidebar() },
-      modifier = Modifier
-        .testTag("sidebar-control")
-        .titleBarClientRegion("sidebar-control"),
-      segmentWidth = 32.dp,
-      icon = { if (it) KdvIcons.Sidebar else KdvIcons.NoSidebar },
-      tooltip = { if (it) "Show Sidebar (⌃⌘S)" else "Hide Sidebar (⌃⌘S)" },
-    )
-    Spacer(Modifier.width(12.dp))
-    Column(
-      modifier = Modifier
-        .weight(1f)
-        .onPlaced { naturalLeft.floatValue = startPaddingPx + it.positionInParent().x }
-        .layout { measurable, constraints ->
-          val shift = if (sidebar.diffNarrow) (repoAnchor - naturalLeft.floatValue).coerceAtLeast(0f).roundToInt() else 0
-          val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = (constraints.maxWidth - shift).coerceAtLeast(0)))
-          layout(constraints.maxWidth, placeable.height) { placeable.placeRelative(shift, 0) }
-        }
-        .graphicsLayer {
-          translationX = if (sidebar.diffNarrow) 0f else sidebar.progress * (repoAnchor - naturalLeft.floatValue).coerceAtLeast(0f)
-        },
-    ) {
-      BasicText(
-        text = state.repo?.let(::repoName).orEmpty(),
-        modifier = Modifier.testTag("repo-name"),
-        style = TextStyle(color = colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+    leading = {
+      MacSegmented(
+        options = SidebarOptions,
+        selected = sidebarVisible,
+        label = { if (it) "Show Sidebar" else "Hide Sidebar" },
+        tag = { if (it) "sidebar-shown" else "sidebar-hidden" },
+        onSelect = { if (it != sidebarVisible) onToggleSidebar() },
+        modifier = Modifier
+          .testTag("sidebar-control")
+          .titleBarClientRegion("sidebar-control"),
+        segmentWidth = 32.dp,
+        icon = { if (it) KdvIcons.Sidebar else KdvIcons.NoSidebar },
+        tooltip = { if (it) "Show Sidebar (⌃⌘S)" else "Hide Sidebar (⌃⌘S)" },
       )
-      val base = state.base as? ResolvedBase.Commit
-      val head = state.head
-      if (base != null || head != null) {
-        val labelStyle = TextStyle(color = colors.mutedText, fontSize = 12.sp)
-        Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-          if (base != null) {
-            val uncommittedOnly = base.label == "HEAD"
-            BasePicker(base, state.baseSpec, head, loadBranches, onSwitchBase, labelStyle, Modifier.weight(1f, fill = false).titleBarClientRegion("base-picker"))
+    },
+    center = {
+      Column {
+        BasicText(
+          text = state.repo?.let(::repoName).orEmpty(),
+          modifier = Modifier.testTag("repo-name"),
+          style = TextStyle(color = colors.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+        )
+        val base = state.base as? ResolvedBase.Commit
+        val head = state.head
+        if (base != null || head != null) {
+          val labelStyle = TextStyle(color = colors.mutedText, fontSize = 12.sp)
+          Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (base != null) {
+              val uncommittedOnly = base.label == "HEAD"
+              BasePicker(base, state.baseSpec, head, loadBranches, onSwitchBase, labelStyle, Modifier.weight(1f, fill = false).titleBarClientRegion("base-picker"))
+              if (head != null) {
+                BasicText(text = if (uncommittedOnly) "·" else "...", modifier = Modifier.padding(horizontal = 6.dp), style = labelStyle)
+              }
+            }
             if (head != null) {
-              BasicText(text = if (uncommittedOnly) "·" else "...", modifier = Modifier.padding(horizontal = 6.dp), style = labelStyle)
-            }
-          }
-          if (head != null) {
-            val (icon, iconTag, label) = when (head) {
-              is HeadRef.Branch -> Triple(KdvIcons.Branch, "head-branch-icon", head.name)
-              is HeadRef.Detached -> Triple(KdvIcons.Commit, "head-commit-icon", head.shortHash)
-            }
-            Row(
-              modifier = Modifier.clip(TagShape).background(colors.text.copy(alpha = TAG_FILL_ALPHA)).padding(TagPadding),
-              verticalAlignment = Alignment.CenterVertically,
-            ) {
-              Image(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.testTag(iconTag).padding(end = 4.dp).size(12.dp),
-                colorFilter = ColorFilter.tint(colors.mutedText),
-              )
-              BasicText(
-                text = label,
-                modifier = Modifier.testTag("head-label"),
-                style = labelStyle,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-              )
+              val (icon, iconTag, label) = when (head) {
+                is HeadRef.Branch -> Triple(KdvIcons.Branch, "head-branch-icon", head.name)
+                is HeadRef.Detached -> Triple(KdvIcons.Commit, "head-commit-icon", head.shortHash)
+              }
+              Row(
+                modifier = Modifier.clip(TagShape).background(colors.text.copy(alpha = TAG_FILL_ALPHA)).padding(TagPadding),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Image(
+                  imageVector = icon,
+                  contentDescription = null,
+                  modifier = Modifier.testTag(iconTag).padding(end = 4.dp).size(12.dp),
+                  colorFilter = ColorFilter.tint(colors.mutedText),
+                )
+                BasicText(
+                  text = label,
+                  modifier = Modifier.testTag("head-label"),
+                  style = labelStyle,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                )
+              }
             }
           }
         }
       }
+    },
+    trailing = {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        MacSegmented(
+          options = DiffMode.entries,
+          selected = mode,
+          label = { it.name },
+          tag = { "diff-mode-${it.name.lowercase()}" },
+          onSelect = { if (it != mode) onModeChange(it) },
+          modifier = Modifier
+            .testTag("diff-mode-control")
+            .titleBarClientRegion("diff-mode"),
+          segmentWidth = 32.dp,
+          icon = { if (it == DiffMode.Unified) KdvIcons.Unified else KdvIcons.Split },
+          tooltip = { it.name },
+        )
+        Spacer(Modifier.width(8.dp))
+        GlassIconButton(
+          icon = KdvIcons.Reload,
+          contentDescription = "Reload",
+          tooltip = "Reload (⌘R)",
+          onClick = onReload,
+          modifier = Modifier
+            .testTag("reload-button")
+            .titleBarClientRegion("reload-button"),
+        )
+      }
+    },
+  )
+}
+
+@Composable
+private fun RepoHeaderLayout(
+  leading: @Composable () -> Unit,
+  center: @Composable () -> Unit,
+  trailing: @Composable () -> Unit,
+  startPaddingPx: Float,
+  repoAnchor: Float,
+  sidebar: SidebarTransition,
+  modifier: Modifier,
+) {
+  val naturalLeft = remember { mutableFloatStateOf(0f) }
+  val centerLayer = Modifier.graphicsLayer {
+    translationX = if (sidebar.diffNarrow) 0f else sidebar.progress * (repoAnchor - naturalLeft.floatValue).coerceAtLeast(0f)
+  }
+  Layout(
+    contents = listOf(leading, { Box(centerLayer) { center() } }, trailing),
+    modifier = modifier,
+  ) { (leadings, centers, trailings), constraints ->
+    val maxWidth = constraints.maxWidth
+    val maxHeight = constraints.maxHeight
+    val gap = 12.dp.roundToPx()
+    val leadingPlaceable = leadings.first().measure(Constraints(maxWidth = maxWidth, maxHeight = maxHeight))
+    val trailingPlaceable = trailings.first().measure(
+      Constraints(maxWidth = (maxWidth - leadingPlaceable.width - 2 * gap).coerceAtLeast(0), maxHeight = maxHeight),
+    )
+    val natural = startPaddingPx + leadingPlaceable.width + gap
+    val shift = if (sidebar.diffNarrow) (repoAnchor - natural).coerceAtLeast(0f).roundToInt() else 0
+    val available = (maxWidth - leadingPlaceable.width - trailingPlaceable.width - 2 * gap).coerceAtLeast(0)
+    val centerPlaceable = centers.first().measure(Constraints(maxWidth = (available - shift).coerceAtLeast(0), maxHeight = maxHeight))
+    naturalLeft.floatValue = natural
+    val centerSlotX = leadingPlaceable.width + gap
+    fun centred(height: Int) = Alignment.CenterVertically.align(height, maxHeight)
+    layout(maxWidth, maxHeight) {
+      leadingPlaceable.placeRelative(0, centred(leadingPlaceable.height))
+      centerPlaceable.placeRelative(centerSlotX + shift, centred(centerPlaceable.height))
+      trailingPlaceable.placeRelative(centerSlotX + available + gap, centred(trailingPlaceable.height))
     }
-    Spacer(Modifier.width(12.dp))
-    MacSegmented(
-      options = DiffMode.entries,
-      selected = mode,
-      label = { it.name },
-      tag = { "diff-mode-${it.name.lowercase()}" },
-      onSelect = { if (it != mode) onModeChange(it) },
-      modifier = Modifier
-        .testTag("diff-mode-control")
-        .titleBarClientRegion("diff-mode"),
-      segmentWidth = 32.dp,
-      icon = { if (it == DiffMode.Unified) KdvIcons.Unified else KdvIcons.Split },
-      tooltip = { it.name },
-    )
-    Spacer(Modifier.width(8.dp))
-    GlassIconButton(
-      icon = KdvIcons.Reload,
-      contentDescription = "Reload",
-      tooltip = "Reload (⌘R)",
-      onClick = onReload,
-      modifier = Modifier
-        .testTag("reload-button")
-        .titleBarClientRegion("reload-button"),
-    )
   }
 }
 

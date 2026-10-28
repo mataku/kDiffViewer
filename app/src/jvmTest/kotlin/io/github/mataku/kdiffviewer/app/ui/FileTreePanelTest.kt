@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.TreeEntry
 import io.github.mataku.kdiffviewer.app.TreeRow
@@ -56,26 +57,43 @@ class FileTreePanelTest {
   @Test
   fun bothCountsSeparatedBySingleSpace() = runComposeUiTest {
     val stats = listOf(DiffStats(12, 3))
-    setContent { FileTreePanel(entries, {}, {}, statsOf = { stats[0] }, width = 280.dp) }
+    setContent { FileTreePanel(entries, {}, {}, statsOf = { stats[0] }, width = { 280.dp }) }
     onNodeWithTag("tree-stats-0", useUnmergedTree = true).assertTextEquals("+12 −3")
   }
 
   @Test
+  fun statsFollowWidthAcrossThreshold() = runComposeUiTest {
+    var width by mutableStateOf(280.dp)
+    setContent { FileTreePanel(entries, {}, {}, statsOf = { DiffStats(3, 1) }, width = { width }) }
+    onNodeWithTag("tree-stats-0", useUnmergedTree = true).assertExists()
+    width = 300.dp
+    waitForIdle()
+    assertEquals(300.dp, onNodeWithTag("tree-panel").getUnclippedBoundsInRoot().width)
+    onNodeWithTag("tree-stats-0", useUnmergedTree = true).assertExists()
+    width = 200.dp
+    waitForIdle()
+    onNodeWithTag("tree-stats-0", useUnmergedTree = true).assertDoesNotExist()
+    width = 280.dp
+    waitForIdle()
+    onNodeWithTag("tree-stats-0", useUnmergedTree = true).assertExists()
+  }
+
+  @Test
   fun narrowTreeHidesFileStats() = runComposeUiTest {
-    setContent { FileTreePanel(entries, {}, {}, statsOf = { DiffStats(3, 1) }, width = 200.dp) }
+    setContent { FileTreePanel(entries, {}, {}, statsOf = { DiffStats(3, 1) }, width = { 200.dp }) }
     onNodeWithTag("tree-stats-0", useUnmergedTree = true).assertDoesNotExist()
   }
 
   @Test
   fun fileWithoutLineChangesShowsNoStats() = runComposeUiTest {
-    setContent { FileTreePanel(entries, {}, {}, statsOf = { DiffStats(0, 0) }, width = 280.dp) }
+    setContent { FileTreePanel(entries, {}, {}, statsOf = { DiffStats(0, 0) }, width = { 280.dp }) }
     onNodeWithTag("tree-stats-0", useUnmergedTree = true).assertDoesNotExist()
   }
 
   @Test
   fun zeroCountsAreHidden() = runComposeUiTest {
     var stats by mutableStateOf(DiffStats(40, 0))
-    setContent { FileTreePanel(entries, {}, {}, statsOf = { stats }, width = 280.dp) }
+    setContent { FileTreePanel(entries, {}, {}, statsOf = { stats }, width = { 280.dp }) }
     onNodeWithTag("tree-stats-0", useUnmergedTree = true).assertTextEquals("+40")
     stats = DiffStats(0, 25)
     waitForIdle()
@@ -92,7 +110,7 @@ class FileTreePanelTest {
       TreeEntry(TreeRow(0, "b.kt", 1), null, false),
     )
     val stats = listOf(DiffStats(12, 3), DiffStats(0, 12345))
-    setContent { FileTreePanel(two, {}, {}, statsOf = { stats[it] }, statusOf = { GitFileStatus.Modified }, width = 280.dp) }
+    setContent { FileTreePanel(two, {}, {}, statsOf = { stats[it] }, statusOf = { GitFileStatus.Modified }, width = { 280.dp }) }
     val first = onNodeWithTag("tree-stats-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
     val second = onNodeWithTag("tree-stats-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
     assertEquals(first.right, second.right)
@@ -101,7 +119,7 @@ class FileTreePanelTest {
   @Test
   fun statusLetterShown() = runComposeUiTest {
     val five = GitFileStatus.entries.mapIndexed { i, _ -> TreeEntry(TreeRow(0, "f$i.kt", i), null, false) }
-    setContent { FileTreePanel(five, {}, {}, statusOf = { GitFileStatus.entries[it] }, width = 280.dp) }
+    setContent { FileTreePanel(five, {}, {}, statusOf = { GitFileStatus.entries[it] }, width = { 280.dp }) }
     val expected = listOf("U", "A", "M", "D", "R")
     expected.forEachIndexed { i, letter ->
       onNodeWithTag("tree-status-$i", useUnmergedTree = true).assertTextEquals(letter)
@@ -111,13 +129,13 @@ class FileTreePanelTest {
   @Test
   fun directoryShowsNoStatusLetter() = runComposeUiTest {
     val directories = listOf(TreeEntry(TreeRow(0, "src", null), "src", false))
-    setContent { FileTreePanel(directories, {}, {}, statusOf = { GitFileStatus.Modified }, width = 280.dp) }
+    setContent { FileTreePanel(directories, {}, {}, statusOf = { GitFileStatus.Modified }, width = { 280.dp }) }
     onNodeWithTag("tree-status-0", useUnmergedTree = true).assertDoesNotExist()
   }
 
   @Test
   fun statusHiddenBelowStatsWidth() = runComposeUiTest {
-    setContent { FileTreePanel(entries, {}, {}, statusOf = { GitFileStatus.Modified }, width = 200.dp) }
+    setContent { FileTreePanel(entries, {}, {}, statusOf = { GitFileStatus.Modified }, width = { 200.dp }) }
     onNodeWithTag("tree-status-0", useUnmergedTree = true).assertDoesNotExist()
   }
 

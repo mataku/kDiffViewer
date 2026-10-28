@@ -8,11 +8,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -45,17 +43,17 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
-import androidx.compose.ui.unit.sp
 import io.github.mataku.compose.highlight.core.LocalSyntaxTheme
 import io.github.mataku.kdiffviewer.app.DiffLayout
 import io.github.mataku.kdiffviewer.app.DiffMode
@@ -89,6 +87,7 @@ private val FileHeaderTopMargin = 12.dp
 private val FileChevronSize = 12.dp
 private val FileCommentIconSize = 14.dp
 private val AddCommentSize = 16.dp
+private val AddCommentTint = ColorFilter.tint(Color.White)
 private val TextCursor = Modifier.pointerHoverIcon(PointerIcon.Text)
 
 private const val HEADER_CONTENT_TYPE = 0
@@ -150,6 +149,7 @@ fun DiffView(
   val listWidth = remember { mutableIntStateOf(0) }
   val splitHalfWidth = remember(contentStartX) { { (listWidth.intValue - 2 * contentStartX) / 2f } }
   val colors = LocalDiffColors.current
+  val iconTint = remember(colors.mutedText) { ColorFilter.tint(colors.mutedText) }
   val framePainter = rememberFileFramePainter()
   val frameInset = with(LocalDensity.current) { FileHeaderTopMargin.toPx() }
   val frameMargin = with(LocalDensity.current) { ContentHorizontalMargin.toPx() }
@@ -208,7 +208,7 @@ fun DiffView(
       val collapsed = layout.isCollapsed(fileIndex)
       val header = rows[display.unifiedOf(headerRow)] as DiffRow.FileHeader
       stickyHeader(key = header.key, contentType = HEADER_CONTENT_TYPE) {
-        FileHeaderRow(header, collapsed, onFileComment) { currentOnHeaderClick(header.fileIndex) }
+        FileHeaderRow(header, collapsed, iconTint, onFileComment) { currentOnHeaderClick(header.fileIndex) }
       }
       if (!collapsed) {
         if (layout.hasNotes(fileIndex)) {
@@ -330,7 +330,13 @@ private fun FileDiff.badge(): String = if (isUntracked) "Untracked" else change.
 private fun Modifier.headerBadge(borderColor: Color): Modifier = border(1.dp, borderColor, RoundedCornerShape(10.dp)).padding(horizontal = 6.dp, vertical = 1.dp)
 
 @Composable
-private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment: ((DiffRow.FileHeader) -> Unit)?, onClick: () -> Unit) {
+private fun FileHeaderRow(
+  row: DiffRow.FileHeader,
+  collapsed: Boolean,
+  iconTint: ColorFilter,
+  onComment: ((DiffRow.FileHeader) -> Unit)?,
+  onClick: () -> Unit,
+) {
   val colors = LocalDiffColors.current
   val typography = LocalDiffTypography.current
   Row(
@@ -353,7 +359,7 @@ private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment
         .testTag("file-chevron-${row.fileIndex}")
         .size(FileChevronSize)
         .rotate(if (collapsed) 0f else 90f),
-      colorFilter = ColorFilter.tint(colors.mutedText),
+      colorFilter = iconTint,
     )
     Row(
       modifier = Modifier.weight(1f),
@@ -396,7 +402,7 @@ private fun FileHeaderRow(row: DiffRow.FileHeader, collapsed: Boolean, onComment
           .testTag("file-comment-${row.fileIndex}")
           .clickable(interactionSource = null, indication = null) { onComment(row) }
           .size(FileCommentIconSize),
-        colorFilter = ColorFilter.tint(colors.mutedText),
+        colorFilter = iconTint,
       )
     }
   }
@@ -421,11 +427,10 @@ private fun HunkHeaderRow(row: DiffRow.HunkHeader) {
 
 @Composable
 private fun PlaceholderRow(message: String) {
-  val colors = LocalDiffColors.current
   BasicText(
     text = message,
     modifier = Modifier.fillMaxWidth().padding(12.dp),
-    style = TextStyle(color = colors.mutedText, fontSize = 13.sp),
+    style = LocalDiffTypography.current.placeholder,
   )
 }
 
@@ -441,7 +446,14 @@ private fun LineRow(
 ) {
   val key = row.key
   val hovered by remember(key) { derivedStateOf { hoveredKey.value == key } }
-  LineHalf(row, rowIndex, null, slot, if (hovered) onAddComment else null, selection, layouts, Modifier.fillMaxWidth().height(IntrinsicSize.Min))
+  val colors = LocalDiffColors.current
+  val typography = LocalDiffTypography.current
+  val modifier = Modifier.fillMaxWidth().lineBackground(
+    typography.lineNumberWidth * 2,
+    gutterColor(row.line.kind, colors),
+    contentColor(row.line.kind, colors),
+  )
+  LineHalf(row, rowIndex, null, slot, if (hovered) onAddComment else null, selection, layouts, modifier)
 }
 
 @Composable
@@ -461,10 +473,60 @@ private fun SplitLineRow(
   val rightKey = remember(key) { "$key:R" }
   val leftHovered by remember(leftKey) { derivedStateOf { hoveredKey.value == leftKey } }
   val rightHovered by remember(rightKey) { derivedStateOf { hoveredKey.value == rightKey } }
-  Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-    LineHalf(left, leftIndex, Side.Old, slot, if (leftHovered) onAddComment else null, selection, layouts, Modifier.weight(1f).fillMaxHeight())
-    LineHalf(right, rightIndex, Side.New, slot, if (rightHovered) onAddComment else null, selection, layouts, Modifier.weight(1f).fillMaxHeight())
+  val colors = LocalDiffColors.current
+  val typography = LocalDiffTypography.current
+  val modifier = Modifier.fillMaxWidth().lineBackground(
+    typography.lineNumberWidth,
+    left?.let { gutterColor(it.line.kind, colors) } ?: colors.emptySideBackground,
+    left?.let { contentColor(it.line.kind, colors) } ?: colors.emptySideBackground,
+    right?.let { gutterColor(it.line.kind, colors) } ?: colors.emptySideBackground,
+    right?.let { contentColor(it.line.kind, colors) } ?: colors.emptySideBackground,
+    split = true,
+  )
+  SplitLineLayout(
+    left = { LineHalf(left, leftIndex, Side.Old, slot, if (leftHovered) onAddComment else null, selection, layouts, Modifier) },
+    right = { LineHalf(right, rightIndex, Side.New, slot, if (rightHovered) onAddComment else null, selection, layouts, Modifier) },
+    modifier = modifier,
+  )
+}
+
+@Composable
+private fun SplitLineLayout(left: @Composable () -> Unit, right: @Composable () -> Unit, modifier: Modifier) {
+  Layout(content = {
+    left()
+    right()
+  }, modifier = modifier) { measurables, constraints ->
+    val width = constraints.maxWidth
+    val leftWidth = width / 2
+    val rightWidth = width - leftWidth
+    val leftPlaceable = measurables[0].measure(Constraints(minWidth = leftWidth, maxWidth = leftWidth))
+    val rightPlaceable = measurables[1].measure(Constraints(minWidth = rightWidth, maxWidth = rightWidth))
+    val height = maxOf(leftPlaceable.height, rightPlaceable.height)
+    layout(width, height) {
+      leftPlaceable.place(0, 0)
+      rightPlaceable.place(leftWidth, 0)
+    }
   }
+}
+
+private fun gutterColor(kind: LineKind, colors: DiffColors): Color = when (kind) {
+  LineKind.Added -> colors.addedLineNumberBackground
+  LineKind.Removed -> colors.removedLineNumberBackground
+  LineKind.NoNewlineAtEof -> Color.Unspecified
+  else -> colors.background
+}
+
+private fun contentColor(kind: LineKind, colors: DiffColors): Color = when (kind) {
+  LineKind.Added -> colors.addedBackground
+  LineKind.Removed -> colors.removedBackground
+  LineKind.NoNewlineAtEof -> Color.Unspecified
+  else -> colors.background
+}
+
+private fun markerOf(kind: LineKind): String = when (kind) {
+  LineKind.Added -> "+"
+  LineKind.Removed -> "-"
+  else -> " "
 }
 
 @Composable
@@ -481,7 +543,7 @@ private fun LineHalf(
   val colors = LocalDiffColors.current
   val typography = LocalDiffTypography.current
   if (row == null) {
-    Box(modifier = modifier.background(colors.emptySideBackground))
+    Box(modifier)
     return
   }
   val line = row.line
@@ -493,11 +555,6 @@ private fun LineHalf(
       style = typography.noNewline,
     )
     return
-  }
-  val (contentBackground, numberBackground, marker) = when (line.kind) {
-    LineKind.Added -> Triple(colors.addedBackground, colors.addedLineNumberBackground, "+")
-    LineKind.Removed -> Triple(colors.removedBackground, colors.removedLineNumberBackground, "-")
-    else -> Triple(colors.background, colors.background, " ")
   }
   val range = remember(rowIndex, line, side) {
     derivedStateOf {
@@ -519,20 +576,12 @@ private fun LineHalf(
   val controlStyle = typography.controlMarker
   val selectionColor = colors.selectionBackground
   Row(modifier = modifier) {
-    if (side != Side.New) LineNumberCell(line.oldLineNo, numberBackground, typography, row, side, onAddComment)
-    if (side != Side.Old) LineNumberCell(line.newLineNo, numberBackground, typography, if (side == Side.New) row else null, side, if (side == Side.New) onAddComment else null)
-    Box(modifier = Modifier.width(16.dp).fillMaxHeight().background(contentBackground)) {
-      BasicText(
-        text = marker,
-        modifier = Modifier.align(Alignment.TopCenter),
-        style = typography.marker,
-      )
-    }
-    val contentModifier = remember(contentBackground, range, layoutState, line.text, tabWidth, selectionColor) {
+    if (side != Side.New) LineNumberCell(line.oldLineNo, typography, row, side, onAddComment)
+    if (side != Side.Old) LineNumberCell(line.newLineNo, typography, if (side == Side.New) row else null, side, if (side == Side.New) onAddComment else null)
+    BasicText(markerOf(line.kind), Modifier.width(16.dp), style = typography.marker)
+    val contentModifier = remember(range, layoutState, line.text, tabWidth, selectionColor) {
       Modifier
         .weight(1f)
-        .fillMaxHeight()
-        .background(contentBackground)
         .drawBehind {
           val selected = range.value ?: return@drawBehind
           val layout = layoutState.value ?: return@drawBehind
@@ -556,8 +605,8 @@ private fun LineHalf(
 }
 
 @Composable
-private fun LineNumberCell(number: Int?, background: Color, typography: DiffTypography, row: DiffRow.Line?, side: Side?, onAdd: ((DiffRow.Line, Side?) -> Unit)?) {
-  Box(modifier = Modifier.width(typography.lineNumberWidth).fillMaxHeight().background(background).padding(end = 6.dp)) {
+private fun LineNumberCell(number: Int?, typography: DiffTypography, row: DiffRow.Line?, side: Side?, onAdd: ((DiffRow.Line, Side?) -> Unit)?) {
+  Box(modifier = Modifier.width(typography.lineNumberWidth).padding(end = 6.dp)) {
     BasicText(
       text = number?.toString().orEmpty(),
       modifier = Modifier.fillMaxWidth(),
@@ -578,7 +627,7 @@ private fun LineNumberCell(number: Int?, background: Color, typography: DiffTypo
           .clickable(interactionSource = null, indication = null) { onAdd(row, side) },
         contentAlignment = Alignment.Center,
       ) {
-        Image(imageVector = KdvIcons.Plus, contentDescription = "Add comment", modifier = Modifier.size(10.dp), colorFilter = ColorFilter.tint(Color.White))
+        Image(imageVector = KdvIcons.Plus, contentDescription = "Add comment", modifier = Modifier.size(10.dp), colorFilter = AddCommentTint)
       }
     }
   }

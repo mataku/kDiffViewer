@@ -83,9 +83,11 @@ class DiffSelectionUiTest {
 
   private class RecordingMenu : NativeContextMenu {
     val shown = mutableListOf<List<ContextMenuItem>>()
+    val positions = mutableListOf<DpOffset>()
 
     override fun show(positionInWindow: DpOffset, items: List<ContextMenuItem>) {
       shown += items
+      positions += positionInWindow
     }
   }
 
@@ -655,6 +657,18 @@ class DiffSelectionUiTest {
     assertEquals(listOf("Copy"), items.map { it.label })
     assertFalse(items.single().enabled)
     assertFalse(coordinator.hasSelection)
+  }
+
+  @Test
+  fun rightClickMenuOpensAtClickPosition() = runComposeUiTest {
+    show(stateOf())
+    val click = codePosition("alpha beta", 2)
+    onNodeWithTag("diff-list").performMouseInput { rightClick(click) }
+    waitForIdle()
+    val list = listBounds()
+    val position = menu.positions.single()
+    assertTrue(kotlin.math.abs(position.x.value - (list.left + click.x)) <= 1f, "x=${position.x} list=$list click=$click")
+    assertTrue(kotlin.math.abs(position.y.value - (list.top + click.y)) <= 1f, "y=${position.y} list=$list click=$click")
   }
 
   @Test
