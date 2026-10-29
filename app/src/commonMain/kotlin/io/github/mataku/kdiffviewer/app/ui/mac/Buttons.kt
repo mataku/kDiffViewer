@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,6 +34,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -97,7 +99,7 @@ fun MacPopupButton(
       style = TextStyle(color = colors.text, fontSize = 13.sp),
       modifier = Modifier.weight(1f),
     )
-    Chevron(colors.mutedText)
+    PopupChevrons(colors.mutedText)
   }
 }
 
@@ -134,17 +136,37 @@ fun MacPullDownTag(
       style = textStyle,
       modifier = Modifier.weight(1f, fill = false).then(textModifier),
     )
-    Chevron(colors.mutedText)
+    PullDownChevron(colors.mutedText)
+  }
+}
+
+private val ChevronWidth = 7.dp
+private val ChevronHeight = 4.dp
+private val ChevronStroke = 1.2.dp
+
+@Composable
+private fun PullDownChevron(color: Color) {
+  Canvas(modifier = Modifier.padding(start = 8.dp).offset(y = 1.dp).testTag("pull-down-chevron").size(width = ChevronWidth, height = ChevronHeight)) {
+    chevron(color, top = 0f, bottom = size.height, pointsDown = true)
   }
 }
 
 @Composable
-private fun Chevron(color: Color) {
-  Canvas(modifier = Modifier.padding(start = 6.dp).size(width = 9.dp, height = 6.dp)) {
-    val stroke = 1.3.dp.toPx()
-    drawLine(color, Offset(0.5f * stroke, 0.5f * stroke), Offset(size.width / 2, size.height - 0.5f * stroke), stroke, StrokeCap.Round)
-    drawLine(color, Offset(size.width / 2, size.height - 0.5f * stroke), Offset(size.width - 0.5f * stroke, 0.5f * stroke), stroke, StrokeCap.Round)
+private fun PopupChevrons(color: Color) {
+  Canvas(modifier = Modifier.padding(start = 6.dp).testTag("popup-chevrons").size(width = ChevronWidth, height = ChevronHeight * 2 + 2.dp)) {
+    val height = ChevronHeight.toPx()
+    chevron(color, top = 0f, bottom = height, pointsDown = false)
+    chevron(color, top = size.height - height, bottom = size.height, pointsDown = true)
   }
+}
+
+private fun DrawScope.chevron(color: Color, top: Float, bottom: Float, pointsDown: Boolean) {
+  val stroke = ChevronStroke.toPx()
+  val inset = 0.5f * stroke
+  val edgeY = if (pointsDown) top + inset else bottom - inset
+  val tipY = if (pointsDown) bottom - inset else top + inset
+  drawLine(color, Offset(inset, edgeY), Offset(size.width / 2, tipY), stroke, StrokeCap.Round)
+  drawLine(color, Offset(size.width / 2, tipY), Offset(size.width - inset, edgeY), stroke, StrokeCap.Round)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
