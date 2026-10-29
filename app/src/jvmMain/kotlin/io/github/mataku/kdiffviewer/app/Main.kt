@@ -71,6 +71,7 @@ import kotlinx.coroutines.withContext
 import java.awt.Desktop
 import java.awt.GraphicsEnvironment
 import java.nio.file.Path
+import kotlin.system.exitProcess
 import kotlin.time.Clock
 import androidx.compose.ui.window.WindowState as ComposeWindowState
 
@@ -89,6 +90,7 @@ fun main(args: Array<String>) {
   runApplication(args, repository, location, factory, windowState)
   saveMainSize(windowStateStorage, windowState)
   runBlocking { repository.flush() }
+  exitProcess(0)
 }
 
 private val MinMainSize = DpSize(640.dp, 400.dp)
@@ -120,7 +122,7 @@ private fun runApplication(
   location: GitLocation,
   factory: GitBackendFactory,
   windowState: ComposeWindowState,
-) = application {
+) = application(exitProcessOnExit = false) {
   val scope = remember { MainScope() }
   DisposableEffect(Unit) { onDispose { scope.cancel() } }
   val state = remember {
