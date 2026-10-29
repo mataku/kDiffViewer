@@ -208,6 +208,20 @@ class CommentRangeUiTest {
   }
 
   @Test
+  fun splitDragAboveListClampsToHunkFirstLine() = runComposeUiTest {
+    show(stateOf(split = true), DiffMode.Split)
+    val z = markerPoint("z")
+    press(z)
+    mainClock.autoAdvance = false
+    onNodeWithTag("diff-list").performMouseInput { moveTo(Offset(z.x, -20f)) }
+    repeat(10) { mainClock.advanceTimeByFrame() }
+    onNodeWithTag("diff-list").performMouseInput { release() }
+    mainClock.autoAdvance = true
+    waitForIdle()
+    assertRange(ReviewSide.Old, 1, 4)
+  }
+
+  @Test
   fun splitDragUsesPressedPane() = runComposeUiTest {
     show(stateOf(split = true), DiffMode.Split)
     drag(markerPoint("r1"), markerPoint("r2"))
@@ -249,11 +263,38 @@ class CommentRangeUiTest {
   }
 
   @Test
-  fun shiftClickIgnoresOtherHunk() = runComposeUiTest {
+  fun shiftClickInOtherHunkIsPlainPress() = runComposeUiTest {
     show()
     drag(markerPoint("n1"))
     shiftClick(markerPoint("q"))
     assertRange(ReviewSide.New, 20, 20)
+  }
+
+  @Test
+  fun shiftClickFromContextDraftKeepsNewSide() = runComposeUiTest {
+    show()
+    drag(markerPoint("a"))
+    assertRange(ReviewSide.New, 1, 1)
+    shiftClick(markerPoint("z"))
+    assertEquals(Anchor.Lines("f.kt", ReviewSide.New, 1, 4, listOf("a", "n1", "n2", "z")), lines())
+  }
+
+  @Test
+  fun shiftClickOnContextRowExtendsOldDraft() = runComposeUiTest {
+    show()
+    drag(markerPoint("r1"))
+    assertRange(ReviewSide.Old, 2, 2)
+    shiftClick(markerPoint("z"))
+    assertEquals(Anchor.Lines("f.kt", ReviewSide.Old, 2, 4, listOf("r1", "r2", "z")), lines())
+  }
+
+  @Test
+  fun splitShiftClickOnOtherPaneIsPlainPress() = runComposeUiTest {
+    show(stateOf(split = true), DiffMode.Split)
+    drag(markerPoint("r1"))
+    assertRange(ReviewSide.Old, 2, 2)
+    shiftClick(markerPoint("n2"))
+    assertRange(ReviewSide.New, 3, 3)
   }
 
   @Test

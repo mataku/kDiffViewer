@@ -59,6 +59,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import io.github.mataku.kdiffviewer.core.review.Side as ReviewSide
 
 private const val AUTO_SCROLL_SPEED = 0.5f
 private const val MAX_AUTO_SCROLL_STEP = 40f
@@ -205,8 +206,9 @@ internal class DiffSelectionGesture(
         selection.clear()
         coordinator?.activate(source)
         focusManager?.clearFocus()
-        if (shift && extendDraft(drag)) {
-          finishRange(drag)
+        val extendedSide = if (shift) extendDraft(drag) else null
+        if (extendedSide != null) {
+          finishRange(drag, extendedSide)
         } else {
           dragRange(down, drag, this@coroutineScope)
         }
@@ -312,7 +314,10 @@ internal class DiffSelectionGesture(
 
   fun dropStaleRange() {
     val drag = rangeDrag ?: return
-    if (isStale(drag)) range.dragging = null
+    if (isStale(drag)) {
+      range.dragging = null
+      cancelAutoScroll()
+    }
   }
 
   private fun isStale(drag: RangeDrag): Boolean = loadId != drag.loadId || display !== drag.display
@@ -348,22 +353,25 @@ internal class DiffSelectionGesture(
     return if (row < drag.pressRow) 0 else drag.lastLine
   }
 
-  private fun finishRange(drag: RangeDrag) {
+  private fun finishRange(drag: RangeDrag, side: ReviewSide? = drag.side?.toReviewSide()) {
     val file = files.getOrNull(drag.fileIndex) ?: return
-    val anchor = anchorOfRange(file, drag.fileIndex, drag.hunkIndex, drag.from, drag.to, drag.side?.toReviewSide()) ?: return
+    val anchor = anchorOfRange(file, drag.fileIndex, drag.hunkIndex, drag.from, drag.to, side) ?: return
     onRange?.invoke(anchor)
   }
 
-  private fun extendDraft(drag: RangeDrag): Boolean {
-    val target = draftTarget() as? DraftTarget.NewThread ?: return false
-    val anchor = target.anchor as? Anchor.Lines ?: return false
-    val location = (target.placement as? Placement.OnLine)?.location ?: return false
-    if (location.fileIndex != drag.fileIndex || location.hunkIndex != drag.hunkIndex) return false
-    val file = files.getOrNull(drag.fileIndex) ?: return false
-    val pressedSide = anchorOfRange(file, drag.fileIndex, drag.hunkIndex, drag.pressLine, drag.pressLine, drag.side?.toReviewSide())?.anchor?.side
-    if (anchor.side != pressedSide) return false
+  private fun extendDraft(drag: RangeDrag): ReviewSide? {
+    val target = draftTarget() as? DraftTarget.NewThread ?: return null
+    val anchor = target.anchor as? Anchor.Lines ?: return null
+    val location = (target.placement as? Placement.OnLine)?.location ?: return null
+    if (location.fileIndex != drag.fileIndex || location.hunkIndex != drag.hunkIndex) return null
+    val file = files.getOrNull(drag.fileIndex) ?: return null
+    if (drag.side != null) {
+      if (drag.side.toReviewSide() != anchor.side) return null
+    } else if (anchorOfRange(file, drag.fileIndex, drag.hunkIndex, drag.pressLine, drag.pressLine, anchor.side) == null) {
+      return null
+    }
     drag.from = draftRange(target, files, display?.mode == DiffMode.Split)?.fromLineIndex ?: location.lineIndex
-    return true
+    return anchor.side
   }
 
   private fun rangeDragAt(position: Offset, side: Side?): RangeDrag? {
