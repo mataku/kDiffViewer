@@ -616,7 +616,7 @@ class ViewerScreenTest {
     }
     val toggle = onNodeWithTag("sidebar-control").getUnclippedBoundsInRoot()
     val name = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
-    assertEquals(toggle.right + 56.dp, name.left)
+    assertEquals(toggle.right + 40.dp, name.left)
     width = 1600.dp
     waitForIdle()
     assertEquals(name, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
@@ -652,7 +652,7 @@ class ViewerScreenTest {
     }
     val toggle = onNodeWithTag("sidebar-control").getUnclippedBoundsInRoot()
     val name = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
-    assertEquals(toggle.right + 56.dp, name.left)
+    assertEquals(toggle.right + 40.dp, name.left)
   }
 
   @Test

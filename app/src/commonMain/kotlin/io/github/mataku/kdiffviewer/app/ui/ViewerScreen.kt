@@ -95,7 +95,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
 private val HeaderIconSize = 16.dp
-private val HeaderLeadingGap = 56.dp
+private val HeaderLeadingGap = 40.dp
 
 internal fun sidebarButtonIcon(visible: Boolean): ImageVector = if (visible) KdvIcons.SidebarCollapse else KdvIcons.SidebarExpand
 
