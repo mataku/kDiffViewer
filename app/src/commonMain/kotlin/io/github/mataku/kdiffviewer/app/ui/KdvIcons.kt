@@ -143,6 +143,13 @@ object KdvIcons {
     moveTo(10f, 10f)
     lineTo(13.5f, 13.5f)
   }
+
+  val Close: ImageVector = outlineIcon("Close") {
+    moveTo(4f, 4f)
+    lineTo(12f, 12f)
+    moveTo(12f, 4f)
+    lineTo(4f, 12f)
+  }
 }
 
 private fun PathBuilder.roundedRect(left: Float, top: Float, right: Float, bottom: Float, radius: Float) {

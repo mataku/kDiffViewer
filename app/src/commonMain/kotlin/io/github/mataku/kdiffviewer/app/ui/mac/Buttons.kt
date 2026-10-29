@@ -29,7 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -276,5 +278,33 @@ fun <T> MacSegmented(
         segment()
       }
     }
+  }
+}
+
+@Composable
+fun MacIconButton(
+  icon: ImageVector,
+  contentDescription: String,
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  iconRotation: Float = 0f,
+) {
+  val colors = LocalDiffColors.current
+  val interactionSource = remember { MutableInteractionSource() }
+  val pressed by interactionSource.collectIsPressedAsState()
+  Box(
+    modifier = modifier
+      .size(20.dp)
+      .focusProperties { canFocus = false }
+      .background(if (pressed) colors.trackFill(pressed = true) else Color.Transparent, ControlShape)
+      .clickable(interactionSource = interactionSource, indication = null, role = Role.Button, onClick = onClick),
+    contentAlignment = Alignment.Center,
+  ) {
+    Image(
+      imageVector = icon,
+      contentDescription = contentDescription,
+      modifier = Modifier.size(12.dp).rotate(iconRotation),
+      colorFilter = ColorFilter.tint(colors.text),
+    )
   }
 }
