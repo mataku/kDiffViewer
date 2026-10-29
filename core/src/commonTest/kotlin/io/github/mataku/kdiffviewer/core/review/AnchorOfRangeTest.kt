@@ -18,21 +18,21 @@ class AnchorOfRangeTest {
   fun addedStartCollectsNewSideOnly() {
     val result = anchorOfRange(mixed(), 0, 0, 3, 5)!!
     assertEquals(linesAnchor("a.kt", Side.New, 2, 4, "n1", "n2", "z"), result.anchor)
-    assertEquals(LineLocation(0, 0, 5), result.location)
+    assertEquals(LineLocation(0), result.location)
   }
 
   @Test
   fun removedStartSkipsAddedLines() {
     val result = anchorOfRange(mixed(), 0, 0, 1, 5)!!
     assertEquals(linesAnchor("a.kt", Side.Old, 2, 4, "r1", "r2", "z"), result.anchor)
-    assertEquals(LineLocation(0, 0, 5), result.location)
+    assertEquals(LineLocation(0), result.location)
   }
 
   @Test
   fun contextStartTakesFirstNonContextSideTowardTo() {
     val result = anchorOfRange(mixed(), 0, 0, 0, 4)!!
     assertEquals(linesAnchor("a.kt", Side.Old, 1, 3, "a", "r1", "r2"), result.anchor)
-    assertEquals(LineLocation(0, 0, 2), result.location)
+    assertEquals(LineLocation(0), result.location)
   }
 
   @Test

@@ -4,8 +4,11 @@ import androidx.compose.runtime.Immutable
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.ReviewThread
+import io.github.mataku.kdiffviewer.core.review.Side
 
 fun linePosition(fileIndex: Int, hunkIndex: Int, lineIndex: Int): Long = (fileIndex.toLong() shl 40) or (hunkIndex.toLong() shl 20) or lineIndex.toLong()
+
+fun sidePosition(fileIndex: Int, side: Side, line: Int): Long = (fileIndex.toLong() shl 40) or ((if (side == Side.Old) 0L else 1L) shl 32) or line.toLong()
 
 @Immutable
 class ReviewPlacements(
@@ -50,8 +53,12 @@ internal fun buildPlacements(loadId: Long, threads: List<ReviewThread>, placemen
   for (thread in threads) {
     when (val placement = placementById[thread.id]) {
       is Placement.OnLine -> {
-        val location = placement.location
-        byLine.getOrPut(linePosition(location.fileIndex, location.hunkIndex, location.lineIndex)) { ArrayList() }.add(thread)
+        val anchor = thread.anchor
+        if (anchor is Anchor.Lines) {
+          byLine.getOrPut(sidePosition(placement.location.fileIndex, anchor.side, anchor.endLine)) { ArrayList() }.add(thread)
+        } else {
+          byFile.getOrPut(placement.location.fileIndex) { ArrayList() }.add(thread)
+        }
       }
 
       is Placement.OnFile -> byFile.getOrPut(placement.fileIndex) { ArrayList() }.add(thread)

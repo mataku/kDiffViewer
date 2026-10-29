@@ -48,7 +48,7 @@ fun ReviewThread.published(): ReviewThread? {
   return if (visible.isEmpty()) null else copy(comments = visible)
 }
 
-data class LineLocation(val fileIndex: Int, val hunkIndex: Int, val lineIndex: Int)
+data class LineLocation(val fileIndex: Int)
 
 sealed interface Placement {
   data class OnLine(val location: LineLocation) : Placement

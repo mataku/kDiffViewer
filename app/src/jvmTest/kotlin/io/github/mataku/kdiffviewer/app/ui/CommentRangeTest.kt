@@ -36,14 +36,14 @@ class CommentRangeTest {
 
   private val multiLine = DraftTarget.NewThread(
     Anchor.Lines("a.kt", ReviewSide.New, 1, 3, listOf("a", "n1", "n2")),
-    Placement.OnLine(LineLocation(0, 0, 3)),
+    Placement.OnLine(LineLocation(0)),
   )
 
   @Test
   fun singleLineDraftHasNoRange() {
     val target = DraftTarget.NewThread(
       Anchor.Lines("a.kt", ReviewSide.New, 2, 2, listOf("n1")),
-      Placement.OnLine(LineLocation(0, 0, 2)),
+      Placement.OnLine(LineLocation(0)),
     )
     assertNull(draftRange(target, files, split = false))
   }

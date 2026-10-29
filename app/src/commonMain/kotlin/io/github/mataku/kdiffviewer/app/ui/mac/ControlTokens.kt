@@ -30,6 +30,10 @@ internal fun DiffColors.trackFill(pressed: Boolean = false): Color = when {
   else -> if (pressed) Color(0x24000000) else Color(0x14000000)
 }
 
+internal fun DiffColors.alertFill(): Color = if (isDark) Color(0xFF2C2C2E) else Color(0xFFECECEC)
+
+internal fun DiffColors.alertEdge(): Color = if (isDark) Color(0x33FFFFFF) else LightBorder
+
 internal fun DiffColors.raisedFill(): Color = if (isDark) Color(0x4DFFFFFF) else Color(0xFFFFFFFF)
 
 internal fun Modifier.raisedSegment(colors: DiffColors): Modifier = shadow(if (colors.isDark) 0.dp else 1.dp, SegmentShape, clip = false).background(colors.raisedFill(), SegmentShape)

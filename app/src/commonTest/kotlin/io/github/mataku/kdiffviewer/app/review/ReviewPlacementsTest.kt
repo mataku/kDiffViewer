@@ -1,8 +1,10 @@
 package io.github.mataku.kdiffviewer.app.review
 
 import io.github.mataku.kdiffviewer.core.review.Anchor
+import io.github.mataku.kdiffviewer.core.review.LineLocation
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.ReviewThread
+import io.github.mataku.kdiffviewer.core.review.Side
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -40,5 +42,15 @@ class ReviewPlacementsTest {
       listOf(thread),
     )
     assertEquals(setOf(2, 3, 700), placements.threadFiles())
+  }
+
+  @Test
+  fun lineThreadsAreKeyedByAnchorSideAndEndLine() {
+    val old = ReviewThread("o", Anchor.Lines("a", Side.Old, 4, 5, listOf("x", "y")), emptyList(), false, false)
+    val new = ReviewThread("n", Anchor.Lines("a", Side.New, 7, 7, listOf("z")), emptyList(), false, false)
+    val placements = buildPlacements(1L, listOf(old, new), mapOf("o" to Placement.OnLine(LineLocation(2)), "n" to Placement.OnLine(LineLocation(2))))
+    assertEquals(listOf(old), placements.byLine[sidePosition(2, Side.Old, 5)])
+    assertEquals(listOf(new), placements.byLine[sidePosition(2, Side.New, 7)])
+    assertEquals(setOf(2), placements.threadFiles())
   }
 }

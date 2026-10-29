@@ -7,15 +7,25 @@ import io.github.mataku.kdiffviewer.app.highlight.HighlightRun
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.core.git.DiffLoadException
 import io.github.mataku.kdiffviewer.core.git.DiffSource
+import io.github.mataku.kdiffviewer.core.git.UntrackedEntry
+import io.github.mataku.kdiffviewer.core.git.WorkingTreeReader
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.BranchRef
+import io.github.mataku.kdiffviewer.core.model.ContextExpansion
+import io.github.mataku.kdiffviewer.core.model.ExpandDirection
+import io.github.mataku.kdiffviewer.core.model.ExpandedFile
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
+import io.github.mataku.kdiffviewer.core.model.contextMatches
 import io.github.mataku.kdiffviewer.core.model.displayPath
+import io.github.mataku.kdiffviewer.core.model.expandContext
+import io.github.mataku.kdiffviewer.core.model.gapsOf
+import io.github.mataku.kdiffviewer.core.model.reveal
 import io.github.mataku.kdiffviewer.core.parse.DiffBudget
 import io.github.mataku.kdiffviewer.core.parse.DiffLimits
+import io.github.mataku.kdiffviewer.core.parse.splitLines
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -32,10 +42,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+
+const val EXPAND_SIZE_LIMIT: Long = 4L * 1024 * 1024
 
 @Immutable
 sealed interface LoadStatus {
@@ -89,6 +103,9 @@ data class ViewerUiState(
   val base: ResolvedBase? = null,
   val truncated: Boolean = false,
   val split: SplitRows = SplitRows.Empty,
+  val expansions: Map<CollapsedFile, ContextExpansion> = emptyMap(),
+  val expansionErrors: Map<CollapsedFile, String> = emptyMap(),
+  val contentId: Long = 0,
 )
 
 @Immutable
@@ -120,6 +137,7 @@ class DiffViewerState(
   private val loadContext: CoroutineContext = EmptyCoroutineContext,
   private val largeDiffLines: Int = LARGE_DIFF_LINES,
   private val diffLimits: DiffLimits = DiffLimits(),
+  private var workingTree: WorkingTreeReader? = null,
 ) {
   private val mutableUiState = MutableStateFlow(ViewerUiState())
   val uiState: StateFlow<ViewerUiState> = mutableUiState.asStateFlow()
@@ -127,6 +145,8 @@ class DiffViewerState(
   private var loadJob: Job? = null
   private var highlightRun: HighlightRun? = null
   private var nextLoadId = 0L
+  private var accumulator: LoadAccumulator? = null
+  private val expansionMutex = Mutex()
 
   @Volatile
   private var currentLoad: Any? = null
@@ -161,6 +181,7 @@ class DiffViewerState(
     }
     val knownRoot = mutableUiState.value.root
     val accumulator = LoadAccumulator(loadId, holding = keepPrevious, largeDiffLines)
+    this.accumulator = accumulator
     loadJob = scope.launch {
       launch {
         val head = try {
@@ -198,11 +219,22 @@ class DiffViewerState(
         val run = highlightPipeline?.start(scope, repo, resolved)
         highlightRun = run
         load(diffSource, repo, resolved, token, accumulator, run)
+        val reapplied = withContext(loadContext) { reapplyExpansions(accumulator) }
+        val tree = accumulator.tree.rows()
+        val content = if (reapplied.applied.isEmpty()) null else withContext(loadContext) { mutableUiState.value.withContentOf(accumulator, tree).expandedContent(reapplied.applied) }
         holdJob?.cancel()
         updateIfCurrent(token) {
-          val done = it.withContentOf(accumulator, accumulator.tree.rows())
-          done.copy(status = LoadStatus.Done, collapsed = done.pruned(done.collapsed), expanded = done.pruned(done.expanded))
+          val loaded = it.withContentOf(accumulator, tree)
+          val done = loaded.copy(
+            status = LoadStatus.Done,
+            collapsed = loaded.pruned(loaded.collapsed),
+            expanded = loaded.pruned(loaded.expanded),
+            expansions = emptyMap(),
+            expansionErrors = reapplied.errors,
+          )
+          if (content == null) done else done.withContent(content)
         }
+        if (content != null && currentLoad === token) highlightRun?.submit(content.entries)
       } catch (e: Throwable) {
         ensureActive()
         holdJob?.cancel()
@@ -252,10 +284,11 @@ class DiffViewerState(
     return withContext(loadContext) { diffSource.branches(repo) }
   }
 
-  fun setBackend(source: DiffSource?, highlightPipeline: HighlightPipeline<*>?, missingSourceError: ViewerError = ViewerError.GitNotFound) {
+  fun setBackend(source: DiffSource?, highlightPipeline: HighlightPipeline<*>?, missingSourceError: ViewerError = ViewerError.GitNotFound, workingTree: WorkingTreeReader? = null) {
     this.source = source
     this.missingSourceError = missingSourceError
     this.highlightPipeline = highlightPipeline
+    this.workingTree = workingTree
     reload()
   }
 
@@ -277,6 +310,134 @@ class DiffViewerState(
       if (current.isLargeDiff(fileIndex)) current.copy(expanded = current.expanded + entry) else current.copy(collapsed = current.collapsed - entry)
     }
   }
+
+  fun expandContext(fileIndex: Int, gapIndex: Int, direction: ExpandDirection) {
+    val token = currentLoad ?: return
+    scope.launch {
+      expansionMutex.withLock { applyExpansion(token, fileIndex, gapIndex, direction) }
+    }
+  }
+
+  private suspend fun applyExpansion(token: Any, fileIndex: Int, gapIndex: Int, direction: ExpandDirection) {
+    val state = mutableUiState.value
+    val reader = workingTree
+    val loaded = accumulator
+    val root = state.root
+    if (currentLoad !== token || state.status != LoadStatus.Done || reader == null || loaded == null || root == null) return
+    val original = loaded.files.snapshot().getOrNull(fileIndex) ?: return
+    val entry = CollapsedFile(original.displayPath, state.fingerprints[fileIndex])
+    if (gapsOf(original, null).isEmpty()) return
+    withContext(loadContext) {
+      when (val read = readExpansionText(original, reader, root)) {
+        is ExpansionText.Failed -> setExpansionError(token, entry, read.message)
+
+        is ExpansionText.Lines -> {
+          val current = mutableUiState.value.expansions[entry]
+          val expansion = current.reveal(original, gapIndex, direction, read.lines.size)
+          if (expansion == current) {
+            updateIfCurrent(token) { if (entry in it.expansionErrors) it.copy(expansionErrors = it.expansionErrors - entry) else it }
+          } else {
+            publishExpansion(token, AppliedExpansion(fileIndex, entry, expansion, expandContext(original, expansion, read.lines)))
+          }
+        }
+      }
+    }
+  }
+
+  private suspend fun reapplyExpansions(accumulator: LoadAccumulator): ReappliedExpansions {
+    val previous = mutableUiState.value.expansions
+    val reader = workingTree
+    val root = mutableUiState.value.root
+    if (previous.isEmpty() || reader == null || root == null) return ReappliedExpansions(emptyList(), emptyMap())
+    val files = accumulator.files.snapshot()
+    val fingerprints = accumulator.fingerprints.snapshot()
+    val applied = ArrayList<AppliedExpansion>()
+    val errors = HashMap<CollapsedFile, String>()
+    files.forEachIndexed { fileIndex, original ->
+      val entry = CollapsedFile(original.displayPath, fingerprints[fileIndex])
+      val kept = previous[entry] ?: return@forEachIndexed
+      when (val read = readExpansionText(original, reader, root)) {
+        is ExpansionText.Failed -> errors[entry] = read.message
+
+        is ExpansionText.Lines -> {
+          val expansion = kept.copy(newLineCount = read.lines.size)
+          applied += AppliedExpansion(fileIndex, entry, expansion, expandContext(original, expansion, read.lines))
+        }
+      }
+    }
+    return ReappliedExpansions(applied, errors)
+  }
+
+  private suspend fun readExpansionText(original: FileDiff, reader: WorkingTreeReader, root: RepoPath): ExpansionText {
+    val path = original.newPath ?: return ExpansionText.Failed("Could not read this file")
+    val read = try {
+      reader.read(root.value, path, EXPAND_SIZE_LIMIT)
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      UntrackedEntry.Unreadable
+    }
+    val lines = when (read) {
+      is UntrackedEntry.Regular -> splitLines(read.bytes.decodeToString())
+      UntrackedEntry.TooLarge -> return ExpansionText.Failed("Too large to expand")
+      else -> return ExpansionText.Failed("Could not read this file")
+    }
+    if (!contextMatches(original, lines)) return ExpansionText.Failed("The file no longer matches this diff — reload to expand")
+    return ExpansionText.Lines(lines)
+  }
+
+  private fun setExpansionError(token: Any, entry: CollapsedFile, message: String) {
+    updateIfCurrent(token) { it.copy(expansionErrors = it.expansionErrors + (entry to message)) }
+  }
+
+  private fun publishExpansion(token: Any, applied: AppliedExpansion) {
+    val base = mutableUiState.value
+    val content = base.expandedContent(listOf(applied))
+    var landed = false
+    updateIfCurrent(token) { current ->
+      landed = current.rows === base.rows
+      if (landed) current.withContent(content) else current
+    }
+    if (landed) highlightRun?.submit(content.entries)
+  }
+
+  private fun ViewerUiState.expandedContent(applied: List<AppliedExpansion>): ExpandedContent {
+    val byFile = applied.associateBy { it.fileIndex }
+    val newRows = ArrayList<DiffRow>(rows.size)
+    val headers = ArrayList<Int>(fileHeaderRowIndex.size)
+    val newFiles = files.toMutableList()
+    val newHighlights = highlights.toMutableList()
+    val entries = ArrayList<HighlightEntry>()
+    for (fileIndex in fileHeaderRowIndex.indices) {
+      val start = fileHeaderRowIndex[fileIndex]
+      val end = fileHeaderRowIndex.getOrNull(fileIndex + 1) ?: rows.size
+      headers += newRows.size
+      val expansion = byFile[fileIndex]
+      if (expansion == null) {
+        newRows.addAll(rows.subList(start, end))
+        continue
+      }
+      newRows.addAll(flattenExpanded(listOf(expansion.expanded), fileIndex, largeDiffLines))
+      newFiles[fileIndex] = expansion.expanded.file
+      if (fileIndex in newHighlights.indices) {
+        val slot = HighlightSlot()
+        newHighlights[fileIndex] = slot
+        entries += HighlightEntry(fileIndex, expansion.expanded.file, slot)
+      }
+    }
+    return ExpandedContent(applied, newFiles, newRows, headers, splitRowsOf(newRows), newHighlights, entries)
+  }
+
+  private fun ViewerUiState.withContent(content: ExpandedContent): ViewerUiState = copy(
+    files = content.files,
+    rows = content.rows,
+    fileHeaderRowIndex = content.headers,
+    split = content.split,
+    highlights = content.highlights,
+    expansions = expansions + content.applied.map { it.entry to it.expansion },
+    expansionErrors = expansionErrors - content.applied.map { it.entry }.toSet(),
+    contentId = contentId + 1,
+  )
 
   private fun ViewerUiState.pruned(entries: Set<CollapsedFile>): Set<CollapsedFile> {
     if (entries.isEmpty()) return entries
@@ -364,9 +525,30 @@ class DiffViewerState(
     fingerprints = accumulator.fingerprints.snapshot(),
     loadId = accumulator.loadId,
     truncated = accumulator.truncated,
+    contentId = contentId + 1,
   )
 
   private class LoadedFile(val file: FileDiff, val fingerprint: Long)
+
+  private class AppliedExpansion(val fileIndex: Int, val entry: CollapsedFile, val expansion: ContextExpansion, val expanded: ExpandedFile)
+
+  private class ExpandedContent(
+    val applied: List<AppliedExpansion>,
+    val files: List<FileDiff>,
+    val rows: List<DiffRow>,
+    val headers: List<Int>,
+    val split: SplitRows,
+    val highlights: List<HighlightSlot>,
+    val entries: List<HighlightEntry>,
+  )
+
+  private class ReappliedExpansions(val applied: List<AppliedExpansion>, val errors: Map<CollapsedFile, String>)
+
+  private sealed interface ExpansionText {
+    class Lines(val lines: List<String>) : ExpansionText
+
+    class Failed(val message: String) : ExpansionText
+  }
 
   private class LoadAccumulator(val loadId: Long, var holding: Boolean, private val largeDiffLines: Int) {
     val files = AppendBuffer<FileDiff>()

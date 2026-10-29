@@ -562,10 +562,10 @@ class DiffSelectionUiTest {
         ),
       ),
     )
-    val before = ui.rows.indexOfFirst { it.key == "l1-0-0" }
+    val before = ui.rows.indexOfFirst { it.key == "l1--1" }
     ui = stateOf(listOf(grown, fileB), loadId = 2)
     waitForIdle()
-    assertEquals(before + 1, ui.rows.indexOfFirst { it.key == "l1-0-0" })
+    assertEquals(before + 1, ui.rows.indexOfFirst { it.key == "l1--1" })
     drag(codePosition("epsilon", 2), codePosition("epsilon", 5))
     assertTrue(coordinator.copy())
     assertEquals(listOf("sil"), clipboard.writes)
@@ -680,7 +680,7 @@ class DiffSelectionUiTest {
   fun rightClickInsideCardOpensOnlyTheCardMenu() = runComposeUiTest {
     val ui = stateOf()
     val review = ReviewState(CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined) { Instant.fromEpochSeconds(0) }.also { it.onViewerState(ui) }
-    review.startDraft(DraftTarget.NewThread(Anchor.Lines("a.kt", Side.New, 1, 1, listOf("alpha beta")), Placement.OnLine(LineLocation(0, 0, 0))))
+    review.startDraft(DraftTarget.NewThread(Anchor.Lines("a.kt", Side.New, 1, 1, listOf("alpha beta")), Placement.OnLine(LineLocation(0))))
     review.updateDraft("hello world")
     review.submitDraft(DraftMode.Single)
     setContent {
@@ -703,7 +703,7 @@ class DiffSelectionUiTest {
   fun rightClickInsideCardKeepsDiffSelection() = runComposeUiTest {
     val ui = stateOf()
     val review = ReviewState(CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined) { Instant.fromEpochSeconds(0) }.also { it.onViewerState(ui) }
-    review.startDraft(DraftTarget.NewThread(Anchor.Lines("a.kt", Side.New, 1, 1, listOf("alpha beta")), Placement.OnLine(LineLocation(0, 0, 0))))
+    review.startDraft(DraftTarget.NewThread(Anchor.Lines("a.kt", Side.New, 1, 1, listOf("alpha beta")), Placement.OnLine(LineLocation(0))))
     review.updateDraft("hello world")
     review.submitDraft(DraftMode.Single)
     setContent {

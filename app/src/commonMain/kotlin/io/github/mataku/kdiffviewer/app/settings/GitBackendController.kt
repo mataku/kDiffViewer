@@ -4,6 +4,7 @@ import io.github.mataku.kdiffviewer.app.highlight.HighlightPipeline
 import io.github.mataku.kdiffviewer.core.git.DiffSource
 import io.github.mataku.kdiffviewer.core.git.GitInfo
 import io.github.mataku.kdiffviewer.core.git.GitLocation
+import io.github.mataku.kdiffviewer.core.git.WorkingTreeReader
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -17,6 +18,7 @@ data class GitBackend(
   val info: GitInfo,
   val source: DiffSource,
   val highlightPipeline: HighlightPipeline<*>?,
+  val workingTree: WorkingTreeReader? = null,
 )
 
 sealed interface GitStatus {

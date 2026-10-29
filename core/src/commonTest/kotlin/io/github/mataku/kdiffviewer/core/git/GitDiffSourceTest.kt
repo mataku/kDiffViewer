@@ -31,7 +31,7 @@ class GitDiffSourceTest {
 
   private fun diffArgs(base: String) = listOf(
     "-c", "core.quotePath=false", "-c", "core.fsmonitor=false", "diff", base,
-    "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "-M", "--submodule=short",
+    "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "-M", "--submodule=short", "--unified=3", "--inter-hunk-context=0",
   )
 
   private val modifiedDiff = listOf(

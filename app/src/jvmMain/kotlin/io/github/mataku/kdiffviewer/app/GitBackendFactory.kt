@@ -37,6 +37,6 @@ class GitBackendFactory(private val highlightEnabled: Boolean) {
     } else {
       null
     }
-    return GitBackend(info, GitDiffSource(runner, reader), pipeline)
+    return GitBackend(info, GitDiffSource(runner, reader), pipeline, reader)
   }
 }

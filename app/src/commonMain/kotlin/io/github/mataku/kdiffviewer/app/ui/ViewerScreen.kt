@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.mataku.kdiffviewer.app.CollapsedFile
 import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.GitFileStatus
@@ -76,6 +77,7 @@ import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewInProgress
 import io.github.mataku.kdiffviewer.app.ui.review.RevealingReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.ReviewBar
+import io.github.mataku.kdiffviewer.app.ui.review.draftAnchor
 import io.github.mataku.kdiffviewer.app.ui.review.draftPlacement
 import io.github.mataku.kdiffviewer.app.ui.review.fileIndexOrNull
 import io.github.mataku.kdiffviewer.app.ui.review.revealIndex
@@ -83,8 +85,10 @@ import io.github.mataku.kdiffviewer.app.visibleTree
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
 import io.github.mataku.kdiffviewer.core.model.BranchRef
 import io.github.mataku.kdiffviewer.core.model.DiffStats
+import io.github.mataku.kdiffviewer.core.model.ExpandDirection
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
+import io.github.mataku.kdiffviewer.core.model.displayPath
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import kotlinx.coroutines.flow.first
@@ -112,8 +116,10 @@ fun ViewerScreen(
   mode: DiffMode = DiffMode.Unified,
   onModeChange: (DiffMode) -> Unit = {},
   rangeState: CommentRangeState = remember { CommentRangeState() },
+  onExpandContext: (fileIndex: Int, gapIndex: Int, direction: ExpandDirection) -> Unit = { _, _, _ -> },
 ) {
   val colors = LocalDiffColors.current
+  val expansionErrors = remember(state.expansionErrors, state.files, state.fingerprints) { state.expansionErrorsByFile() }
   val listState = rememberLazyListState()
   val currentState by rememberUpdatedState(state)
   val restorer = remember { ScrollRestorer() }
@@ -138,7 +144,7 @@ fun ViewerScreen(
   }
   val coordinator = LocalTextSelectionCoordinator.current
   val diffSelection = remember { DiffSelectionState() }
-  diffSelection.resetFor(listOf(state.loadId, state.collapsed, state.expanded, mode))
+  diffSelection.resetFor(listOf(state.loadId, state.contentId, state.collapsed, state.expanded, mode))
   val selectionSource = remember(diffSelection) {
     DiffSelectionSource(
       diffSelection,
@@ -176,7 +182,7 @@ fun ViewerScreen(
       currentOnExpandFile(fileIndex)
       withTimeoutOrNull(1_000) { snapshotFlow { currentLayout }.first { !it.isCollapsed(fileIndex) } }
     }
-    val index = revealIndex(placement, currentLayout, currentState.rows, currentDisplay, ((target as? DraftTarget.NewThread)?.anchor as? Anchor.Lines)?.side?.toSide())
+    val index = revealIndex(placement, draftAnchor(target, snapshot.threads), currentLayout, currentState.rows, currentDisplay)
     listState.scrollToItem(index)
     if (fileIndex != null && placement is Placement.OnLine) {
       val headerKey = currentState.rows[currentDisplay.unifiedOf(currentLayout.headerRowIndex(fileIndex))].key
@@ -292,6 +298,8 @@ fun ViewerScreen(
                   selection = diffSelection,
                   selectionSource = selectionSource,
                   rangeState = rangeState,
+                  onExpand = onExpandContext,
+                  expansionErrors = expansionErrors,
                   onHeaderClick = { fileIndex ->
                     val header = layout.headerVisibleIndex(fileIndex)
                     val pinned = listState.firstVisibleItemIndex >= header
@@ -486,4 +494,14 @@ private fun TruncatedNotice() {
     BasicText(text = "ⓘ", modifier = Modifier.padding(end = 6.dp), style = style)
     BasicText(text = "Some files are not shown because the diff is too large.", style = style)
   }
+}
+
+private fun ViewerUiState.expansionErrorsByFile(): Map<Int, String> {
+  if (expansionErrors.isEmpty()) return emptyMap()
+  val result = HashMap<Int, String>()
+  files.forEachIndexed { index, file ->
+    val fingerprint = fingerprints.getOrNull(index) ?: return@forEachIndexed
+    expansionErrors[CollapsedFile(file.displayPath, fingerprint)]?.let { result[index] = it }
+  }
+  return result
 }

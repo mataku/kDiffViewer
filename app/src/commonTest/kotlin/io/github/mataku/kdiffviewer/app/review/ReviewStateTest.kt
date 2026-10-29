@@ -59,7 +59,7 @@ class ReviewStateTest {
 
   private fun ReviewState.addThread(file: FileDiff, lineIndex: Int, text: String = "fix", mode: DraftMode = DraftMode.Single) {
     val anchor = anchorOf(file, 0, lineIndex)!!
-    startDraft(DraftTarget.NewThread(anchor, Placement.OnLine(LineLocation(0, 0, lineIndex))))
+    startDraft(DraftTarget.NewThread(anchor, Placement.OnLine(LineLocation(0))))
     updateDraft(text)
     submitDraft(mode)
   }
@@ -81,14 +81,14 @@ class ReviewStateTest {
     assertEquals("t1", thread.id)
     assertEquals("c1", thread.comments.single().id)
     assertEquals(Author.User, thread.comments.single().author)
-    assertEquals(listOf(thread), snapshot.placements.byLine[linePosition(0, 0, 1)])
+    assertEquals(listOf(thread), snapshot.placements.byLine[sidePosition(0, Side.New, 2)])
     assertNull(snapshot.draft)
   }
 
   @Test
   fun blankDraftNotSubmitted() = runTest(StandardTestDispatcher()) {
     val state = newState()
-    state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
+    state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0))))
     state.updateDraft("   ")
     state.submitDraft(DraftMode.Single)
     assertTrue(state.snapshot.value.threads.isEmpty())
@@ -97,10 +97,10 @@ class ReviewStateTest {
   @Test
   fun secondDraftDoesNotReplaceNonBlankDraft() = runTest(StandardTestDispatcher()) {
     val state = newState()
-    val first = DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1)))
+    val first = DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0)))
     state.startDraft(first)
     state.updateDraft("keep")
-    assertFalse(state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0, 0, 2)))))
+    assertFalse(state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0)))))
     assertEquals(Draft(first, "keep"), state.snapshot.value.draft)
   }
 
@@ -108,7 +108,7 @@ class ReviewStateTest {
   fun typingKeepsPlacementsAndTarget() = runTest(StandardTestDispatcher()) {
     val state = newState()
     state.addThread(base, 0)
-    val target = DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1)))
+    val target = DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0)))
     state.startDraft(target)
     val before = state.snapshot.value
     state.updateDraft("abc")
@@ -121,8 +121,8 @@ class ReviewStateTest {
   @Test
   fun blankDraftIsReplaced() = runTest(StandardTestDispatcher()) {
     val state = newState()
-    state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
-    val second = DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0, 0, 2)))
+    state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0))))
+    val second = DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0)))
     assertTrue(state.startDraft(second))
     assertEquals(Draft(second, ""), state.snapshot.value.draft)
   }
@@ -139,8 +139,8 @@ class ReviewStateTest {
     val snapshot = state.snapshot.value
     assertEquals(2L, snapshot.settledLoadId)
     assertEquals(2L, snapshot.placements.loadId)
-    assertEquals(listOf("t1"), snapshot.placements.byLine[linePosition(0, 0, 3)]?.map { it.id })
-    assertTrue(snapshot.placements.byLine[linePosition(0, 0, 1)] == null)
+    assertEquals(listOf("t1"), snapshot.placements.byLine[sidePosition(0, Side.New, 4)]?.map { it.id })
+    assertTrue(snapshot.placements.byLine[sidePosition(0, Side.New, 2)] == null)
     assertEquals(4, (snapshot.threads.single().anchor as Anchor.Lines).startLine)
   }
 
@@ -156,7 +156,7 @@ class ReviewStateTest {
     val snapshot = state.snapshot.value
     assertEquals(3L, snapshot.placements.loadId)
     assertEquals(3L, snapshot.settledLoadId)
-    assertEquals(listOf("t1"), snapshot.placements.byLine[linePosition(0, 0, 3)]?.map { it.id })
+    assertEquals(listOf("t1"), snapshot.placements.byLine[sidePosition(0, Side.New, 4)]?.map { it.id })
   }
 
   @Test
@@ -237,7 +237,7 @@ class ReviewStateTest {
     state.onViewerState(ui(1, base))
     advanceUntilIdle()
     state.addThread(base, 1)
-    state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0, 0, 2))))
+    state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0))))
     state.onViewerState(ui(2, base, repo = RepoPath("/other"), status = LoadStatus.Loading))
     val snapshot = state.snapshot.value
     assertTrue(snapshot.threads.isEmpty())
@@ -278,14 +278,14 @@ class ReviewStateTest {
     val state = newState()
     state.onViewerState(ui(1, base))
     advanceUntilIdle()
-    state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
+    state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 1)!!, Placement.OnLine(LineLocation(0))))
     state.updateDraft("wip")
     state.onViewerState(ui(2, file("a.kt", "x", "a", "b", "c")))
     advanceUntilIdle()
     val moved = state.snapshot.value.draft!!
     assertEquals("wip", moved.text)
     val target = moved.target as DraftTarget.NewThread
-    assertEquals(Placement.OnLine(LineLocation(0, 0, 2)), target.placement)
+    assertEquals(Placement.OnLine(LineLocation(0)), target.placement)
     state.onViewerState(ui(3, file("a.kt", "x")))
     advanceUntilIdle()
     val gone = state.snapshot.value.draft!!
@@ -299,7 +299,7 @@ class ReviewStateTest {
     val other = file("b.kt", "x", "y")
     state.onViewerState(ui(1, base, other))
     advanceUntilIdle()
-    val target = DraftTarget.NewThread(Anchor.Lines("b.kt", Side.New, 2, 2, listOf("y")), Placement.OnLine(LineLocation(1, 0, 1)))
+    val target = DraftTarget.NewThread(Anchor.Lines("b.kt", Side.New, 2, 2, listOf("y")), Placement.OnLine(LineLocation(1)))
     state.startDraft(target)
     state.updateDraft("wip")
     state.onViewerState(ui(2, base))
@@ -319,7 +319,7 @@ class ReviewStateTest {
     state.onViewerState(ui(2, moved))
     state.addThread(base, 1)
     advanceUntilIdle()
-    assertEquals(listOf("t1"), state.snapshot.value.placements.byLine[linePosition(0, 0, 2)]?.map { it.id })
+    assertEquals(listOf("t1"), state.snapshot.value.placements.byLine[sidePosition(0, Side.New, 3)]?.map { it.id })
   }
 
   @Test
@@ -413,7 +413,7 @@ class ReviewStateTest {
       }
       val drafter = async {
         repeat(100) {
-          state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0, 0, 2))))
+          state.startDraft(DraftTarget.NewThread(anchorOf(base, 0, 2)!!, Placement.OnLine(LineLocation(0))))
           state.updateDraft("x")
           state.submitDraft(DraftMode.Single)
         }

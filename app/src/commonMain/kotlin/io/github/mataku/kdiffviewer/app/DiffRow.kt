@@ -4,8 +4,12 @@ import androidx.compose.runtime.Immutable
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.DiffStats
+import io.github.mataku.kdiffviewer.core.model.ExpandedFile
 import io.github.mataku.kdiffviewer.core.model.FileDiff
+import io.github.mataku.kdiffviewer.core.model.GapView
 import io.github.mataku.kdiffviewer.core.model.Hunk
+import io.github.mataku.kdiffviewer.core.model.LineKind
+import io.github.mataku.kdiffviewer.core.model.expandContext
 import io.github.mataku.kdiffviewer.core.model.stats
 
 const val LARGE_DIFF_LINES = 1_000
@@ -20,13 +24,18 @@ sealed interface DiffRow {
   }
 
   @Immutable
-  data class HunkHeader(val fileIndex: Int, val hunkIndex: Int, val hunk: Hunk) : DiffRow {
+  data class HunkHeader(val fileIndex: Int, val hunkIndex: Int, val hunk: Hunk, val gap: GapView? = null) : DiffRow {
     override val key: String get() = "h$fileIndex-$hunkIndex"
   }
 
   @Immutable
+  data class TrailingGap(val fileIndex: Int, val gap: GapView) : DiffRow {
+    override val key: String get() = "t$fileIndex"
+  }
+
+  @Immutable
   data class Line(val fileIndex: Int, val hunkIndex: Int, val lineIndex: Int, val line: DiffLine) : DiffRow {
-    override val key: String get() = "l$fileIndex-$hunkIndex-$lineIndex"
+    override val key: String get() = if (line.kind == LineKind.NoNewlineAtEof) "n$fileIndex-$hunkIndex-$lineIndex" else "l$fileIndex-${line.oldLineNo ?: ""}-${line.newLineNo ?: ""}"
   }
 
   @Immutable
@@ -35,18 +44,24 @@ sealed interface DiffRow {
   }
 }
 
-fun flattenRows(files: List<FileDiff>, startIndex: Int = 0, largeDiffLines: Int = LARGE_DIFF_LINES): List<DiffRow> {
+fun flattenRows(files: List<FileDiff>, startIndex: Int = 0, largeDiffLines: Int = LARGE_DIFF_LINES): List<DiffRow> = flattenExpanded(files.map { expandContext(it, null, null) }, startIndex, largeDiffLines)
+
+fun flattenExpanded(files: List<ExpandedFile>, startIndex: Int = 0, largeDiffLines: Int = LARGE_DIFF_LINES): List<DiffRow> {
   val rows = ArrayList<DiffRow>()
-  files.forEachIndexed { position, file ->
+  files.forEachIndexed { position, expanded ->
+    val file = expanded.file
     val fileIndex = startIndex + position
     val stats = file.stats
     rows += DiffRow.FileHeader(fileIndex, file, stats, largeDiff = file.content is DiffContent.Text && stats.additions + stats.deletions >= largeDiffLines)
     when (val content = file.content) {
-      is DiffContent.Text -> content.hunks.forEachIndexed { hunkIndex, hunk ->
-        rows += DiffRow.HunkHeader(fileIndex, hunkIndex, hunk)
-        hunk.lines.forEachIndexed { lineIndex, line ->
-          rows += DiffRow.Line(fileIndex, hunkIndex, lineIndex, line)
+      is DiffContent.Text -> {
+        content.hunks.forEachIndexed { hunkIndex, hunk ->
+          rows += DiffRow.HunkHeader(fileIndex, hunkIndex, hunk, expanded.gapBefore.getOrNull(hunkIndex))
+          hunk.lines.forEachIndexed { lineIndex, line ->
+            rows += DiffRow.Line(fileIndex, hunkIndex, lineIndex, line)
+          }
         }
+        expanded.trailingGap?.let { rows += DiffRow.TrailingGap(fileIndex, it) }
       }
 
       DiffContent.Binary -> rows += DiffRow.Placeholder(fileIndex, "Binary file not shown")

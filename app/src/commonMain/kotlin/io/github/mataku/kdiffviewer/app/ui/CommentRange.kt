@@ -13,6 +13,7 @@ import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.Side
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
+import io.github.mataku.kdiffviewer.core.review.locate
 import kotlin.math.max
 import kotlin.math.min
 import io.github.mataku.kdiffviewer.core.review.Side as ReviewSide
@@ -60,10 +61,10 @@ fun draftRange(target: DraftTarget?, files: List<FileDiff>, split: Boolean): Com
   val anchor = thread.anchor as? Anchor.Lines ?: return null
   if (anchor.endLine <= anchor.startLine) return null
   val location = (thread.placement as? Placement.OnLine)?.location ?: return null
-  val hunk = (files.getOrNull(location.fileIndex)?.content as? DiffContent.Text)?.hunks?.getOrNull(location.hunkIndex) ?: return null
-  val lines = hunk.lines
-  if (location.lineIndex !in lines.indices) return null
-  var index = location.lineIndex
+  val file = files.getOrNull(location.fileIndex) ?: return null
+  val last = file.locate(anchor.side, anchor.endLine) ?: return null
+  val lines = (file.content as? DiffContent.Text)?.hunks?.getOrNull(last.hunkIndex)?.lines ?: return null
+  var index = last.lineIndex
   while (index >= 0) {
     val lineNo = lines[index].numberOn(anchor.side)
     if (lineNo != null && lineNo <= anchor.startLine) break
@@ -72,10 +73,10 @@ fun draftRange(target: DraftTarget?, files: List<FileDiff>, split: Boolean): Com
   if (index < 0) return null
   return CommentRange(
     location.fileIndex,
-    location.hunkIndex,
+    last.hunkIndex,
     if (split) anchor.side.toSide() else null,
     index,
-    location.lineIndex,
+    last.lineIndex,
   )
 }
 

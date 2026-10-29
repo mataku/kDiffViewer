@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -21,11 +22,14 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import io.github.mataku.kdiffviewer.app.highlight.LocalCodeHighlighter
+import io.github.mataku.kdiffviewer.app.review.QuitWarning
 import io.github.mataku.kdiffviewer.app.review.ReviewIntegration
 import io.github.mataku.kdiffviewer.app.review.ReviewRequestHandler
 import io.github.mataku.kdiffviewer.app.review.ReviewState
 import io.github.mataku.kdiffviewer.app.review.SessionRegistry
+import io.github.mataku.kdiffviewer.app.review.messageLines
 import io.github.mataku.kdiffviewer.app.review.processAlive
+import io.github.mataku.kdiffviewer.app.review.quitWarningOf
 import io.github.mataku.kdiffviewer.app.selection.LocalNativeContextMenu
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.selection.TextSelectionCoordinator
@@ -44,6 +48,7 @@ import io.github.mataku.kdiffviewer.app.ui.OpenRepositoryScreen
 import io.github.mataku.kdiffviewer.app.ui.ScrollJumps
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
 import io.github.mataku.kdiffviewer.app.ui.ViewerTitleBarHeight
+import io.github.mataku.kdiffviewer.app.ui.mac.MacAlertSheet
 import io.github.mataku.kdiffviewer.app.ui.markdown.SafeUriHandler
 import io.github.mataku.kdiffviewer.app.ui.resolveFontFamily
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
@@ -127,6 +132,7 @@ private fun runApplication(
       highlightPipeline = backend?.highlightPipeline,
       missingSourceError = missingSourceError,
       loadContext = Dispatchers.Default,
+      workingTree = backend?.workingTree,
     ).also { viewerState ->
       when (val launch = parseLaunchArgs(args, System.getProperty("user.dir"))) {
         LaunchArgs.None -> Unit
@@ -170,6 +176,13 @@ private fun runApplication(
     integration.close()
     exitApplication()
   }
+  var quitWarning by remember { mutableStateOf<QuitWarning?>(null) }
+  val requestQuit: () -> Unit = {
+    if (quitWarning == null) {
+      val warning = quitWarningOf(review.snapshot.value)
+      if (warning == null) shutdown() else quitWarning = warning
+    }
+  }
   DisposableEffect(Unit) { onDispose { integration.close() } }
   val controller = remember {
     GitBackendController(
@@ -180,7 +193,7 @@ private fun runApplication(
       probe = ::probeGit,
       locate = { GitLocator.locateOnHost(it) },
       createBackend = factory::create,
-      onBackend = { state.setBackend(it?.source, it?.highlightPipeline) },
+      onBackend = { state.setBackend(it?.source, it?.highlightPipeline, workingTree = it?.workingTree) },
     )
   }
   val uiState by state.uiState.collectAsState()
@@ -207,7 +220,7 @@ private fun runApplication(
     val desktop = Desktop.getDesktop().takeIf { Desktop.isDesktopSupported() && it.isSupported(Desktop.Action.APP_QUIT_HANDLER) }
     desktop?.setQuitHandler { _, response ->
       response.cancelQuit()
-      shutdown()
+      requestQuit()
     }
     onDispose { desktop?.setQuitHandler(null) }
   }
@@ -218,10 +231,10 @@ private fun runApplication(
   var sidebarVisible by remember { mutableStateOf(true) }
   val toggleSidebar = { sidebarVisible = !sidebarVisible }
   Window(
-    onCloseRequest = shutdown,
+    onCloseRequest = requestQuit,
     title = "kDiffViewer",
     state = windowState,
-    onKeyEvent = { event -> scrollJumpOf(event)?.let(scrollJumps::request) ?: false },
+    onKeyEvent = { event -> quitWarning == null && (scrollJumpOf(event)?.let(scrollJumps::request) ?: false) },
   ) {
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     val titleBar = remember { installCustomTitleBar(window, ViewerTitleBarHeight) }
@@ -276,26 +289,38 @@ private fun runApplication(
         treeFontSize = settings.treeFontSize,
       ) {
         val status = uiState.status
-        when {
-          uiState.repo == null -> OpenRepositoryScreen(onOpen = openFolder)
+        Box {
+          when {
+            uiState.repo == null -> OpenRepositoryScreen(onOpen = openFolder)
 
-          status is LoadStatus.Failed -> ErrorScreen(status.error, onOpenAnother = openFolder, onOpenSettings = { openSettings() })
+            status is LoadStatus.Failed -> ErrorScreen(status.error, onOpenAnother = openFolder, onOpenSettings = { openSettings() })
 
-          else -> ViewerScreen(
-            uiState,
-            onReload = state::reload,
-            titleBarLeadingInset = titleBarLeadingInset,
-            sidebarVisible = sidebarVisible,
-            onToggleSidebar = toggleSidebar,
-            onToggleFile = state::toggleCollapsed,
-            onExpandFile = state::expand,
-            review = reviewSnapshot,
-            loadBranches = state::branches,
-            onSwitchBase = state::switchBase,
-            scrollJumps = scrollJumps,
-            mode = diffMode,
-            onModeChange = changeMode,
-          )
+            else -> ViewerScreen(
+              uiState,
+              onReload = state::reload,
+              titleBarLeadingInset = titleBarLeadingInset,
+              sidebarVisible = sidebarVisible,
+              onToggleSidebar = toggleSidebar,
+              onToggleFile = state::toggleCollapsed,
+              onExpandFile = state::expand,
+              review = reviewSnapshot,
+              loadBranches = state::branches,
+              onSwitchBase = state::switchBase,
+              scrollJumps = scrollJumps,
+              mode = diffMode,
+              onModeChange = changeMode,
+              onExpandContext = state::expandContext,
+            )
+          }
+          quitWarning?.let { warning ->
+            MacAlertSheet(
+              title = "Quit kDiffViewer?",
+              messageLines = warning.messageLines(),
+              confirmLabel = "Quit",
+              onConfirm = shutdown,
+              onCancel = { quitWarning = null },
+            )
+          }
         }
       }
     }

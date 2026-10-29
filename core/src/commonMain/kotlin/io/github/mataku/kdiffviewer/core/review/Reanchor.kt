@@ -62,7 +62,7 @@ fun anchorOfRange(
   if (lastIndex < 0) return null
   return RangeAnchor(
     Anchor.Lines(file.anchorPath, resolvedSide, startLine, endLine, snapshot),
-    LineLocation(fileIndex, hunkIndex, lastIndex),
+    LineLocation(fileIndex),
   )
 }
 
@@ -84,6 +84,18 @@ private fun sideTowardTo(lines: List<DiffLine>, from: Int, to: Int): Side {
 private fun DiffLine.numberOn(side: Side): Int? = when (side) {
   Side.Old -> if (kind == LineKind.Removed || kind == LineKind.Context) oldLineNo else null
   Side.New -> if (kind == LineKind.Added || kind == LineKind.Context) newLineNo else null
+}
+
+data class HunkLine(val hunkIndex: Int, val lineIndex: Int)
+
+fun FileDiff.locate(side: Side, line: Int): HunkLine? {
+  val hunks = (content as? DiffContent.Text)?.hunks ?: return null
+  hunks.forEachIndexed { hunkIndex, hunk ->
+    hunk.lines.forEachIndexed { lineIndex, diffLine ->
+      if (diffLine.numberOn(side) == line) return HunkLine(hunkIndex, lineIndex)
+    }
+  }
+  return null
 }
 
 fun reanchor(anchor: Anchor, files: List<FileDiff>): Pair<Anchor, Placement> = resolve(anchor, files).let { it.anchor to it.placement }
@@ -138,7 +150,7 @@ private fun resolveLines(anchor: Anchor.Lines, files: List<FileDiff>, firstFile:
   } else {
     anchor.copy(startLine = match.first, endLine = match.first + anchor.snapshot.size - 1)
   }
-  val location = LineLocation(match.fileIndex, match.last.hunkIndex, match.last.lineIndex)
+  val location = LineLocation(match.fileIndex)
   return Resolution(resolvedAnchor, Placement.OnLine(location), outdated = false)
 }
 
