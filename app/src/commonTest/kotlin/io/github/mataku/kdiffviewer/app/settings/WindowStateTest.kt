@@ -42,6 +42,48 @@ class WindowStateTest {
   }
 
   @Test
+  fun nonPositiveSizeMeansNoSize() {
+    assertNull(WindowState(0, 800).mainSizeOrNull(min, max))
+    assertNull(WindowState(1200, -1).mainSizeOrNull(min, max))
+  }
+
+  @Test
+  fun treeWidthRoundTrips() {
+    val state = WindowState(mainWidth = 1200, mainHeight = 800, treeWidth = 320)
+
+    assertEquals(state, WindowStateCodec.decode(WindowStateCodec.encode(state)))
+    assertEquals(WindowState(treeWidth = 320), WindowStateCodec.decode("""{"treeWidth":320}"""))
+  }
+
+  @Test
+  fun treeWidthWithinBoundsIsKept() {
+    assertEquals(160.dp, WindowState(treeWidth = 160).treeWidthOrNull(160.dp, 600.dp))
+    assertEquals(600.dp, WindowState(treeWidth = 600).treeWidthOrNull(160.dp, 600.dp))
+  }
+
+  @Test
+  fun treeWidthOutsideBoundsMeansNoWidth() {
+    assertNull(WindowState(treeWidth = 159).treeWidthOrNull(160.dp, 600.dp))
+    assertNull(WindowState(treeWidth = 601).treeWidthOrNull(160.dp, 600.dp))
+    assertNull(WindowState(treeWidth = -5).treeWidthOrNull(160.dp, 600.dp))
+    assertNull(WindowState().treeWidthOrNull(160.dp, 600.dp))
+  }
+
+  @Test
+  fun updatedTakesFloatingSizeAndTreeWidth() {
+    val saved = WindowState(1000, 700, 280)
+
+    assertEquals(WindowState(1200, 800, 320), saved.updated(DpSize(1200.dp, 800.dp), 320.dp))
+  }
+
+  @Test
+  fun updatedKeepsSavedSizeWithoutFloatingSize() {
+    val saved = WindowState(1000, 700, 280)
+
+    assertEquals(WindowState(1000, 700, 320), saved.updated(null, 320.dp))
+  }
+
+  @Test
   fun missingValueMeansNoSize() {
     assertNull(WindowState(mainWidth = 1200).mainSizeOrNull(min, max))
     assertNull(WindowState(mainHeight = 800).mainSizeOrNull(min, max))

@@ -845,6 +845,25 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun treeWidthComesFromAndGoesToHoistedState() = runComposeUiTest {
+    val treeWidth = mutableStateOf(400.dp)
+    setContent {
+      Box(modifier = Modifier.size(1000.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, treeWidth = treeWidth)
+      }
+    }
+    assertEquals(with(density) { 400.dp.toPx() }, onNodeWithTag("file-tree").fetchSemanticsNode().boundsInRoot.width)
+    onNodeWithTag("tree-divider").performMouseInput {
+      moveTo(center)
+      press()
+      moveBy(Offset(-1000f, 0f))
+      release()
+    }
+    waitForIdle()
+    assertEquals(MinTreeWidth, treeWidth.value)
+  }
+
+  @Test
   fun treeWidthIsClampedAndNarrowTreeHidesStats() = runComposeUiTest {
     setContent {
       Box(modifier = Modifier.size(1000.dp, 600.dp)) {
