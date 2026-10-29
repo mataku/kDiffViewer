@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -85,7 +86,6 @@ private val FileHeaderTopMargin = 12.dp
 private val FileChevronSize = 12.dp
 private val FileCommentIconSize = 14.dp
 private val MarkerColumnWidth = 16.dp
-
 private val AddCommentSize = 16.dp
 private val AddCommentTint = ColorFilter.tint(Color.White)
 private val TextCursor = Modifier.pointerHoverIcon(PointerIcon.Text)
@@ -138,6 +138,7 @@ fun DiffView(
   selection: DiffSelectionState,
   selectionSource: SelectionSource,
   modifier: Modifier = Modifier,
+  rangeState: CommentRangeState = remember { CommentRangeState() },
 ) {
   val currentOnHeaderClick by rememberUpdatedState(onHeaderClick)
   val actions = LocalReviewActions.current
@@ -146,7 +147,7 @@ fun DiffView(
   val split = display.mode == DiffMode.Split
   val contentStartX = with(LocalDensity.current) { ContentHorizontalMargin.toPx() }
   val markerWidth = with(LocalDensity.current) { MarkerColumnWidth.toPx() }
-  val codeStartX = with(LocalDensity.current) { (ContentHorizontalMargin + typography.lineNumberWidth * (if (split) 1 else 2) + 16.dp).toPx() }
+  val codeStartX = with(LocalDensity.current) { (ContentHorizontalMargin + typography.lineNumberWidth * (if (split) 1 else 2) + MarkerColumnWidth).toPx() }
   val listWidth = remember { mutableIntStateOf(0) }
   val splitHalfWidth = remember(contentStartX) { { (listWidth.intValue - 2 * contentStartX) / 2f } }
   val colors = LocalDiffColors.current
@@ -175,8 +176,8 @@ fun DiffView(
       }
     }
   }
-  val noteIndent = typography.lineNumberWidth * 2 + 16.dp
-  val splitNoteIndent = typography.lineNumberWidth + 16.dp
+  val noteIndent = typography.lineNumberWidth * 2 + MarkerColumnWidth
+  val splitNoteIndent = typography.lineNumberWidth + MarkerColumnWidth
   val hoverModifier = if (!commentable) {
     Modifier
   } else {
@@ -185,7 +186,11 @@ fun DiffView(
       .onPointerEvent(PointerEventType.Move) { event -> hoveredKey.value = hoverKeyAt(listState, event.changes.first().position, split, contentStartX, splitHalfWidth) }
       .onPointerEvent(PointerEventType.Exit) { hoveredKey.value = null }
   }
-  val selectionModifier = Modifier.diffSelectionGesture(listState, selection, selectionSource, layouts, rows, layout, display, contentStartX, codeStartX, splitHalfWidth, typography.tabWidth, files, markerWidth, onRange)
+  val draftedRange = remember(draft, files, split) { draftRange(draft, files, split) }
+  SideEffect { rangeState.drafted = draftedRange }
+  val currentDraft by rememberUpdatedState(draft)
+  val draftTargetOf = remember { { currentDraft } }
+  val selectionModifier = Modifier.diffSelectionGesture(listState, selection, selectionSource, layouts, rows, layout, display, contentStartX, codeStartX, splitHalfWidth, typography.tabWidth, files, markerWidth, onRange, rangeState, draftTargetOf, loadId)
   LazyColumn(
     state = listState,
     modifier = modifier
@@ -546,7 +551,7 @@ private fun LineHalf(
   }
   val line = row.line
   if (line.kind == LineKind.NoNewlineAtEof) {
-    val indent = if (side == null) typography.lineNumberWidth * 2 + 16.dp else typography.lineNumberWidth + 16.dp
+    val indent = if (side == null) typography.lineNumberWidth * 2 + MarkerColumnWidth else typography.lineNumberWidth + MarkerColumnWidth
     BasicText(
       text = "No newline at end of file",
       modifier = modifier.padding(start = indent),
@@ -576,12 +581,10 @@ private fun LineHalf(
   Row(modifier = modifier) {
     if (side != Side.New) LineNumberCell(line.oldLineNo, typography)
     if (side != Side.Old) LineNumberCell(line.newLineNo, typography)
-    Box(Modifier.width(MarkerColumnWidth)) {
-      if (showAdd) {
-        AddCommentButton(typography)
-      } else {
-        BasicText(markerOf(line.kind), style = typography.marker)
-      }
+    if (showAdd) {
+      AddCommentButton(typography)
+    } else {
+      BasicText(markerOf(line.kind), Modifier.width(MarkerColumnWidth), style = typography.marker)
     }
     val contentModifier = remember(range, layoutState, line.text, tabWidth, selectionColor) {
       Modifier

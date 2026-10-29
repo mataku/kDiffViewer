@@ -263,8 +263,10 @@ class DiffSelectionUiTest {
       advanceEventTime(1_000)
     }
     waitForIdle()
-    waitForIdle()
     onNodeWithTag("comment-composer").assertIsDisplayed()
+    val anchor = (review.snapshot.value.draft?.target as DraftTarget.NewThread).anchor as Anchor.Lines
+    assertEquals(1, anchor.startLine)
+    assertEquals(3, anchor.endLine)
     assertFalse(coordinator.hasSelection)
   }
 
