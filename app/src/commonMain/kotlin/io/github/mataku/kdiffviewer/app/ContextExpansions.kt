@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app
 
+import androidx.compose.runtime.Immutable
 import io.github.mataku.kdiffviewer.app.highlight.HighlightEntry
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.core.git.UntrackedEntry
@@ -16,6 +17,15 @@ import kotlinx.coroutines.CancellationException
 
 const val EXPAND_SIZE_LIMIT: Long = 4L * 1024 * 1024
 
+@Immutable
+sealed interface ExpansionError {
+  data object Unreadable : ExpansionError
+
+  data object TooLarge : ExpansionError
+
+  data object Stale : ExpansionError
+}
+
 internal class AppliedExpansion(val fileIndex: Int, val entry: CollapsedFile, val expansion: ContextExpansion, val expanded: ExpandedFile)
 
 internal class ExpandedContent(
@@ -28,16 +38,16 @@ internal class ExpandedContent(
   val entries: List<HighlightEntry>,
 )
 
-internal class ReappliedExpansions(val applied: List<AppliedExpansion>, val errors: Map<CollapsedFile, String>)
+internal class ReappliedExpansions(val applied: List<AppliedExpansion>, val errors: Map<CollapsedFile, ExpansionError>)
 
 internal sealed interface ExpansionText {
   class Lines(val lines: List<String>) : ExpansionText
 
-  class Failed(val message: String) : ExpansionText
+  class Failed(val error: ExpansionError) : ExpansionText
 }
 
 internal suspend fun readExpansionText(original: FileDiff, reader: WorkingTreeReader, root: RepoPath): ExpansionText {
-  val path = original.newPath ?: return ExpansionText.Failed("Could not read this file")
+  val path = original.newPath ?: return ExpansionText.Failed(ExpansionError.Unreadable)
   val read = try {
     reader.read(root.value, path, EXPAND_SIZE_LIMIT)
   } catch (e: CancellationException) {
@@ -47,10 +57,10 @@ internal suspend fun readExpansionText(original: FileDiff, reader: WorkingTreeRe
   }
   val lines = when (read) {
     is UntrackedEntry.Regular -> splitLines(read.bytes.decodeToString())
-    UntrackedEntry.TooLarge -> return ExpansionText.Failed("Too large to expand")
-    else -> return ExpansionText.Failed("Could not read this file")
+    UntrackedEntry.TooLarge -> return ExpansionText.Failed(ExpansionError.TooLarge)
+    else -> return ExpansionText.Failed(ExpansionError.Unreadable)
   }
-  if (!contextMatches(original, lines)) return ExpansionText.Failed("The file no longer matches this diff — reload to expand")
+  if (!contextMatches(original, lines)) return ExpansionText.Failed(ExpansionError.Stale)
   return ExpansionText.Lines(lines)
 }
 
@@ -62,12 +72,12 @@ internal suspend fun reapplyExpansions(
   root: RepoPath,
 ): ReappliedExpansions {
   val applied = ArrayList<AppliedExpansion>()
-  val errors = HashMap<CollapsedFile, String>()
+  val errors = HashMap<CollapsedFile, ExpansionError>()
   files.forEachIndexed { fileIndex, original ->
     val entry = CollapsedFile(original.displayPath, fingerprints[fileIndex])
     val kept = previous[entry] ?: return@forEachIndexed
     when (val read = readExpansionText(original, reader, root)) {
-      is ExpansionText.Failed -> errors[entry] = read.message
+      is ExpansionText.Failed -> errors[entry] = read.error
 
       is ExpansionText.Lines -> {
         val expansion = kept.copy(newLineCount = read.lines.size)

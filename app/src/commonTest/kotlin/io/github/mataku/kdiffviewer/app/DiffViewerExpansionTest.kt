@@ -130,7 +130,7 @@ class DiffViewerExpansionTest {
     state.expandContext(0, 1, ExpandDirection.Down)
     advanceUntilIdle()
     assertSame(rows, state.uiState.value.rows)
-    assertEquals(listOf("Too large to expand"), state.uiState.value.expansionErrors.values.toList())
+    assertEquals(listOf(ExpansionError.TooLarge), state.uiState.value.expansionErrors.values.toList())
   }
 
   @Test
@@ -140,7 +140,7 @@ class DiffViewerExpansionTest {
     advanceUntilIdle()
     state.expandContext(0, 1, ExpandDirection.Down)
     advanceUntilIdle()
-    assertEquals(listOf("Could not read this file"), state.uiState.value.expansionErrors.values.toList())
+    assertEquals(listOf(ExpansionError.Unreadable), state.uiState.value.expansionErrors.values.toList())
   }
 
   @Test
@@ -153,7 +153,7 @@ class DiffViewerExpansionTest {
     state.expandContext(0, 1, ExpandDirection.Down)
     advanceUntilIdle()
     assertSame(rows, state.uiState.value.rows)
-    assertEquals(listOf("The file no longer matches this diff — reload to expand"), state.uiState.value.expansionErrors.values.toList())
+    assertEquals(listOf(ExpansionError.Stale), state.uiState.value.expansionErrors.values.toList())
   }
 
   @Test
@@ -284,7 +284,7 @@ class DiffViewerExpansionTest {
     state.reload()
     advanceUntilIdle()
     assertTrue("L20" !in state.uiState.value.lineTexts(0))
-    assertEquals(listOf("The file no longer matches this diff — reload to expand"), state.uiState.value.expansionErrors.values.toList())
+    assertEquals(listOf(ExpansionError.Stale), state.uiState.value.expansionErrors.values.toList())
   }
 
   @Test

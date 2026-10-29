@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.DpOffset
 import io.github.mataku.kdiffviewer.app.CollapsedFile
 import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
+import io.github.mataku.kdiffviewer.app.ExpansionError
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.buildFileTree
@@ -131,7 +132,7 @@ class ContextExpanderUiTest {
   @Test
   fun expansionErrorShowsInFileHeader() = runComposeUiTest {
     val state = stateOf()
-    show(state.copy(expansionErrors = mapOf(CollapsedFile("f.kt", state.fingerprints[0]) to "Too large to expand")))
+    show(state.copy(expansionErrors = mapOf(CollapsedFile("f.kt", state.fingerprints[0]) to ExpansionError.TooLarge)))
     onNodeWithText("Too large to expand").assertIsDisplayed()
   }
 

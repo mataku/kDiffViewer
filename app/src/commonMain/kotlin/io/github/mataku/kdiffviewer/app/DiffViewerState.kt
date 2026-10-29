@@ -98,7 +98,7 @@ data class ViewerUiState(
   val truncated: Boolean = false,
   val split: SplitRows = SplitRows.Empty,
   val expansions: Map<CollapsedFile, ContextExpansion> = emptyMap(),
-  val expansionErrors: Map<CollapsedFile, String> = emptyMap(),
+  val expansionErrors: Map<CollapsedFile, ExpansionError> = emptyMap(),
   val contentId: Long = 0,
   val rowsGeneration: Long = 0,
 )
@@ -324,7 +324,7 @@ class DiffViewerState(
     if (gapsOf(original, null).isEmpty()) return
     withContext(loadContext) {
       when (val read = readExpansionText(original, reader, root)) {
-        is ExpansionText.Failed -> setExpansionError(token, entry, read.message)
+        is ExpansionText.Failed -> setExpansionError(token, entry, read.error)
 
         is ExpansionText.Lines -> {
           val current = mutableUiState.value.expansions[entry]
@@ -347,8 +347,8 @@ class DiffViewerState(
     return reapplyExpansions(previous, accumulator.files.snapshot(), accumulator.fingerprints.snapshot(), reader, root)
   }
 
-  private fun setExpansionError(token: Any, entry: CollapsedFile, message: String) {
-    updateIfCurrent(token) { it.copy(expansionErrors = it.expansionErrors + (entry to message)) }
+  private fun setExpansionError(token: Any, entry: CollapsedFile, error: ExpansionError) {
+    updateIfCurrent(token) { it.copy(expansionErrors = it.expansionErrors + (entry to error)) }
   }
 
   private fun publishExpansion(token: Any, applied: AppliedExpansion) {

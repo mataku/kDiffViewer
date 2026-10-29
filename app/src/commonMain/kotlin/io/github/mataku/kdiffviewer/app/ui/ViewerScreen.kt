@@ -53,6 +53,7 @@ import io.github.mataku.kdiffviewer.app.DiffLayout
 import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.DisplayRows
+import io.github.mataku.kdiffviewer.app.ExpansionError
 import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ScrollRestorer
@@ -588,7 +589,13 @@ private fun ViewerUiState.expansionErrorsByFile(): Map<Int, String> {
   val result = HashMap<Int, String>()
   files.forEachIndexed { index, file ->
     val fingerprint = fingerprints.getOrNull(index) ?: return@forEachIndexed
-    expansionErrors[CollapsedFile(file.displayPath, fingerprint)]?.let { result[index] = it }
+    expansionErrors[CollapsedFile(file.displayPath, fingerprint)]?.let { result[index] = it.message() }
   }
   return result
+}
+
+internal fun ExpansionError.message(): String = when (this) {
+  ExpansionError.Unreadable -> "Could not read this file"
+  ExpansionError.TooLarge -> "Too large to expand"
+  ExpansionError.Stale -> "The file no longer matches this diff — reload to expand"
 }
