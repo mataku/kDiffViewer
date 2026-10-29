@@ -554,33 +554,33 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun sidebarSegmentsMarkVisibility() = runComposeUiTest {
-    var visible by mutableStateOf(true)
-    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible) }
-    assertEquals(true, onNodeWithTag("sidebar-shown").fetchSemanticsNode().config[SemanticsProperties.Selected])
-    assertEquals(false, onNodeWithTag("sidebar-hidden").fetchSemanticsNode().config[SemanticsProperties.Selected])
-    visible = false
-    waitForIdle()
-    assertEquals(false, onNodeWithTag("sidebar-shown").fetchSemanticsNode().config[SemanticsProperties.Selected])
-    assertEquals(true, onNodeWithTag("sidebar-hidden").fetchSemanticsNode().config[SemanticsProperties.Selected])
-  }
-
-  @Test
-  fun selectingTheOtherSidebarSegmentTogglesAndControlIsClientRegion() = runComposeUiTest {
+  fun sidebarButtonTogglesInBothStatesAndIsClientRegion() = runComposeUiTest {
     val regions = TitleBarRegions()
+    var visible by mutableStateOf(true)
     var toggles = 0
     setContent {
       CompositionLocalProvider(LocalTitleBarRegions provides regions) {
-        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, onToggleSidebar = { toggles++ })
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible, onToggleSidebar = { toggles++ })
       }
     }
     val control = onNodeWithTag("sidebar-control").fetchSemanticsNode().boundsInWindow
     assertTrue(regions.isClientArea(control.center))
-    onNodeWithTag("sidebar-shown").performClick()
-    assertEquals(0, toggles)
-    onNodeWithTag("sidebar-hidden").performClick()
+    onNodeWithTag("sidebar-control").performClick()
     assertEquals(1, toggles)
-    onNodeWithTag("sidebar-hidden").assertWidthIsEqualTo(32.dp)
+    visible = false
+    onNodeWithTag("sidebar-control").performClick()
+    assertEquals(2, toggles)
+  }
+
+  @Test
+  fun sidebarButtonDescribesTheAction() = runComposeUiTest {
+    var visible by mutableStateOf(true)
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible) }
+    onNodeWithContentDescription("Hide Sidebar").assertExists()
+    visible = false
+    waitForIdle()
+    onNodeWithContentDescription("Show Sidebar").assertExists()
+    onNodeWithContentDescription("Hide Sidebar").assertDoesNotExist()
   }
 
   @Test

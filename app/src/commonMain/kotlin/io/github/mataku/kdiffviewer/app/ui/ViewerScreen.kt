@@ -67,6 +67,7 @@ import io.github.mataku.kdiffviewer.app.review.toSide
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.ui.mac.MacSegmented
+import io.github.mataku.kdiffviewer.app.ui.mac.MacToolbarButton
 import io.github.mataku.kdiffviewer.app.ui.mac.TAG_FILL_ALPHA
 import io.github.mataku.kdiffviewer.app.ui.mac.TagPadding
 import io.github.mataku.kdiffviewer.app.ui.mac.TagShape
@@ -91,8 +92,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
-private val SidebarOptions = listOf(true, false)
-
 @Composable
 fun ViewerScreen(
   state: ViewerUiState,
@@ -101,6 +100,7 @@ fun ViewerScreen(
   titleBarLeadingInset: Dp = 0.dp,
   sidebarVisible: Boolean = true,
   onToggleSidebar: () -> Unit = {},
+  sidebarButtonRaised: Boolean = false,
   onToggleFile: (Int) -> Unit = {},
   onExpandFile: (Int) -> Unit = {},
   review: ReviewSnapshot = ReviewSnapshot.Empty,
@@ -222,6 +222,7 @@ fun ViewerScreen(
       titleBarLeadingInset = titleBarLeadingInset,
       sidebarVisible = sidebarVisible,
       onToggleSidebar = onToggleSidebar,
+      sidebarButtonRaised = sidebarButtonRaised,
       sidebar = sidebar,
       loadBranches = loadBranches,
       onSwitchBase = onSwitchBase,
@@ -326,6 +327,7 @@ private fun RepoHeader(
   titleBarLeadingInset: Dp,
   sidebarVisible: Boolean,
   onToggleSidebar: () -> Unit,
+  sidebarButtonRaised: Boolean,
   sidebar: SidebarTransition,
   loadBranches: suspend () -> List<BranchRef>,
   onSwitchBase: suspend (BaseSpec) -> ViewerError?,
@@ -349,18 +351,15 @@ private fun RepoHeader(
       .background(colors.fileHeaderBackground)
       .padding(start = startPadding, end = 20.dp),
     leading = {
-      MacSegmented(
-        options = SidebarOptions,
-        selected = sidebarVisible,
-        label = { if (it) "Show Sidebar" else "Hide Sidebar" },
-        tag = { if (it) "sidebar-shown" else "sidebar-hidden" },
-        onSelect = { if (it != sidebarVisible) onToggleSidebar() },
+      MacToolbarButton(
+        icon = KdvIcons.Sidebar,
+        contentDescription = if (sidebarVisible) "Hide Sidebar" else "Show Sidebar",
+        tooltip = if (sidebarVisible) "Hide Sidebar (⌃⌘S)" else "Show Sidebar (⌃⌘S)",
+        onClick = onToggleSidebar,
         modifier = Modifier
           .testTag("sidebar-control")
           .titleBarClientRegion("sidebar-control"),
-        segmentWidth = 32.dp,
-        icon = { if (it) KdvIcons.Sidebar else KdvIcons.NoSidebar },
-        tooltip = { if (it) "Show Sidebar (⌃⌘S)" else "Hide Sidebar (⌃⌘S)" },
+        raised = sidebarButtonRaised && sidebarVisible,
       )
     },
     center = {
