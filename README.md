@@ -10,6 +10,7 @@ kDiffViewer is a macOS desktop viewer for the git diff of a branch and its worki
 - A file tree with a filter field that narrows it by path, and collapsible files with sticky headers
 - Hidden context lines expand in place, and large diffs stream in as they load; files with 1,000 or more changed lines start collapsed
 - Syntax highlighting for Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScript (including JSX), TypeScript (including TSX), Markdown, JSON, YAML, HTML, CSS, XML, TOML, and shell scripts (Bash)
+- Select and copy code from the diff without line numbers or `+`/`-` markers
 - Review comments on lines or line ranges, with GitHub-style Markdown, that coding agents read and answer through the `kdv` command
 - System, Light, Dark, and Dim appearances
 
@@ -62,7 +63,39 @@ kdv ./ --base HEAD
 
 The base can also be changed from the toolbar: click the base tag to open a popup that lists local and remote branches and accepts a typed revision.
 
-### Review comments
+## Reviewing with a coding agent
+
+You review a coding agent's changes in the app the way you would review a pull request, and the agent reads and answers your comments from the terminal through the `kdv` command.
+
+To get started, give the agent the instructions that `kdv agent-guide` prints, for example by telling it to run the command or by pasting its output into the agent's instructions file:
+
+```sh
+kdv agent-guide
+```
+
+A typical round looks like this:
+
+```mermaid
+sequenceDiagram
+    actor You
+    participant App as kDiffViewer
+    participant Agent as Coding agent
+
+    Agent->>Agent: Edit code
+    Agent->>App: kdv review wait
+    Note over Agent: Blocks until you send
+    You->>App: Comment on lines (Start a review)
+    You->>App: Send to Agent
+    App-->>Agent: Comments
+    Agent->>Agent: Address comments
+    Agent->>App: kdv thread reply #lt;id#gt;
+    Agent->>App: kdv thread resolve #lt;id#gt;
+    Agent->>App: kdv review wait
+    You->>App: Approve
+    App-->>Agent: state: approved
+```
+
+### Leaving comments
 
 <!-- Screenshot: a review comment thread. Planned as docs/images/review-thread.png. -->
 
@@ -70,15 +103,13 @@ Click the add-comment button next to a line to comment on it, or drag the button
 
 Comments are kept in memory while the app runs and are not saved, so they are gone after the app quits. When quitting would lose a review, the app asks first.
 
-### Coding agents
+### Sending comments to the agent
 
-Review comments left in the app can be read and answered from the terminal through `kdv thread`. Run `kdv agent-guide` for the instructions to give a coding agent.
+In the composer, Add single comment (⌘⇧↩) sends the comment to the agent right away, while Start a review (⌘↩) keeps it pending, hidden from the agent, so you can collect several comments first. While comments are pending or an agent is waiting, a bar under the diff sends them with Send to Agent, optionally with a message, or tells the agent you are done with Approve.
 
-A coding agent can wait for your review with `kdv review wait`, which blocks until you send comments from the app. In the composer, Add single comment (⌘⇧↩) sends the comment right away, while Start a review (⌘↩) keeps it pending, hidden from the agent. While comments are pending or an agent is waiting, a bar under the diff sends them with Send to Agent, optionally with a message, or tells the agent you are done with Approve.
+### The kdv command
 
-### Selecting and copying
-
-Drag over the diff to select code; double-click selects a word, triple-click a line, and Shift-click extends the selection. Copy with ⌘C, Edit ▸ Copy, or the right-click menu. Only the code text is copied, without line numbers or `+`/`-` markers. Text in comment bodies can be selected and copied the same way. To copy as soon as a selection is made, turn on Copy on select in Settings.
+A coding agent waits for your review with `kdv review wait`, which blocks until you send comments or approve. It reads threads with `kdv thread list`, answers one with `kdv thread reply`, and marks it done with `kdv thread resolve`; replies show up in the app. Run `kdv agent-guide` for the full instructions to give a coding agent.
 
 ## Keyboard shortcuts
 
@@ -116,7 +147,7 @@ Settings are stored in `~/Library/Application Support/kDiffViewer/settings.json`
 
 ## Known limitations
 
-- Files that contain multibyte text (for example Japanese) are not syntax-highlighted until a fix in kotlin-tree-sitter ([tree-sitter/kotlin-tree-sitter#78](https://github.com/tree-sitter/kotlin-tree-sitter/pull/78)) is released, and a stack trace is printed for them on each load.
+Files that contain multibyte text (for example Japanese) are not syntax-highlighted until a fix in kotlin-tree-sitter ([tree-sitter/kotlin-tree-sitter#78](https://github.com/tree-sitter/kotlin-tree-sitter/pull/78)) is released, and a stack trace is printed for them on each load.
 
 ## Opening untrusted repositories
 
