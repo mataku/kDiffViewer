@@ -155,7 +155,6 @@ fun MacToolbarButton(
   tooltip: String,
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
-  raised: Boolean = false,
 ) {
   val colors = LocalDiffColors.current
   val interactionSource = remember { MutableInteractionSource() }
@@ -175,8 +174,7 @@ fun MacToolbarButton(
       Box(
         modifier = Modifier
           .height(22.dp)
-          .width(32.dp)
-          .then(if (raised) Modifier.raisedSegment(colors) else Modifier),
+          .width(32.dp),
         contentAlignment = Alignment.Center,
       ) {
         Image(

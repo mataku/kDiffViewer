@@ -38,10 +38,4 @@ class ButtonsTest {
     onNodeWithTag("button").assertWidthIsEqualTo(34.dp).assertHeightIsEqualTo(24.dp)
     onNodeWithContentDescription("Hide Sidebar").assertExists()
   }
-
-  @Test
-  fun raisedToolbarButtonKeepsSize() = runComposeUiTest {
-    setContent { MacToolbarButton(KdvIcons.Sidebar, "Hide Sidebar", "t", {}, Modifier.testTag("button"), raised = true) }
-    onNodeWithTag("button").assertWidthIsEqualTo(34.dp).assertHeightIsEqualTo(24.dp)
-  }
 }

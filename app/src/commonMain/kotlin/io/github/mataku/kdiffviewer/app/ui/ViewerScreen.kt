@@ -98,7 +98,6 @@ fun ViewerScreen(
   titleBarLeadingInset: Dp = 0.dp,
   sidebarVisible: Boolean = true,
   onToggleSidebar: () -> Unit = {},
-  sidebarButtonRaised: Boolean = false,
   onToggleFile: (Int) -> Unit = {},
   onExpandFile: (Int) -> Unit = {},
   review: ReviewSnapshot = ReviewSnapshot.Empty,
@@ -220,7 +219,6 @@ fun ViewerScreen(
       titleBarLeadingInset = titleBarLeadingInset,
       sidebarVisible = sidebarVisible,
       onToggleSidebar = onToggleSidebar,
-      sidebarButtonRaised = sidebarButtonRaised,
       loadBranches = loadBranches,
       onSwitchBase = onSwitchBase,
       mode = mode,
@@ -324,7 +322,6 @@ private fun RepoHeader(
   titleBarLeadingInset: Dp,
   sidebarVisible: Boolean,
   onToggleSidebar: () -> Unit,
-  sidebarButtonRaised: Boolean,
   loadBranches: suspend () -> List<BranchRef>,
   onSwitchBase: suspend (BaseSpec) -> ViewerError?,
   mode: DiffMode,
@@ -354,7 +351,6 @@ private fun RepoHeader(
         modifier = Modifier
           .testTag("sidebar-control")
           .titleBarClientRegion("sidebar-control"),
-        raised = sidebarButtonRaised && sidebarVisible,
       )
     },
     center = {
