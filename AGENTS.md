@@ -13,7 +13,7 @@ protocol/ KMP library (jvm + macosArm64). Wire types shared by the app and the C
 cli/    Kotlin/Native executable (macosArm64) producing `kdv`, which talks to running app windows over a Unix socket.
 app/    Compose Desktop app (jvm target). commonMain holds state holders and Compose UI; jvmMain holds main(), the folder picker, and packaging config.
         Bundled images live only under commonMain/composeResources/ (density-qualified PNG); app/art/ holds the SVG originals they are exported from (including app_icon.svg) and is not packaged; app/art/kDiffViewer.icon is the Icon Composer original of the app icon; app/packaging/ holds what packaging uses: kDiffViewer.icns (fallback for macOS 15 and earlier, and the Dock icon for `:app:run`) and app-content/Resources/Assets.car (compiled from the .icon, copied into the bundle's Contents/Resources). Both are committed, so the build does not need Xcode.
-scripts/ large-diff generator for manual performance checks.
+scripts/ large-diff generator for manual performance checks, and a small cat-themed diff generator for screenshots.
 plugins/ kdv/ is the Claude Code / Codex / npx skills plugin with the kdv-review agent skill; .claude-plugin/marketplace.json lists it.
 ```
 
@@ -31,6 +31,7 @@ plugins/ kdv/ is the Claude Code / Codex / npx skills plugin with the kdv-review
 ./gradlew :app:run --args=/abs/path    # run against a repository
 ./gradlew :app:createDistributable     # build app/build/compose/binaries/main/app/kDiffViewer.app
 scripts/generate-large-diff.sh <dir> [ext]   # create a large repository for manual scrolling checks; ext defaults to txt, kt writes Kotlin sources
+scripts/generate-screenshot-diff.sh <dir>    # create a worktree of develop on feature/cat-facts with a small committed, staged, unstaged, and untracked diff for screenshots
 xcrun actool app/art/kDiffViewer.icon --compile <out> --app-icon kDiffViewer --platform macosx --target-device mac --minimum-deployment-target 26.0 --output-partial-info-plist <out>/partial.plist   # regenerate Assets.car after editing the icon
 ```
 
