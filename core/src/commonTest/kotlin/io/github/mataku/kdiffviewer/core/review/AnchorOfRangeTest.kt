@@ -36,11 +36,18 @@ class AnchorOfRangeTest {
   }
 
   @Test
-  fun contextStartTowardAddedUpwardTakesNewSide() {
+  fun contextStartWalkingDownTowardAddedTakesNewSide() {
     val file = modified("a.kt", hunk(ctx("a", 1, 1), ctx("b", 2, 2), added("c", 3)))
     val result = anchorOfRange(file, 0, 0, 1, 2)!!
     assertEquals(Side.New, result.anchor.side)
     assertEquals(linesAnchor("a.kt", Side.New, 2, 3, "b", "c"), result.anchor)
+  }
+
+  @Test
+  fun contextStartWalkingUpTowardRemovedTakesOldSide() {
+    val file = modified("a.kt", hunk(removed("r", 1), ctx("a", 2, 1)))
+    val result = anchorOfRange(file, 0, 0, 1, 0)!!
+    assertEquals(linesAnchor("a.kt", Side.Old, 1, 2, "r", "a"), result.anchor)
   }
 
   @Test
