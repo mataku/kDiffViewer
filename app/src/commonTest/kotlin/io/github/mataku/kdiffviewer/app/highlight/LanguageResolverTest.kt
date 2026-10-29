@@ -50,6 +50,17 @@ class LanguageResolverTest {
     assertEquals("Bash", r.languageFor("scripts/build.sh"))
     assertEquals("Bash", r.languageFor("a.bash"))
     assertEquals("Bash", r.languageFor("a.zsh"))
+    assertEquals("Xml", r.languageFor("res/values/strings.xml"))
+    assertEquals("Xml", r.languageFor("AndroidManifest.xml"))
+    assertEquals("Xml", r.languageFor("pom.xml"))
+    assertEquals("Xml", r.languageFor("Info.plist"))
+    assertEquals("Xml", r.languageFor("Main.storyboard"))
+    assertEquals("Xml", r.languageFor("View.xib"))
+    assertEquals("Xml", r.languageFor("App.xcscheme"))
+    assertEquals("Xml", r.languageFor("icon.svg"))
+    assertEquals("Toml", r.languageFor("Cargo.toml"))
+    assertEquals("Toml", r.languageFor("gradle/libs.versions.toml"))
+    assertEquals("Toml", r.languageFor("pyproject.toml"))
   }
 
   @Test
@@ -72,6 +83,10 @@ class LanguageResolverTest {
     assertNull(r.languageFor("gradlew"))
     assertNull(r.languageFor("kt"))
     assertNull(r.languageFor("a.kt/notes.txt"))
+    assertNull(r.languageFor("Cargo.lock"))
+    assertNull(r.languageFor("Pipfile"))
+    assertNull(r.languageFor("a.xsd"))
+    assertNull(r.languageFor("App.entitlements"))
   }
 
   @Test
@@ -116,6 +131,9 @@ class LanguageResolverTest {
     assertEquals(LanguageId.Bash, languageIdForInfo("shell"))
     assertEquals(LanguageId.Bash, languageIdForInfo("Shell"))
     assertEquals(LanguageId.Bash, languageIdForInfo("zsh"))
+    assertEquals(LanguageId.Xml, languageIdForInfo("xml"))
+    assertEquals(LanguageId.Xml, languageIdForInfo("XML"))
+    assertEquals(LanguageId.Toml, languageIdForInfo("toml"))
     assertEquals(LanguageId.Kotlin, languageIdForInfo("Kotlin"))
     assertEquals(LanguageId.Kotlin, languageIdForInfo("KT"))
     assertEquals(LanguageId.Kotlin, languageIdForInfo("kotlin title=x"))

@@ -87,6 +87,22 @@ class CommentComposerTest {
   }
 
   @Test
+  fun clickingWriteTabFocusesTextArea() = runComposeUiTest {
+    show("x")
+    onNodeWithTag("composer-mode-preview").performClick()
+    onNodeWithTag("composer-mode-write").performClick()
+    onNodeWithTag("comment-composer").assertIsFocused()
+  }
+
+  @Test
+  fun clickingSelectedTabKeepsWrite() = runComposeUiTest {
+    show("x")
+    onNodeWithTag("composer-mode-write").performClick()
+    onNodeWithTag("comment-composer").assertIsDisplayed().assertIsFocused()
+    onNodeWithTag("composer-preview").assertDoesNotExist()
+  }
+
+  @Test
   fun escapeCancelsInPreview() = runComposeUiTest {
     val actions = FakeActions()
     show("x", actions)

@@ -15,13 +15,15 @@ import io.github.mataku.compose.highlight.python.Python
 import io.github.mataku.compose.highlight.ruby.Ruby
 import io.github.mataku.compose.highlight.rust.Rust
 import io.github.mataku.compose.highlight.swift.Swift
+import io.github.mataku.compose.highlight.toml.Toml
 import io.github.mataku.compose.highlight.tsx.Tsx
 import io.github.mataku.compose.highlight.typescript.Typescript
+import io.github.mataku.compose.highlight.xml.Xml
 import io.github.mataku.compose.highlight.yaml.Yaml
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-enum class LanguageId { Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScript, TypeScript, Tsx, Markdown, Json, Yaml, Html, Css, Bash }
+enum class LanguageId { Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScript, TypeScript, Tsx, Markdown, Json, Yaml, Html, Css, Bash, Xml, Toml }
 
 fun languageIdFor(path: String): LanguageId? {
   val name = path.substringAfterLast('/')
@@ -45,6 +47,8 @@ fun languageIdFor(path: String): LanguageId? {
       "html" -> LanguageId.Html
       "css" -> LanguageId.Css
       "sh", "bash", "zsh" -> LanguageId.Bash
+      "xml", "plist", "storyboard", "xib", "xcscheme", "svg" -> LanguageId.Xml
+      "toml" -> LanguageId.Toml
       else -> null
     }
   }
@@ -69,6 +73,8 @@ fun languageIdForInfo(info: String): LanguageId? {
     "html" -> LanguageId.Html
     "css" -> LanguageId.Css
     "bash", "sh", "shell", "zsh" -> LanguageId.Bash
+    "xml" -> LanguageId.Xml
+    "toml" -> LanguageId.Toml
     else -> null
   }
 }
@@ -117,4 +123,6 @@ val defaultLanguageAccessors: Map<LanguageId, () -> Language> = mapOf(
   LanguageId.Html to { Languages.Html },
   LanguageId.Css to { Languages.Css },
   LanguageId.Bash to { Languages.Bash },
+  LanguageId.Xml to { Languages.Xml },
+  LanguageId.Toml to { Languages.Toml },
 )

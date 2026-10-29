@@ -1,7 +1,5 @@
 package io.github.mataku.kdiffviewer.app.ui.review
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,7 +37,7 @@ import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
 import io.github.mataku.kdiffviewer.app.ui.keepScrollJumps
 import io.github.mataku.kdiffviewer.app.ui.mac.MacPushButton
-import io.github.mataku.kdiffviewer.app.ui.mac.MacSegmented
+import io.github.mataku.kdiffviewer.app.ui.mac.MacTabbedPanel
 import io.github.mataku.kdiffviewer.app.ui.mac.MacTextArea
 import io.github.mataku.kdiffviewer.app.ui.markdown.MarkdownBody
 
@@ -49,7 +46,6 @@ private enum class ComposerMode(val label: String, val tag: String) {
   Preview("Preview", "composer-mode-preview"),
 }
 
-private val PreviewShape = RoundedCornerShape(6.dp)
 private val PreviewPadding = 6.dp
 
 sealed interface ComposerActions {
@@ -78,6 +74,7 @@ fun CommentComposer(
   Column(
     modifier = Modifier
       .fillMaxWidth()
+      .padding(top = 4.dp)
       .onPreviewKeyEvent { event ->
         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
         when {
@@ -107,32 +104,32 @@ fun CommentComposer(
     verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     val text = draftText.value
-    MacSegmented(
+    MacTabbedPanel(
       options = ComposerMode.entries,
       selected = mode,
       label = { it.label },
       tag = { it.tag },
       onSelect = { mode = it },
-      segmentWidth = 56.dp,
-    )
-    when (mode) {
-      ComposerMode.Write -> MacTextArea(
-        value = text,
-        onValueChange = onTextChange,
-        modifier = Modifier
-          .testTag("comment-composer")
-          .focusRequester(focusRequester)
-          .onSizeChanged { writeHeightPx = it.height },
-      )
+    ) {
+      when (mode) {
+        ComposerMode.Write -> MacTextArea(
+          value = text,
+          onValueChange = onTextChange,
+          modifier = Modifier
+            .testTag("comment-composer")
+            .focusRequester(focusRequester)
+            .onSizeChanged { writeHeightPx = it.height },
+        )
 
-      ComposerMode.Preview -> PreviewPane(
-        text = text,
-        minHeightPx = writeHeightPx,
-        modifier = Modifier.focusRequester(previewFocusRequester),
-      )
+        ComposerMode.Preview -> PreviewPane(
+          text = text,
+          minHeightPx = writeHeightPx,
+          modifier = Modifier.focusRequester(previewFocusRequester),
+        )
+      }
     }
     Row(
-      modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
+      modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
       horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
     ) {
       MacPushButton(text = "Cancel", onClick = onCancel)
@@ -168,8 +165,6 @@ private fun PreviewPane(
       .testTag("composer-preview")
       .fillMaxWidth()
       .heightIn(min = minHeight)
-      .background(colors.background, PreviewShape)
-      .border(0.5.dp, colors.border, PreviewShape)
       .padding(horizontal = 8.dp, vertical = PreviewPadding)
       .keepScrollJumps()
       .focusable(),

@@ -43,6 +43,8 @@ kotlin {
       implementation(libs.composeSyntaxHighlight.html)
       implementation(libs.composeSyntaxHighlight.css)
       implementation(libs.composeSyntaxHighlight.bash)
+      implementation(libs.composeSyntaxHighlight.xml)
+      implementation(libs.composeSyntaxHighlight.toml)
       implementation(libs.jetbrains.markdown)
       implementation(compose.components.resources)
     }
@@ -88,6 +90,7 @@ compose.desktop {
   application {
     mainClass = "io.github.mataku.kdiffviewer.app.MainKt"
     javaHome = jbrHome
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
 
     if (System.getProperty("os.name").startsWith("Mac")) {
       jvmArgs("-Xdock:name=kDiffViewer")
@@ -114,6 +117,10 @@ compose.desktop {
       }
     }
   }
+}
+
+tasks.withType<Test>().configureEach {
+  jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
 
 val macAppContentResources = layout.projectDirectory.dir("packaging/app-content/Resources")

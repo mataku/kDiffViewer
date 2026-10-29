@@ -4,7 +4,7 @@ composeMultiplatform = "1.12.2"
 material3 = "1.9.0"
 kotlinx-coroutines = "1.11.0"
 spotless = "8.10.4"
-composeSyntaxHighlight = "0.8.0"
+composeSyntaxHighlight = "0.9.0"
 jbrApi = "1.5.0"
 kotlinx-serialization = "1.12.0"
 markdown = "0.7.18"
@@ -36,6 +36,8 @@ composeSyntaxHighlight-yaml = { module = "io.github.mataku:compose-syntax-highli
 composeSyntaxHighlight-html = { module = "io.github.mataku:compose-syntax-highlight-html", version.ref = "composeSyntaxHighlight" }
 composeSyntaxHighlight-css = { module = "io.github.mataku:compose-syntax-highlight-css", version.ref = "composeSyntaxHighlight" }
 composeSyntaxHighlight-bash = { module = "io.github.mataku:compose-syntax-highlight-bash", version.ref = "composeSyntaxHighlight" }
+composeSyntaxHighlight-xml = { module = "io.github.mataku:compose-syntax-highlight-xml", version.ref = "composeSyntaxHighlight" }
+composeSyntaxHighlight-toml = { module = "io.github.mataku:compose-syntax-highlight-toml", version.ref = "composeSyntaxHighlight" }
 
 jetbrains-markdown = { module = "org.jetbrains:markdown", version.ref = "markdown" }
 jbr-api = { module = "com.jetbrains:jbr-api", version.ref = "jbrApi" }
