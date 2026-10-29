@@ -2,9 +2,12 @@ package io.github.mataku.kdiffviewer.core.review
 
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
+import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 val FileDiff.anchorPath: String
   get() = if (change == ChangeType.Deleted) oldPath!! else newPath!!
@@ -21,6 +24,66 @@ fun anchorOf(file: FileDiff, hunkIndex: Int, lineIndex: Int, side: Side? = null)
   if (side != null && side != resolvedSide) return null
   val lineNo = (if (resolvedSide == Side.Old) line.oldLineNo else line.newLineNo) ?: return null
   return Anchor.Lines(file.anchorPath, resolvedSide, lineNo, lineNo, listOf(line.text))
+}
+
+data class RangeAnchor(val anchor: Anchor.Lines, val location: LineLocation)
+
+fun anchorOfRange(
+  file: FileDiff,
+  fileIndex: Int,
+  hunkIndex: Int,
+  fromLineIndex: Int,
+  toLineIndex: Int,
+  side: Side? = null,
+): RangeAnchor? {
+  val hunks = (file.content as? DiffContent.Text)?.hunks ?: return null
+  val lines = hunks.getOrNull(hunkIndex)?.lines ?: return null
+  if (lines.isEmpty()) return null
+  val from = fromLineIndex.coerceIn(0, lines.lastIndex)
+  val to = toLineIndex.coerceIn(0, lines.lastIndex)
+  if (lines[from].kind == LineKind.NoNewlineAtEof) return null
+  val resolvedSide = side ?: when (lines[from].kind) {
+    LineKind.Removed -> Side.Old
+    LineKind.Added -> Side.New
+    else -> sideTowardTo(lines, from, to)
+  }
+  val snapshot = ArrayList<String>()
+  var startLine = 0
+  var endLine = 0
+  var lastIndex = -1
+  for (index in min(from, to)..max(from, to)) {
+    val line = lines[index]
+    val lineNo = line.numberOn(resolvedSide) ?: continue
+    if (lastIndex < 0) startLine = lineNo
+    endLine = lineNo
+    lastIndex = index
+    snapshot.add(line.text)
+  }
+  if (lastIndex < 0) return null
+  return RangeAnchor(
+    Anchor.Lines(file.anchorPath, resolvedSide, startLine, endLine, snapshot),
+    LineLocation(fileIndex, hunkIndex, lastIndex),
+  )
+}
+
+private fun sideTowardTo(lines: List<DiffLine>, from: Int, to: Int): Side {
+  val step = if (to >= from) 1 else -1
+  var index = from
+  while (index in lines.indices) {
+    when (lines[index].kind) {
+      LineKind.Removed -> return Side.Old
+      LineKind.Added -> return Side.New
+      else -> Unit
+    }
+    if (index == to) break
+    index += step
+  }
+  return Side.New
+}
+
+private fun DiffLine.numberOn(side: Side): Int? = when (side) {
+  Side.Old -> if (kind == LineKind.Removed || kind == LineKind.Context) oldLineNo else null
+  Side.New -> if (kind == LineKind.Added || kind == LineKind.Context) newLineNo else null
 }
 
 fun reanchor(anchor: Anchor, files: List<FileDiff>): Pair<Anchor, Placement> = resolve(anchor, files).let { it.anchor to it.placement }
@@ -84,10 +147,7 @@ private fun sideLines(file: FileDiff, side: Side): List<SideLine> {
   val result = ArrayList<SideLine>()
   hunks.forEachIndexed { hunkIndex, hunk ->
     hunk.lines.forEachIndexed { lineIndex, line ->
-      val lineNo = when (side) {
-        Side.Old -> if (line.kind == LineKind.Removed || line.kind == LineKind.Context) line.oldLineNo else null
-        Side.New -> if (line.kind == LineKind.Added || line.kind == LineKind.Context) line.newLineNo else null
-      }
+      val lineNo = line.numberOn(side)
       if (lineNo != null) result.add(SideLine(lineNo, line.text, hunkIndex, lineIndex))
     }
   }

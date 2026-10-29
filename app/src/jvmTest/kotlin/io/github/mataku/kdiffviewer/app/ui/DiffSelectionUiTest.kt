@@ -137,6 +137,11 @@ class DiffSelectionUiTest {
     return copy(collapsed = if (entry in collapsed) collapsed - entry else collapsed + entry)
   }
 
+  private fun ComposeUiTest.clickAddComment() {
+    val center = onNodeWithTag("add-comment").fetchSemanticsNode().boundsInRoot.center - onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot.topLeft
+    onNodeWithTag("diff-list").performMouseInput { click(center) }
+  }
+
   private fun ComposeUiTest.listBounds() = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
 
   private fun ComposeUiTest.codePosition(text: String, displayColumn: Int): Offset {
@@ -258,10 +263,10 @@ class DiffSelectionUiTest {
       advanceEventTime(1_000)
     }
     waitForIdle()
-    assertFalse(coordinator.hasSelection)
-    onNodeWithTag("add-comment").performClick()
-    waitForIdle()
     onNodeWithTag("comment-composer").assertIsDisplayed()
+    val anchor = (review.snapshot.value.draft?.target as DraftTarget.NewThread).anchor as Anchor.Lines
+    assertEquals(1, anchor.startLine)
+    assertEquals(3, anchor.endLine)
     assertFalse(coordinator.hasSelection)
   }
 
@@ -281,7 +286,7 @@ class DiffSelectionUiTest {
     }
     onNodeWithText("alpha beta").performMouseInput { moveTo(center) }
     waitForIdle()
-    onNodeWithTag("add-comment").performClick()
+    clickAddComment()
     waitForIdle()
     onNodeWithTag("comment-composer").assertIsFocused()
     drag(codePosition("alpha beta", 6), codePosition("delta", 2))

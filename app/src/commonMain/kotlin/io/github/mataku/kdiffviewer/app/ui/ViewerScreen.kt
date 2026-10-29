@@ -109,6 +109,7 @@ fun ViewerScreen(
   scrollJumps: ScrollJumps? = null,
   mode: DiffMode = DiffMode.Unified,
   onModeChange: (DiffMode) -> Unit = {},
+  rangeState: CommentRangeState = remember { CommentRangeState() },
 ) {
   val colors = LocalDiffColors.current
   val listState = rememberLazyListState()
@@ -289,6 +290,7 @@ fun ViewerScreen(
                   loadId = state.loadId,
                   selection = diffSelection,
                   selectionSource = selectionSource,
+                  rangeState = rangeState,
                   onHeaderClick = { fileIndex ->
                     val header = layout.headerVisibleIndex(fileIndex)
                     val pinned = listState.firstVisibleItemIndex >= header

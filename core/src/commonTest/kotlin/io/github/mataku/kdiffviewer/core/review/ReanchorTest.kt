@@ -14,6 +14,13 @@ class ReanchorTest {
   )
 
   @Test
+  fun rangeAnchorReanchorsToSamePlacement() {
+    val file = modified("a.kt", hunk(ctx("a", 1, 1), removed("r1", 2), removed("r2", 3), added("n1", 2), added("n2", 3), ctx("z", 4, 4)))
+    val r = anchorOfRange(file, 0, 0, 1, 5)!!
+    assertEquals(r.anchor to Placement.OnLine(r.location), reanchor(r.anchor, listOf(file)))
+  }
+
+  @Test
   fun unchangedLineKeepsAnchor() {
     val files = listOf(modified("a.kt", hunk(ctx("a", 1, 1), ctx("b", 2, 2), ctx("c", 3, 3))))
     val anchor = linesAnchor("a.kt", Side.New, 3, 3, "c")
