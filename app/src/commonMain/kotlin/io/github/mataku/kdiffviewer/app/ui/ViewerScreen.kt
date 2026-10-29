@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -90,6 +91,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
+internal fun sidebarButtonIcon(visible: Boolean, arrow: Boolean): ImageVector = when {
+  !arrow -> KdvIcons.Sidebar
+  visible -> KdvIcons.SidebarCollapse
+  else -> KdvIcons.SidebarExpand
+}
+
 @Composable
 fun ViewerScreen(
   state: ViewerUiState,
@@ -98,6 +105,7 @@ fun ViewerScreen(
   titleBarLeadingInset: Dp = 0.dp,
   sidebarVisible: Boolean = true,
   onToggleSidebar: () -> Unit = {},
+  sidebarButtonArrow: Boolean = false,
   onToggleFile: (Int) -> Unit = {},
   onExpandFile: (Int) -> Unit = {},
   review: ReviewSnapshot = ReviewSnapshot.Empty,
@@ -219,6 +227,7 @@ fun ViewerScreen(
       titleBarLeadingInset = titleBarLeadingInset,
       sidebarVisible = sidebarVisible,
       onToggleSidebar = onToggleSidebar,
+      sidebarButtonArrow = sidebarButtonArrow,
       loadBranches = loadBranches,
       onSwitchBase = onSwitchBase,
       mode = mode,
@@ -322,6 +331,7 @@ private fun RepoHeader(
   titleBarLeadingInset: Dp,
   sidebarVisible: Boolean,
   onToggleSidebar: () -> Unit,
+  sidebarButtonArrow: Boolean,
   loadBranches: suspend () -> List<BranchRef>,
   onSwitchBase: suspend (BaseSpec) -> ViewerError?,
   mode: DiffMode,
@@ -344,7 +354,7 @@ private fun RepoHeader(
       .padding(start = startPadding, end = 20.dp),
     leading = {
       MacToolbarButton(
-        icon = KdvIcons.Sidebar,
+        icon = sidebarButtonIcon(sidebarVisible, sidebarButtonArrow),
         contentDescription = if (sidebarVisible) "Hide Sidebar" else "Show Sidebar",
         tooltip = if (sidebarVisible) "Hide Sidebar (⌃⌘S)" else "Show Sidebar (⌃⌘S)",
         onClick = onToggleSidebar,

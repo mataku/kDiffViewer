@@ -98,6 +98,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -570,6 +571,14 @@ class ViewerScreenTest {
     visible = false
     onNodeWithTag("sidebar-control").performClick()
     assertEquals(2, toggles)
+  }
+
+  @Test
+  fun sidebarButtonIconFollowsArrowSwitch() {
+    assertSame(KdvIcons.Sidebar, sidebarButtonIcon(visible = true, arrow = false))
+    assertSame(KdvIcons.Sidebar, sidebarButtonIcon(visible = false, arrow = false))
+    assertSame(KdvIcons.SidebarCollapse, sidebarButtonIcon(visible = true, arrow = true))
+    assertSame(KdvIcons.SidebarExpand, sidebarButtonIcon(visible = false, arrow = true))
   }
 
   @Test
