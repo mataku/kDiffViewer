@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -90,6 +91,49 @@ fun MacSearchField(
   containerModifier: Modifier = Modifier,
   placeholder: String? = null,
 ) {
+  SearchFieldFrame(value.isEmpty(), { onValueChange("") }, modifier, containerModifier, placeholder) { fieldModifier, textStyle, decorationBox ->
+    BasicTextField(
+      value = value,
+      onValueChange = onValueChange,
+      singleLine = true,
+      textStyle = textStyle,
+      cursorBrush = SolidColor(textStyle.color),
+      modifier = fieldModifier,
+      decorationBox = decorationBox,
+    )
+  }
+}
+
+@Composable
+fun MacSearchField(
+  value: TextFieldValue,
+  onValueChange: (TextFieldValue) -> Unit,
+  modifier: Modifier = Modifier,
+  containerModifier: Modifier = Modifier,
+  placeholder: String? = null,
+) {
+  SearchFieldFrame(value.text.isEmpty(), { onValueChange(TextFieldValue()) }, modifier, containerModifier, placeholder) { fieldModifier, textStyle, decorationBox ->
+    BasicTextField(
+      value = value,
+      onValueChange = onValueChange,
+      singleLine = true,
+      textStyle = textStyle,
+      cursorBrush = SolidColor(textStyle.color),
+      modifier = fieldModifier,
+      decorationBox = decorationBox,
+    )
+  }
+}
+
+@Composable
+private fun SearchFieldFrame(
+  empty: Boolean,
+  onClear: () -> Unit,
+  modifier: Modifier,
+  containerModifier: Modifier,
+  placeholder: String?,
+  field: @Composable (modifier: Modifier, textStyle: TextStyle, decorationBox: @Composable (innerTextField: @Composable () -> Unit) -> Unit) -> Unit,
+) {
   val colors = LocalDiffColors.current
   var focused by remember { mutableStateOf(false) }
   val textStyle = remember(colors) { TextStyle(color = colors.text, fontSize = 13.sp) }
@@ -107,17 +151,12 @@ fun MacSearchField(
       modifier = Modifier.padding(end = 4.dp).size(12.dp),
       colorFilter = ColorFilter.tint(colors.mutedText),
     )
-    BasicTextField(
-      value = value,
-      onValueChange = onValueChange,
-      singleLine = true,
-      textStyle = textStyle,
-      cursorBrush = SolidColor(colors.text),
-      modifier = Modifier
+    field(
+      Modifier
         .weight(1f)
         .onPreviewKeyEvent { event ->
-          if (event.type == KeyEventType.KeyDown && event.key == Key.Escape && value.isNotEmpty()) {
-            onValueChange("")
+          if (event.type == KeyEventType.KeyDown && event.key == Key.Escape && !empty) {
+            onClear()
             true
           } else {
             false
@@ -126,23 +165,23 @@ fun MacSearchField(
         .then(modifier)
         .onFocusChanged { focused = it.isFocused }
         .keepScrollJumps(),
-      decorationBox = { innerTextField ->
-        Box(contentAlignment = Alignment.CenterStart) {
-          if (value.isEmpty() && placeholder != null) {
-            BasicText(text = placeholder, maxLines = 1, style = placeholderStyle)
-          }
-          innerTextField()
+      textStyle,
+    ) { innerTextField ->
+      Box(contentAlignment = Alignment.CenterStart) {
+        if (empty && placeholder != null) {
+          BasicText(text = placeholder, maxLines = 1, style = placeholderStyle)
         }
-      },
-    )
-    if (value.isNotEmpty()) {
+        innerTextField()
+      }
+    }
+    if (!empty) {
       Image(
         imageVector = KdvIcons.XCircle,
         contentDescription = "Clear",
         modifier = Modifier
           .testTag("search-clear")
           .focusProperties { canFocus = false }
-          .clickable(indication = null, interactionSource = clearInteractionSource, role = Role.Button) { onValueChange("") }
+          .clickable(indication = null, interactionSource = clearInteractionSource, role = Role.Button, onClick = onClear)
           .padding(2.dp)
           .size(12.dp),
         colorFilter = ColorFilter.tint(colors.mutedText),
