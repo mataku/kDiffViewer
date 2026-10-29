@@ -93,9 +93,9 @@ import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.math.roundToInt
 
 private val HeaderIconSize = 16.dp
+private val HeaderLeadingGap = 56.dp
 
 internal fun sidebarButtonIcon(visible: Boolean): ImageVector = if (visible) KdvIcons.SidebarCollapse else KdvIcons.SidebarExpand
 
@@ -342,13 +342,8 @@ private fun RepoHeader(
   onReload: () -> Unit,
 ) {
   val colors = LocalDiffColors.current
-  val density = LocalDensity.current
-  val repoAnchor = with(density) { (DefaultTreeWidth + PaneDividerWidth + ContentHorizontalMargin).toPx() }
-  val startPadding = if (titleBarLeadingInset > 0.dp) titleBarLeadingInset + 8.dp else 20.dp
-  val startPaddingPx = with(density) { startPadding.toPx() }
+  val startPadding = if (titleBarLeadingInset > 0.dp) titleBarLeadingInset else 20.dp
   RepoHeaderLayout(
-    startPaddingPx = startPaddingPx,
-    repoAnchor = repoAnchor,
     modifier = Modifier
       .testTag("repo-header")
       .fillMaxWidth()
@@ -450,8 +445,6 @@ private fun RepoHeaderLayout(
   leading: @Composable () -> Unit,
   center: @Composable () -> Unit,
   trailing: @Composable () -> Unit,
-  startPaddingPx: Float,
-  repoAnchor: Float,
   modifier: Modifier,
 ) {
   Layout(
@@ -460,21 +453,20 @@ private fun RepoHeaderLayout(
   ) { (leadings, centers, trailings), constraints ->
     val maxWidth = constraints.maxWidth
     val maxHeight = constraints.maxHeight
-    val gap = 12.dp.roundToPx()
+    val leadingGap = HeaderLeadingGap.roundToPx()
+    val trailingGap = 12.dp.roundToPx()
     val leadingPlaceable = leadings.first().measure(Constraints(maxWidth = maxWidth, maxHeight = maxHeight))
     val trailingPlaceable = trailings.first().measure(
-      Constraints(maxWidth = (maxWidth - leadingPlaceable.width - 2 * gap).coerceAtLeast(0), maxHeight = maxHeight),
+      Constraints(maxWidth = (maxWidth - leadingPlaceable.width - leadingGap - trailingGap).coerceAtLeast(0), maxHeight = maxHeight),
     )
-    val natural = startPaddingPx + leadingPlaceable.width + gap
-    val shift = (repoAnchor - natural).coerceAtLeast(0f).roundToInt()
-    val available = (maxWidth - leadingPlaceable.width - trailingPlaceable.width - 2 * gap).coerceAtLeast(0)
-    val centerPlaceable = centers.first().measure(Constraints(maxWidth = (available - shift).coerceAtLeast(0), maxHeight = maxHeight))
-    val centerSlotX = leadingPlaceable.width + gap
+    val available = (maxWidth - leadingPlaceable.width - trailingPlaceable.width - leadingGap - trailingGap).coerceAtLeast(0)
+    val centerPlaceable = centers.first().measure(Constraints(maxWidth = available, maxHeight = maxHeight))
+    val centerSlotX = leadingPlaceable.width + leadingGap
     fun centred(height: Int) = Alignment.CenterVertically.align(height, maxHeight)
     layout(maxWidth, maxHeight) {
       leadingPlaceable.placeRelative(0, centred(leadingPlaceable.height))
-      centerPlaceable.placeRelative(centerSlotX + shift, centred(centerPlaceable.height))
-      trailingPlaceable.placeRelative(centerSlotX + available + gap, centred(trailingPlaceable.height))
+      centerPlaceable.placeRelative(centerSlotX, centred(centerPlaceable.height))
+      trailingPlaceable.placeRelative(centerSlotX + available + trailingGap, centred(trailingPlaceable.height))
     }
   }
 }
