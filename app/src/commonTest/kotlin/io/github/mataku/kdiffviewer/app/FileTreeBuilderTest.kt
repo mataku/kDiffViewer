@@ -3,6 +3,7 @@ package io.github.mataku.kdiffviewer.app
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.FileDiff
+import io.github.mataku.kdiffviewer.core.model.TreePathOrder
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -23,6 +24,13 @@ class FileTreeBuilderTest {
     "src/a.kt",
     "src/main/Main.kt",
   )
+
+  @Test
+  fun filesInTreePathOrderAppearInIndexOrder() {
+    val files = paths.sortedWith(TreePathOrder).map(::file)
+    val indices = buildFileTree(files).mapNotNull { it.fileIndex }
+    assertEquals(files.indices.toList(), indices)
+  }
 
   @Test
   fun rowsMatchBuildFileTreeForAnyBatchSplit() {

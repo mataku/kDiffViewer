@@ -543,8 +543,7 @@ class ViewerScreenTest {
   @Test
   fun leadingInsetPushesToggleRight() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, titleBarLeadingInset = 78.dp) }
-    val toggle = onNodeWithTag("sidebar-control").fetchSemanticsNode().boundsInRoot
-    assertTrue(toggle.left >= with(density) { 78.dp.toPx() }, "toggle=$toggle")
+    assertEquals(78.dp, onNodeWithTag("sidebar-control").getUnclippedBoundsInRoot().left)
   }
 
   @Test
@@ -608,15 +607,19 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun repoNameAlignsWithDiffContentWhenTreeShown() = runComposeUiTest {
+  fun repoNameSitsAFixedGapRightOfToggle() = runComposeUiTest {
+    var width by mutableStateOf(800.dp)
     setContent {
-      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+      Box(modifier = Modifier.size(width, 600.dp)) {
         ViewerScreen(stateOf(listOf(modified("a.kt"))), {})
       }
     }
-    val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
+    val toggle = onNodeWithTag("sidebar-control").getUnclippedBoundsInRoot()
     val name = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
-    assertEquals(diff.left + 20.dp, name.left)
+    assertEquals(toggle.right + 40.dp, name.left)
+    width = 1600.dp
+    waitForIdle()
+    assertEquals(name, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
   }
 
   @Test
@@ -641,14 +644,15 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun repoNameKeepsDiffAlignedPositionWhenStartingHidden() = runComposeUiTest {
+  fun repoNameKeepsTogglePositionWhenStartingHidden() = runComposeUiTest {
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {
         ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = false)
       }
     }
+    val toggle = onNodeWithTag("sidebar-control").getUnclippedBoundsInRoot()
     val name = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
-    assertEquals(DefaultTreeWidth + PaneDividerWidth + ContentHorizontalMargin, name.left)
+    assertEquals(toggle.right + 40.dp, name.left)
   }
 
   @Test
