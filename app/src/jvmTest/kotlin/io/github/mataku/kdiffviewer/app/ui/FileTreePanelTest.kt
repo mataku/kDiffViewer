@@ -15,6 +15,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
+import io.github.mataku.kdiffviewer.app.DirectoryPath
 import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.TreeEntry
 import io.github.mataku.kdiffviewer.app.TreeRow
@@ -26,7 +27,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class FileTreePanelTest {
   private val entries = listOf(
-    TreeEntry(TreeRow(0, "src", null), "src", false),
+    TreeEntry(TreeRow(0, "src", null), DirectoryPath(null, "src"), false),
     TreeEntry(TreeRow(1, "a.kt", 0), null, false),
   )
 
@@ -128,7 +129,7 @@ class FileTreePanelTest {
 
   @Test
   fun directoryShowsNoStatusLetter() = runComposeUiTest {
-    val directories = listOf(TreeEntry(TreeRow(0, "src", null), "src", false))
+    val directories = listOf(TreeEntry(TreeRow(0, "src", null), DirectoryPath(null, "src"), false))
     setContent { FileTreePanel(directories, {}, {}, statusOf = { GitFileStatus.Modified }, width = { 280.dp }) }
     onNodeWithTag("tree-status-0", useUnmergedTree = true).assertDoesNotExist()
   }
