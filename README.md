@@ -1,6 +1,6 @@
 # kDiffViewer
 
-![](./docs/images/dim-screen.png)
+![kDiffViewer in the Dim appearance, showing the file tree and a syntax-highlighted unified diff](./docs/images/dim-screen.png)
 
 kDiffViewer is a macOS desktop viewer for the git diff of a branch and its working tree, built with Kotlin Multiplatform and Compose Desktop. It shows everything since the branch point, including uncommitted work, in a GitHub-like view, and lets you leave review comments that a coding agent can read and answer from the terminal.
 
@@ -66,6 +66,8 @@ The base can also be changed from the toolbar: click the base tag to open a popu
 ## Reviewing with a coding agent
 
 You review a coding agent's changes in the app the way you would review a pull request, and the agent reads and answers your comments from the terminal through the `kdv` command.
+
+![A review thread in kDiffViewer with a comment on a line and a reply from a coding agent, and the bar under the diff with Approve and Send to Agent](./docs/images/agent-review.png)
 
 To get started, install the `kdv-review` agent skill from this repository. It has the agent run `kdv agent-guide` and follow the instructions it prints, so `kdv` must be on your `PATH` (see [Install](#install)).
 
