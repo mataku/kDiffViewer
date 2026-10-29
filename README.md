@@ -67,11 +67,29 @@ The base can also be changed from the toolbar: click the base tag to open a popu
 
 You review a coding agent's changes in the app the way you would review a pull request, and the agent reads and answers your comments from the terminal through the `kdv` command.
 
-To get started, give the agent the instructions that `kdv agent-guide` prints, for example by telling it to run the command or by pasting its output into the agent's instructions file:
+To get started, install the `kdv-review` agent skill from this repository. It has the agent run `kdv agent-guide` and follow the instructions it prints, so `kdv` must be on your `PATH` (see [Install](#install)).
+
+In Claude Code:
+
+```
+/plugin marketplace add mataku/kDiffViewer
+/plugin install kdv@kdiffviewer
+```
+
+In Codex:
 
 ```sh
-kdv agent-guide
+codex plugin marketplace add mataku/kDiffViewer --sparse .claude-plugin --sparse plugins/kdv
+codex plugin add kdv@kdiffviewer
 ```
+
+For other agents, with [skills](https://github.com/vercel-labs/skills):
+
+```sh
+npx skills add mataku/kDiffViewer
+```
+
+Without the skill, tell the agent to run `kdv agent-guide`, or put that instruction in the agent's instructions file.
 
 A typical round looks like this:
 
@@ -107,7 +125,7 @@ In the composer, Add single comment (<kbd>⌘</kbd><kbd>⇧</kbd><kbd>Return</kb
 
 ### The kdv command
 
-A coding agent waits for your review with `kdv review wait`, which blocks until you send comments or approve. It reads threads with `kdv thread list`, answers one with `kdv thread reply`, and marks it done with `kdv thread resolve`; replies show up in the app. Run `kdv agent-guide` for the full instructions to give a coding agent.
+A coding agent waits for your review with `kdv review wait`, which blocks until you send comments or approve. It reads threads with `kdv thread list`, answers one with `kdv thread reply`, and marks it done with `kdv thread resolve`; replies show up in the app. `kdv agent-guide` prints the full instructions for a coding agent; the `kdv-review` skill makes the agent read them.
 
 ## Keyboard shortcuts
 
