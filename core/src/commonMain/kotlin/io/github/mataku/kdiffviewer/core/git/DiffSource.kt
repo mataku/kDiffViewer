@@ -6,10 +6,10 @@ import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
+import io.github.mataku.kdiffviewer.core.model.displayPath
 import io.github.mataku.kdiffviewer.core.parse.UnifiedDiffParser
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 
 interface DiffSource {
@@ -38,6 +38,11 @@ sealed class DiffLoadException(message: String) : Exception(message) {
   ) : DiffLoadException("git ${args.joinToString(" ")} failed with exit code $exitCode: $stderr")
 }
 
+private sealed interface PendingFile {
+  class Tracked(val diff: FileDiff) : PendingFile
+  class Untracked(val path: String) : PendingFile
+}
+
 private const val EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 class GitDiffSource(
@@ -53,26 +58,40 @@ class GitDiffSource(
       is ResolvedBase.Commit -> base.id
       ResolvedBase.EmptyTree -> EMPTY_TREE
     }
-    val diffArgs = listOf(
-      "-c", "core.quotePath=false", "-c", "core.fsmonitor=false", "diff", baseId,
-      "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "-M", "--submodule=short", "--unified=3", "--inter-hunk-context=0",
-    )
-    emitAll(
-      UnifiedDiffParser.parse(runner.streamLines(root, diffArgs)).catch { e ->
-        if (e is GitCommandFailedException) {
-          throw DiffLoadException.GitFailed(e.args, e.exitCode, e.stderr)
-        }
-        throw e
-      },
-    )
-
     val lsArgs = listOf("-c", "core.fsmonitor=false", "ls-files", "--others", "--exclude-standard", "-z")
     val ls = runner.run(root, lsArgs)
     if (ls.exitCode != 0) throw DiffLoadException.GitFailed(lsArgs, ls.exitCode, ls.stderr)
+    val queue = TreeOrderQueue<PendingFile>()
     for (path in ls.stdout.split('\u0000')) {
       if (path.isEmpty() || path.endsWith("/")) continue
-      emit(synthesizeUntracked(path, reader.read(root, path, UNTRACKED_SIZE_LIMIT)))
+      queue.add(path, PendingFile.Untracked(path))
     }
+
+    suspend fun emitEach(files: List<PendingFile>) {
+      for (file in files) {
+        emit(
+          when (file) {
+            is PendingFile.Tracked -> file.diff
+            is PendingFile.Untracked -> synthesizeUntracked(file.path, reader.read(root, file.path, UNTRACKED_SIZE_LIMIT))
+          },
+        )
+      }
+    }
+
+    val diffArgs = listOf(
+      "-c", "core.quotePath=false", "-c", "core.fsmonitor=false", "-c", "diff.orderFile=/dev/null", "diff", baseId,
+      "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "-M", "--submodule=short", "--unified=3", "--inter-hunk-context=0",
+    )
+    UnifiedDiffParser.parse(runner.streamLines(root, diffArgs)).catch { e ->
+      if (e is GitCommandFailedException) {
+        throw DiffLoadException.GitFailed(e.args, e.exitCode, e.stderr)
+      }
+      throw e
+    }.collect { diff ->
+      queue.add(diff.displayPath, PendingFile.Tracked(diff))
+      emitEach(queue.drainReady(diff.displayPath))
+    }
+    emitEach(queue.drainAll())
   }
 
   override suspend fun resolveBase(repo: RepoPath, spec: BaseSpec): ResolvedBase {

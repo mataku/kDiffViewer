@@ -30,7 +30,7 @@ class GitDiffSourceTest {
   private val lsFiles = listOf("-c", "core.fsmonitor=false", "ls-files", "--others", "--exclude-standard", "-z")
 
   private fun diffArgs(base: String) = listOf(
-    "-c", "core.quotePath=false", "-c", "core.fsmonitor=false", "diff", base,
+    "-c", "core.quotePath=false", "-c", "core.fsmonitor=false", "-c", "diff.orderFile=/dev/null", "diff", base,
     "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "-M", "--submodule=short", "--unified=3", "--inter-hunk-context=0",
   )
 
@@ -70,6 +70,32 @@ class GitDiffSourceTest {
     assertEquals("/repo", runner.streamCalls.single().workingDir)
     val ls = runner.runCalls.single { it.args == lsFiles }
     assertEquals("/repo", ls.workingDir)
+  }
+
+  private fun modified(path: String) = listOf(
+    "diff --git a/$path b/$path",
+    "index 1111111..2222222 100644",
+    "--- a/$path",
+    "+++ b/$path",
+    "@@ -1 +1 @@",
+    "-old",
+    "+new",
+  )
+
+  @Test
+  fun loadEmitsTrackedAndUntrackedFilesInTreeOrder() = runTest {
+    repoSetup(untracked = "app/u.txt\u0000z.txt\u0000", diff = modified("README.md") + modified("app/x.kt") + modified("m.txt"))
+    val result = load()
+    assertEquals(listOf("app/u.txt", "app/x.kt", "README.md", "m.txt", "z.txt"), result.map { it.newPath })
+    assertEquals(listOf(true, false, false, false, true), result.map { it.isUntracked })
+  }
+
+  @Test
+  fun lsFilesRunsBeforeTheDiff() = runTest {
+    repoSetup()
+    runner.runResults[lsFiles] = GitResult(128, "", "ls boom")
+    assertFailsWith<DiffLoadException.GitFailed> { load() }
+    assertTrue(runner.streamCalls.isEmpty())
   }
 
   @Test

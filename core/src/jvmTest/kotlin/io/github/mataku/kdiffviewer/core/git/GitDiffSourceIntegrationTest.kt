@@ -67,6 +67,27 @@ class GitDiffSourceIntegrationTest {
   }
 
   @Test
+  fun filesArriveInTreeOrderRegardlessOfOrderFile() {
+    initRepo()
+    for (path in listOf("README.md", "a-b.txt", "z.txt", "app/x.kt", "app/src/Main.kt", "m.txt")) write(path, "1\n2\n")
+    commitAll()
+    File(repo, "a").mkdirs()
+    runGit(repo, "mv", "z.txt", "a/renamed.txt")
+    for (path in listOf("README.md", "a-b.txt", "app/x.kt", "app/src/Main.kt", "m.txt")) write(path, "1\n3\n")
+    write("app/u.txt", "new\n")
+    write("b.txt", "new\n")
+    write("order", "m.txt\nREADME.md\n")
+    runGit(repo, "config", "diff.orderFile", "order")
+
+    val files = load()
+
+    assertEquals(
+      listOf("a/renamed.txt", "app/src/Main.kt", "app/u.txt", "app/x.kt", "README.md", "a-b.txt", "b.txt", "m.txt", "order"),
+      files.map { it.displayPath },
+    )
+  }
+
+  @Test
   fun repositoryWithoutCommits() {
     initRepo()
     write("staged.txt", "s\n")
