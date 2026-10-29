@@ -1,6 +1,6 @@
 ---
 name: kdv-review
-description: Run the kDiffViewer review loop through the kdv command. Use when the user asks to review changes in kDiffViewer or with kdv, to wait for their review, or to handle the review comments they left in kDiffViewer, and when a change is ready for the user to review in kDiffViewer. Not for GitHub pull request reviews or code reviews that do not involve kDiffViewer.
+description: Run the kDiffViewer review loop through the kdv command. Use when the user asks to review changes in kDiffViewer or with kdv, to wait for their review, or to handle the review comments they left in kDiffViewer. Do not start it on your own when a change is ready unless the user asked for a kDiffViewer review. Not for GitHub pull request reviews or code reviews that do not involve kDiffViewer.
 allowed-tools: Bash(kdv *)
 ---
 
