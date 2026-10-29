@@ -26,3 +26,4 @@ jobs:
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/develop' }}
       - run: ./gradlew check
+      - run: ./gradlew :app:run --dry-run
