@@ -97,8 +97,6 @@ sequenceDiagram
 
 ### Leaving comments
 
-<!-- Screenshot: a review comment thread. Planned as docs/images/review-thread.png. -->
-
 Click the add-comment button next to a line to comment on it, or drag the button over several lines to comment on the range. Comment bodies render as GitHub-style Markdown: headings, emphasis, lists, task lists, block quotes, links, and code blocks, with fenced code in the bundled languages syntax-highlighted. Tables and images are not rendered. The composer has Write / Preview tabs; press ⌘⇧P to switch between them.
 
 Comments are kept in memory while the app runs and are not saved, so they are gone after the app quits. When quitting would lose a review, the app asks first.
@@ -140,8 +138,6 @@ Settings… in the application menu (⌘,) changes these, and every change appli
 - File tree font size
 - Copy on select (off by default)
 - The git executable, when the one on `PATH` is not the one you want
-
-<!-- Screenshot: the Dim appearance. Planned as docs/images/appearance-dim.png. -->
 
 Settings are stored in `~/Library/Application Support/kDiffViewer/settings.json`.
 
