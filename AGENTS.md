@@ -18,7 +18,7 @@ plugins/ kdv/ is the Claude Code / Codex / npx skills plugin with the kdv-review
 ```
 
 - Only `protocol` and `cli` have native targets; `core` and `app` stay jvm-only.
-- `core` must not depend on Compose.
+- `core` must not depend on Compose. `app/compose-stability.conf` tells the Compose compiler that the classes in `core.model` and `core.review` are stable, so keep them immutable: `val` properties only, and read-only collections that are never mutated after construction.
 - OS-specific work stays behind the interfaces in `core/commonMain` (`GitCommandRunner`, `WorkingTreeReader`) so that a Kotlin/Native target or another backend (e.g. libgit2) can be added by writing new implementations.
 - `app` consumes `core` types; it does not run git itself.
 - `plugins/kdv/skills/kdv-review/SKILL.md` stays thin: it only runs `kdv agent-guide`. Document kdv usage in `AgentGuide.kt`, not in the skill, so the guide always matches the installed `kdv`.
