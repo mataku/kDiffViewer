@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -14,6 +15,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
@@ -41,9 +43,14 @@ import io.github.mataku.kdiffviewer.app.settings.WindowStateCodec
 import io.github.mataku.kdiffviewer.app.settings.defaultSettingsFile
 import io.github.mataku.kdiffviewer.app.settings.defaultWindowStateFile
 import io.github.mataku.kdiffviewer.app.settings.mainSizeOrNull
+import io.github.mataku.kdiffviewer.app.settings.treeWidthOrNull
+import io.github.mataku.kdiffviewer.app.settings.updated
+import io.github.mataku.kdiffviewer.app.ui.DefaultTreeWidth
 import io.github.mataku.kdiffviewer.app.ui.ErrorScreen
 import io.github.mataku.kdiffviewer.app.ui.KdvTheme
 import io.github.mataku.kdiffviewer.app.ui.LocalTitleBarRegions
+import io.github.mataku.kdiffviewer.app.ui.MaxTreeWidth
+import io.github.mataku.kdiffviewer.app.ui.MinTreeWidth
 import io.github.mataku.kdiffviewer.app.ui.OpenRepositoryScreen
 import io.github.mataku.kdiffviewer.app.ui.ScrollJumps
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
@@ -71,6 +78,7 @@ import kotlinx.coroutines.withContext
 import java.awt.Desktop
 import java.awt.GraphicsEnvironment
 import java.nio.file.Path
+import kotlin.system.exitProcess
 import kotlin.time.Clock
 import androidx.compose.ui.window.WindowState as ComposeWindowState
 
@@ -85,33 +93,51 @@ fun main(args: Array<String>) {
   val location = GitLocator.locateOnHost(repository.settings.value.gitPath)
   val factory = GitBackendFactory(highlightEnabled = System.getProperty("kdv.highlight") != "false")
   val windowStateStorage = FileSettingsStorage(defaultWindowStateFile())
-  val windowState = ComposeWindowState(size = loadInitialMainSize(windowStateStorage) ?: DpSize(800.dp, 600.dp))
-  runApplication(args, repository, location, factory, windowState)
-  saveMainSize(windowStateStorage, windowState)
+  val saved = loadWindowState(windowStateStorage)
+  val windowState = ComposeWindowState(size = initialMainSize(saved) ?: DpSize(800.dp, 600.dp))
+  val treeWidth = mutableStateOf(saved.treeWidthOrNull(MinTreeWidth, MaxTreeWidth) ?: DefaultTreeWidth)
+  runApplication(args, repository, location, factory, windowState, treeWidth)
+  saveWindowState(windowStateStorage, saved, windowState, treeWidth.value)
   runBlocking { repository.flush() }
+  exitProcess(0)
 }
 
 private val MinMainSize = DpSize(640.dp, 400.dp)
 
 private val FallbackTrafficLightsWidth = 78.dp
 
-private fun loadInitialMainSize(storage: FileSettingsStorage): DpSize? = try {
+private fun loadWindowState(storage: FileSettingsStorage): WindowState = try {
+  WindowStateCodec.decode(storage.read())
+} catch (e: Exception) {
+  e.printStackTrace()
+  WindowState()
+}
+
+private fun initialMainSize(saved: WindowState): DpSize? = try {
   val max = GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds.let { DpSize(it.width.dp, it.height.dp) }
-  WindowStateCodec.decode(storage.read()).mainSizeOrNull(MinMainSize, max)
+  saved.mainSizeOrNull(MinMainSize, max)
 } catch (e: Exception) {
   e.printStackTrace()
   null
 }
 
-private fun saveMainSize(storage: FileSettingsStorage, windowState: ComposeWindowState) {
-  if (windowState.placement != WindowPlacement.Floating || windowState.isMinimized) return
+private fun saveWindowState(storage: FileSettingsStorage, saved: WindowState, windowState: ComposeWindowState, treeWidth: Dp) {
   val size = windowState.size
-  if (!size.isSpecified) return
+  val floating = windowState.placement == WindowPlacement.Floating && !windowState.isMinimized && size.isSpecified
+  val next = saved.updated(size.takeIf { floating }, treeWidth)
+  if (next == saved) return
   try {
-    storage.write(WindowStateCodec.encode(WindowState(size.width.value.toInt(), size.height.value.toInt())))
+    storage.write(WindowStateCodec.encode(next))
   } catch (e: Exception) {
     e.printStackTrace()
   }
+}
+
+private fun bringToFront(window: java.awt.Window, windowState: ComposeWindowState) {
+  windowState.isMinimized = false
+  val desktop = Desktop.getDesktop().takeIf { Desktop.isDesktopSupported() && it.isSupported(Desktop.Action.APP_REQUEST_FOREGROUND) }
+  desktop?.requestForeground(true)
+  window.toFront()
 }
 
 private fun runApplication(
@@ -120,7 +146,8 @@ private fun runApplication(
   location: GitLocation,
   factory: GitBackendFactory,
   windowState: ComposeWindowState,
-) = application {
+  treeWidth: MutableState<Dp>,
+) = application(exitProcessOnExit = false) {
   val scope = remember { MainScope() }
   DisposableEffect(Unit) { onDispose { scope.cancel() } }
   val state = remember {
@@ -177,10 +204,14 @@ private fun runApplication(
     exitApplication()
   }
   var quitWarning by remember { mutableStateOf<QuitWarning?>(null) }
+  var quitPrompts by remember { mutableIntStateOf(0) }
   val requestQuit: () -> Unit = {
-    if (quitWarning == null) {
-      val warning = quitWarningOf(review.snapshot.value)
-      if (warning == null) shutdown() else quitWarning = warning
+    val warning = quitWarning ?: quitWarningOf(review.snapshot.value)
+    if (warning == null) {
+      shutdown()
+    } else {
+      quitWarning = warning
+      quitPrompts++
     }
   }
   DisposableEffect(Unit) { onDispose { integration.close() } }
@@ -237,6 +268,9 @@ private fun runApplication(
     onKeyEvent = { event -> quitWarning == null && (scrollJumpOf(event)?.let(scrollJumps::request) ?: false) },
   ) {
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
+    LaunchedEffect(quitPrompts) {
+      if (quitPrompts > 0) bringToFront(window, windowState)
+    }
     val titleBar = remember { installCustomTitleBar(window, ViewerTitleBarHeight) }
     var titleBarLeadingInset by remember { mutableStateOf(0.dp) }
     LaunchedEffect(titleBar) {
@@ -310,6 +344,7 @@ private fun runApplication(
               mode = diffMode,
               onModeChange = changeMode,
               onExpandContext = state::expandContext,
+              treeWidth = treeWidth,
             )
           }
           quitWarning?.let { warning ->

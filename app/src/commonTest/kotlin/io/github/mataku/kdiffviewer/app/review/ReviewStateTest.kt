@@ -552,6 +552,42 @@ class ReviewStateTest {
     assertEquals("r1", state.snapshot.value.submissions.single().id)
   }
 
+  @Test
+  fun reviewNotStartedInitially() = runTest(StandardTestDispatcher()) {
+    assertFalse(openState().snapshot.value.reviewStarted)
+  }
+
+  @Test
+  fun singleCommentStartsReview() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 1)
+    assertTrue(state.snapshot.value.reviewStarted)
+  }
+
+  @Test
+  fun pendingCommentStartsReviewAndDeletingKeepsIt() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 1, mode = DraftMode.Review)
+    assertTrue(state.snapshot.value.reviewStarted)
+    state.delete("c1")
+    assertTrue(state.snapshot.value.reviewStarted)
+  }
+
+  @Test
+  fun waitStartsReviewAndTimeoutKeepsIt() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    assertEquals(WaitOutcome.TimedOut, state.awaitSubmissions(10))
+    assertTrue(state.snapshot.value.reviewStarted)
+  }
+
+  @Test
+  fun repositorySwitchResetsReviewStarted() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.addThread(base, 1)
+    state.onViewerState(ui(2, base, repo = RepoPath("/other"), status = LoadStatus.Loading))
+    assertFalse(state.snapshot.value.reviewStarted)
+  }
+
   private fun TestScope.openState(): ReviewState = newState().also { it.onViewerState(ui(1, base)) }
 
   @Test

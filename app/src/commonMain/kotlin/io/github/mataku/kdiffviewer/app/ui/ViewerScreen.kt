@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -116,6 +117,7 @@ fun ViewerScreen(
   mode: DiffMode = DiffMode.Unified,
   onModeChange: (DiffMode) -> Unit = {},
   rangeState: CommentRangeState = remember { CommentRangeState() },
+  treeWidth: MutableState<Dp> = remember { mutableStateOf(DefaultTreeWidth) },
   onExpandContext: (fileIndex: Int, gapIndex: Int, direction: ExpandDirection) -> Unit = { _, _, _ -> },
 ) {
   val colors = LocalDiffColors.current
@@ -198,7 +200,6 @@ fun ViewerScreen(
     }
   }
   var collapsed by remember(state.repo) { mutableStateOf(emptySet<String>()) }
-  var treeWidth by remember { mutableStateOf(DefaultTreeWidth) }
   val density = LocalDensity.current
   val rows = state.rows
   val headerRowIndex = state.fileHeaderRowIndex
@@ -252,7 +253,7 @@ fun ViewerScreen(
           onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
           statsOf = statsOf,
           statusOf = statusOf,
-          width = { treeWidth },
+          width = { treeWidth.value },
           query = treeQuery,
           onQueryChange = { treeQuery = it },
           filtering = filtering,
@@ -261,7 +262,7 @@ fun ViewerScreen(
       divider = {
         PaneDivider(
           onDrag = { delta ->
-            treeWidth = (treeWidth + with(density) { delta.toDp() }).coerceIn(MinTreeWidth, MaxTreeWidth)
+            treeWidth.value = (treeWidth.value + with(density) { delta.toDp() }).coerceIn(MinTreeWidth, MaxTreeWidth)
           },
         )
       },
@@ -316,7 +317,7 @@ fun ViewerScreen(
         }
       },
     )
-    if (review.pendingCount > 0 || review.waiting) {
+    if (review.reviewStarted) {
       Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
       ReviewBar(
         pendingCount = review.pendingCount,
