@@ -186,10 +186,15 @@ if (System.getProperty("os.name").startsWith("Mac")) {
     }
   }
 
+  val runBundleLauncher = javaToolchains.launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(25))
+    vendor.set(JvmVendorSpec.JETBRAINS)
+  }.zip(runBundle.map { it.file("Contents/MacOS/kDiffViewer") }, ::RunBundleJavaLauncher)
+
   afterEvaluate {
     tasks.named<JavaExec>("run") {
       dependsOn(prepareRunBundle)
-      javaLauncher.set(null as JavaLauncher?)
+      javaLauncher.set(runBundleLauncher)
       setExecutable(runBundleExecutable.get())
     }
   }
@@ -204,4 +209,13 @@ tasks.matching { it.name == "createDistributable" }.configureEach {
   doLast {
     kdvBinary.get().asFile.setExecutable(true, false)
   }
+}
+
+class RunBundleJavaLauncher(
+  private val toolchain: JavaLauncher,
+  private val executable: RegularFile,
+) : JavaLauncher {
+  override fun getMetadata(): JavaInstallationMetadata = toolchain.metadata
+
+  override fun getExecutablePath(): RegularFile = executable
 }
