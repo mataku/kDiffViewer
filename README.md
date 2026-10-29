@@ -43,9 +43,9 @@ If `/usr/local/bin` is not writable by your user, run the command with `sudo`, o
 
 ### Opening a repository
 
-`kdv ./repo` opens a repository in kDiffViewer, and `kdv` with no argument opens the current directory. Bare words are commands (`thread`, `review`, `reload`, `windows`, `agent-guide`), so write relative paths as `./repo`. Run `kdv --help` for the full list. From the app, File ▸ Open… (⌘O) opens a repository with a folder picker.
+`kdv ./repo` opens a repository in kDiffViewer, and `kdv` with no argument opens the current directory. Bare words are commands (`thread`, `review`, `reload`, `windows`, `agent-guide`), so write relative paths as `./repo`. Run `kdv --help` for the full list. From the app, File ▸ Open… (<kbd>⌘</kbd><kbd>O</kbd>) opens a repository with a folder picker.
 
-Any directory inside a repository shows the whole repository's diff. The diff does not reload by itself; press ⌘R or run `kdv reload` after changing files.
+Any directory inside a repository shows the whole repository's diff. The diff does not reload by itself; press <kbd>⌘</kbd><kbd>R</kbd> or run `kdv reload` after changing files.
 
 ### Choosing the base
 
@@ -97,13 +97,13 @@ sequenceDiagram
 
 ### Leaving comments
 
-Click the add-comment button next to a line to comment on it, or drag the button over several lines to comment on the range. Comment bodies render as GitHub-style Markdown: headings, emphasis, lists, task lists, block quotes, links, and code blocks, with fenced code in the bundled languages syntax-highlighted. Tables and images are not rendered. The composer has Write / Preview tabs; press ⌘⇧P to switch between them.
+Click the add-comment button next to a line to comment on it, or drag the button over several lines to comment on the range. Comment bodies render as GitHub-style Markdown: headings, emphasis, lists, task lists, block quotes, links, and code blocks, with fenced code in the bundled languages syntax-highlighted. Tables and images are not rendered. The composer has Write / Preview tabs; press <kbd>⌘</kbd><kbd>⇧</kbd><kbd>P</kbd> to switch between them.
 
 Comments are kept in memory while the app runs and are not saved, so they are gone after the app quits. When quitting would lose a review, the app asks first.
 
 ### Sending comments to the agent
 
-In the composer, Add single comment (⌘⇧↩) sends the comment to the agent right away, while Start a review (⌘↩) keeps it pending, hidden from the agent, so you can collect several comments first. While comments are pending or an agent is waiting, a bar under the diff sends them with Send to Agent, optionally with a message, or tells the agent you are done with Approve.
+In the composer, Add single comment (<kbd>⌘</kbd><kbd>⇧</kbd><kbd>Return</kbd>) sends the comment to the agent right away, while Start a review (<kbd>⌘</kbd><kbd>Return</kbd>) keeps it pending, hidden from the agent, so you can collect several comments first. While comments are pending or an agent is waiting, a bar under the diff sends them with Send to Agent, optionally with a message, or tells the agent you are done with Approve.
 
 ### The kdv command
 
@@ -113,25 +113,25 @@ A coding agent waits for your review with `kdv review wait`, which blocks until 
 
 | Shortcut | Action |
 | --- | --- |
-| ⌘O | Open a repository |
-| ⌘R | Reload the diff |
-| ⌘, | Open Settings |
-| ⌃⌘S | Hide or show the sidebar |
-| ⌘C | Copy the selected code or comment text |
-| ⌘↑ or ⌃Home | Scroll to the top of the diff |
-| ⌘↓ or ⌃End | Scroll to the bottom of the diff |
-| ⌘↩ | In the composer: start a review, or save an edited comment |
-| ⌘⇧↩ | In the composer: add a single comment |
-| ⌘⇧P | In the composer: switch between Write and Preview |
-| Esc | In the composer: cancel. In the file tree filter: clear it. In the base popup: close it |
-| ↩ | In the base popup: compare against the typed revision |
-| ↩ or Esc | In the quit confirmation: cancel and keep the app open |
+| <kbd>⌘</kbd><kbd>O</kbd> | Open a repository |
+| <kbd>⌘</kbd><kbd>R</kbd> | Reload the diff |
+| <kbd>⌘</kbd><kbd>,</kbd> | Open Settings |
+| <kbd>⌃</kbd><kbd>⌘</kbd><kbd>S</kbd> | Hide or show the sidebar |
+| <kbd>⌘</kbd><kbd>C</kbd> | Copy the selected code or comment text |
+| <kbd>⌘</kbd><kbd>↑</kbd> or <kbd>⌃</kbd><kbd>Home</kbd> | Scroll to the top of the diff |
+| <kbd>⌘</kbd><kbd>↓</kbd> or <kbd>⌃</kbd><kbd>End</kbd> | Scroll to the bottom of the diff |
+| <kbd>⌘</kbd><kbd>Return</kbd> | In the composer: start a review, or save an edited comment |
+| <kbd>⌘</kbd><kbd>⇧</kbd><kbd>Return</kbd> | In the composer: add a single comment |
+| <kbd>⌘</kbd><kbd>⇧</kbd><kbd>P</kbd> | In the composer: switch between Write and Preview |
+| <kbd>Esc</kbd> | In the composer: cancel. In the file tree filter: clear it. In the base popup: close it |
+| <kbd>Return</kbd> | In the base popup: compare against the typed revision |
+| <kbd>Return</kbd> or <kbd>Esc</kbd> | In the quit confirmation: cancel and keep the app open |
 
 The scroll shortcuts do not apply while a text field or the comment preview has focus; there they keep their usual meaning.
 
 ## Settings
 
-Settings… in the application menu (⌘,) changes these, and every change applies immediately:
+Settings… in the application menu (<kbd>⌘</kbd><kbd>,</kbd>) changes these, and every change applies immediately:
 
 - Appearance: System, Light, Dark, or Dim
 - Diff font family and size, and tab width (2, 4, or 8)
