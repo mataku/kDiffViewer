@@ -159,7 +159,7 @@ Settings… in the application menu (<kbd>⌘</kbd><kbd>,</kbd>) changes these, 
 - Copy on select (off by default)
 - The git executable, when the one on `PATH` is not the one you want
 
-Settings are stored in `~/Library/Application Support/kDiffViewer/settings.json`. The main window's size is saved on quit to `window-state.json` in the same directory; delete it to go back to the default size.
+Settings are stored in `~/Library/Application\ Support/kDiffViewer/settings.json`. The main window's size is saved on quit to `~/Library/Application\ Support/kDiffViewer/window-state.json`; delete it to go back to the default size.
 
 ## Known limitations
 
