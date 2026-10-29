@@ -14,12 +14,14 @@ cli/    Kotlin/Native executable (macosArm64) producing `kdv`, which talks to ru
 app/    Compose Desktop app (jvm target). commonMain holds state holders and Compose UI; jvmMain holds main(), the folder picker, and packaging config.
         Bundled images live only under commonMain/composeResources/ (density-qualified PNG); app/art/ holds the SVG originals they are exported from (including app_icon.svg) and is not packaged; app/art/kDiffViewer.icon is the Icon Composer original of the app icon; app/packaging/ holds what packaging uses: kDiffViewer.icns (fallback for macOS 15 and earlier, and the Dock icon for `:app:run`) and app-content/Resources/Assets.car (compiled from the .icon, copied into the bundle's Contents/Resources). Both are committed, so the build does not need Xcode.
 scripts/ large-diff generator for manual performance checks.
+plugins/ kdv/ is the Claude Code / Codex / npx skills plugin with the kdv-review agent skill; .claude-plugin/marketplace.json lists it.
 ```
 
 - Only `protocol` and `cli` have native targets; `core` and `app` stay jvm-only.
 - `core` must not depend on Compose.
 - OS-specific work stays behind the interfaces in `core/commonMain` (`GitCommandRunner`, `WorkingTreeReader`) so that a Kotlin/Native target or another backend (e.g. libgit2) can be added by writing new implementations.
 - `app` consumes `core` types; it does not run git itself.
+- `plugins/kdv/skills/kdv-review/SKILL.md` stays thin: it only runs `kdv agent-guide`. Document kdv usage in `AgentGuide.kt`, not in the skill, so the guide always matches the installed `kdv`.
 
 ## Commands
 
