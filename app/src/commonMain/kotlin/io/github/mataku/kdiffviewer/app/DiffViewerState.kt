@@ -214,7 +214,7 @@ class DiffViewerState(
         val run = highlightPipeline?.start(scope, repo, resolved)
         highlightRun = run
         load(diffSource, repo, resolved, token, accumulator, run)
-        val reapplied = withContext(loadContext) { reapplyExpansions(accumulator) }
+        val reapplied = withContext(loadContext) { reapplyKeptExpansions(accumulator) }
         val tree = accumulator.tree.rows()
         val content = if (reapplied.applied.isEmpty()) null else withContext(loadContext) { mutableUiState.value.withContentOf(accumulator, tree).expandedContent(reapplied.applied, largeDiffLines) }
         holdJob?.cancel()
@@ -339,7 +339,7 @@ class DiffViewerState(
     }
   }
 
-  private suspend fun reapplyExpansions(accumulator: LoadAccumulator): ReappliedExpansions {
+  private suspend fun reapplyKeptExpansions(accumulator: LoadAccumulator): ReappliedExpansions {
     val previous = mutableUiState.value.expansions
     val reader = workingTree
     val root = mutableUiState.value.root

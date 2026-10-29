@@ -95,7 +95,7 @@ fun MainWindow(
 
             else -> ViewerScreen(
               uiState,
-              onReload = { viewer.reload() },
+              onReload = viewer::reload,
               screenState = appState.screen,
               titleBarLeadingInset = titleBarLeadingInset,
               onToggleFile = viewer::toggleCollapsed,

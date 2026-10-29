@@ -14,11 +14,11 @@ fun rememberNativePreferencesSupported(): Boolean = remember {
 
 @Composable
 fun DesktopHandlersEffect(nativePreferences: Boolean, onPreferences: () -> Unit, onQuit: () -> Unit) {
-  val currentOnPreferences by rememberUpdatedState(onPreferences)
-  val currentOnQuit by rememberUpdatedState(onQuit)
+  val latestOnPreferences by rememberUpdatedState(onPreferences)
+  val latestOnQuit by rememberUpdatedState(onQuit)
   if (nativePreferences) {
     DisposableEffect(Unit) {
-      Desktop.getDesktop().setPreferencesHandler { currentOnPreferences() }
+      Desktop.getDesktop().setPreferencesHandler { latestOnPreferences() }
       onDispose { Desktop.getDesktop().setPreferencesHandler(null) }
     }
   }
@@ -26,7 +26,7 @@ fun DesktopHandlersEffect(nativePreferences: Boolean, onPreferences: () -> Unit,
     val desktop = Desktop.getDesktop().takeIf { Desktop.isDesktopSupported() && it.isSupported(Desktop.Action.APP_QUIT_HANDLER) }
     desktop?.setQuitHandler { _, response ->
       response.cancelQuit()
-      currentOnQuit()
+      latestOnQuit()
     }
     onDispose { desktop?.setQuitHandler(null) }
   }

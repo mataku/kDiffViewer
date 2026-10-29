@@ -45,7 +45,7 @@ fun FrameWindowScope.AppMenuBar(
         onClick = screen::toggleSidebar,
       )
       Separator()
-      Item("Reload", shortcut = KeyShortcut(Key.R, meta = true), onClick = { appState.viewer.reload() })
+      Item("Reload", shortcut = KeyShortcut(Key.R, meta = true), onClick = appState.viewer::reload)
     }
   }
 }
