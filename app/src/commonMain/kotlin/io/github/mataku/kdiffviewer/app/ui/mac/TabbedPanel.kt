@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -71,6 +72,7 @@ fun <T> MacTabbedPanel(
             .fillMaxHeight()
             .then(edges)
             .semantics { this.selected = isSelected }
+            .focusProperties { canFocus = false }
             .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, role = Role.Tab) { onSelect(option) }
             .padding(horizontal = 12.dp),
           contentAlignment = Alignment.Center,
