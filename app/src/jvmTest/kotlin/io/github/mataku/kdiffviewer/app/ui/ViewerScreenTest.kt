@@ -602,15 +602,35 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun repoNameFollowsControlWhenTreeHidden() = runComposeUiTest {
+  fun repoNameStaysPutWhileTreeToggles() = runComposeUiTest {
+    var visible by mutableStateOf(true)
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible)
+      }
+    }
+    val before = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
+    mainClock.autoAdvance = false
+    visible = false
+    mainClock.advanceTimeBy(100)
+    assertEquals(before, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
+    mainClock.autoAdvance = true
+    waitForIdle()
+    assertEquals(before, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
+    visible = true
+    waitForIdle()
+    assertEquals(before, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
+  }
+
+  @Test
+  fun repoNameKeepsDiffAlignedPositionWhenStartingHidden() = runComposeUiTest {
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {
         ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = false)
       }
     }
-    val control = onNodeWithTag("sidebar-control").getUnclippedBoundsInRoot()
     val name = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
-    assertEquals(control.right + 12.dp, name.left)
+    assertEquals(DefaultTreeWidth + PaneDividerWidth + ContentHorizontalMargin, name.left)
   }
 
   @Test

@@ -24,7 +24,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -223,7 +221,6 @@ fun ViewerScreen(
       sidebarVisible = sidebarVisible,
       onToggleSidebar = onToggleSidebar,
       sidebarButtonRaised = sidebarButtonRaised,
-      sidebar = sidebar,
       loadBranches = loadBranches,
       onSwitchBase = onSwitchBase,
       mode = mode,
@@ -328,7 +325,6 @@ private fun RepoHeader(
   sidebarVisible: Boolean,
   onToggleSidebar: () -> Unit,
   sidebarButtonRaised: Boolean,
-  sidebar: SidebarTransition,
   loadBranches: suspend () -> List<BranchRef>,
   onSwitchBase: suspend (BaseSpec) -> ViewerError?,
   mode: DiffMode,
@@ -343,7 +339,6 @@ private fun RepoHeader(
   RepoHeaderLayout(
     startPaddingPx = startPaddingPx,
     repoAnchor = repoAnchor,
-    sidebar = sidebar,
     modifier = Modifier
       .testTag("repo-header")
       .fillMaxWidth()
@@ -446,15 +441,10 @@ private fun RepoHeaderLayout(
   trailing: @Composable () -> Unit,
   startPaddingPx: Float,
   repoAnchor: Float,
-  sidebar: SidebarTransition,
   modifier: Modifier,
 ) {
-  val naturalLeft = remember { mutableFloatStateOf(0f) }
-  val centerLayer = Modifier.graphicsLayer {
-    translationX = if (sidebar.diffNarrow) 0f else sidebar.progress * (repoAnchor - naturalLeft.floatValue).coerceAtLeast(0f)
-  }
   Layout(
-    contents = listOf(leading, { Box(centerLayer) { center() } }, trailing),
+    contents = listOf(leading, center, trailing),
     modifier = modifier,
   ) { (leadings, centers, trailings), constraints ->
     val maxWidth = constraints.maxWidth
@@ -465,10 +455,9 @@ private fun RepoHeaderLayout(
       Constraints(maxWidth = (maxWidth - leadingPlaceable.width - 2 * gap).coerceAtLeast(0), maxHeight = maxHeight),
     )
     val natural = startPaddingPx + leadingPlaceable.width + gap
-    val shift = if (sidebar.diffNarrow) (repoAnchor - natural).coerceAtLeast(0f).roundToInt() else 0
+    val shift = (repoAnchor - natural).coerceAtLeast(0f).roundToInt()
     val available = (maxWidth - leadingPlaceable.width - trailingPlaceable.width - 2 * gap).coerceAtLeast(0)
     val centerPlaceable = centers.first().measure(Constraints(maxWidth = (available - shift).coerceAtLeast(0), maxHeight = maxHeight))
-    naturalLeft.floatValue = natural
     val centerSlotX = leadingPlaceable.width + gap
     fun centred(height: Int) = Alignment.CenterVertically.align(height, maxHeight)
     layout(maxWidth, maxHeight) {
