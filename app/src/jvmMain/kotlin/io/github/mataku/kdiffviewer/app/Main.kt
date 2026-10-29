@@ -309,6 +309,7 @@ private fun runApplication(
               scrollJumps = scrollJumps,
               mode = diffMode,
               onModeChange = changeMode,
+              onExpandContext = state::expandContext,
             )
           }
           quitWarning?.let { warning ->

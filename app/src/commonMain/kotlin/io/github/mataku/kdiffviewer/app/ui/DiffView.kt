@@ -68,11 +68,13 @@ import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.linePosition
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.SelectionSource
+import io.github.mataku.kdiffviewer.app.ui.mac.MacInlineError
 import io.github.mataku.kdiffviewer.app.ui.mac.MacOverlayScrollbar
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.NoteStack
 import io.github.mataku.kdiffviewer.app.ui.review.OrphanSection
 import io.github.mataku.kdiffviewer.core.model.ChangeType
+import io.github.mataku.kdiffviewer.core.model.ExpandDirection
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.Side
@@ -143,8 +145,12 @@ fun DiffView(
   selectionSource: SelectionSource,
   modifier: Modifier = Modifier,
   rangeState: CommentRangeState = remember { CommentRangeState() },
+  onExpand: (fileIndex: Int, gapIndex: Int, direction: ExpandDirection) -> Unit = { _, _, _ -> },
+  expansionErrors: Map<Int, String> = emptyMap(),
 ) {
   val currentOnHeaderClick by rememberUpdatedState(onHeaderClick)
+  val currentOnExpand by rememberUpdatedState(onExpand)
+  val expand = remember { { fileIndex: Int, gapIndex: Int, direction: ExpandDirection -> currentOnExpand(fileIndex, gapIndex, direction) } }
   val actions = LocalReviewActions.current
   val typography = LocalDiffTypography.current
   val layouts = remember { VisibleLineLayouts() }
@@ -217,7 +223,7 @@ fun DiffView(
         val collapsed = layout.isCollapsed(fileIndex)
         val header = rows[display.unifiedOf(headerRow)] as DiffRow.FileHeader
         stickyHeader(key = header.key, contentType = HEADER_CONTENT_TYPE) {
-          FileHeaderRow(header, collapsed, iconTint, onFileComment) { currentOnHeaderClick(header.fileIndex) }
+          FileHeaderRow(header, collapsed, iconTint, onFileComment, expansionErrors[header.fileIndex]) { currentOnHeaderClick(header.fileIndex) }
         }
         if (!collapsed) {
           if (layout.hasNotes(fileIndex)) {
@@ -242,9 +248,9 @@ fun DiffView(
               when (val row = rows[display.unifiedOf(displayRow, null)]) {
                 is DiffRow.FileHeader -> Unit
 
-                is DiffRow.HunkHeader -> HunkHeaderRow(row)
+                is DiffRow.HunkHeader -> HunkHeaderRow(row, typography.lineNumberWidth, expand)
 
-                is DiffRow.TrailingGap -> Unit
+                is DiffRow.TrailingGap -> TrailingGapRow(row, typography.lineNumberWidth, expand)
 
                 is DiffRow.Placeholder -> PlaceholderRow(row.message)
 
@@ -281,9 +287,9 @@ fun DiffView(
               when (val row = rows[bodyStart + offset]) {
                 is DiffRow.FileHeader -> Unit
 
-                is DiffRow.HunkHeader -> HunkHeaderRow(row)
+                is DiffRow.HunkHeader -> HunkHeaderRow(row, typography.lineNumberWidth * 2, expand)
 
-                is DiffRow.TrailingGap -> Unit
+                is DiffRow.TrailingGap -> TrailingGapRow(row, typography.lineNumberWidth * 2, expand)
 
                 is DiffRow.Line -> {
                   val slot = highlights.getOrNull(row.fileIndex)
@@ -350,6 +356,7 @@ private fun FileHeaderRow(
   collapsed: Boolean,
   iconTint: ColorFilter,
   onComment: ((DiffRow.FileHeader) -> Unit)?,
+  expansionError: String?,
   onClick: () -> Unit,
 ) {
   val colors = LocalDiffColors.current
@@ -409,6 +416,7 @@ private fun FileHeaderRow(
     if (statsText != null) {
       BasicText(text = statsText, modifier = Modifier.testTag("file-stats-${row.fileIndex}"))
     }
+    if (expansionError != null) MacInlineError(expansionError)
     if (onComment != null) {
       Image(
         imageVector = KdvIcons.Comment,
@@ -424,19 +432,35 @@ private fun FileHeaderRow(
 }
 
 @Composable
-private fun HunkHeaderRow(row: DiffRow.HunkHeader) {
+private fun HunkHeaderRow(row: DiffRow.HunkHeader, gutterWidth: Dp, onExpand: (Int, Int, ExpandDirection) -> Unit) {
   val colors = LocalDiffColors.current
   val typography = LocalDiffTypography.current
   val text = remember(row.hunk, typography.tabWidth, typography.controlMarker) {
     plainDisplayText(hunkHeaderLabel(row.hunk), typography.tabWidth, typography.controlMarker)
   }
-  val modifier = Modifier
-    .fillMaxWidth()
-    .background(colors.hunkBackground)
-    .padding(horizontal = 12.dp)
-  when (text) {
-    is AnnotatedString -> BasicText(text = text, modifier = modifier, style = typography.hunkHeader)
-    else -> BasicText(text = text.toString(), modifier = modifier, style = typography.hunkHeader)
+  val lineHeight = with(LocalDensity.current) { typography.hunkHeader.lineHeight.toDp() }
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .background(colors.hunkBackground),
+    verticalAlignment = Alignment.Bottom,
+  ) {
+    val gap = row.gap
+    if (gap != null) ExpandGutter(gap, row.fileIndex, gutterWidth, lineHeight, onExpand) else Spacer(Modifier.width(gutterWidth))
+    val modifier = Modifier.padding(horizontal = 12.dp)
+    when (text) {
+      is AnnotatedString -> BasicText(text = text, modifier = modifier, style = typography.hunkHeader)
+      else -> BasicText(text = text.toString(), modifier = modifier, style = typography.hunkHeader)
+    }
+  }
+}
+
+@Composable
+private fun TrailingGapRow(row: DiffRow.TrailingGap, gutterWidth: Dp, onExpand: (Int, Int, ExpandDirection) -> Unit) {
+  val colors = LocalDiffColors.current
+  val lineHeight = with(LocalDensity.current) { LocalDiffTypography.current.hunkHeader.lineHeight.toDp() }
+  Row(modifier = Modifier.fillMaxWidth().background(colors.hunkBackground)) {
+    ExpandGutter(row.gap, row.fileIndex, gutterWidth, lineHeight, onExpand)
   }
 }
 
