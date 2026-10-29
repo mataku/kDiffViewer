@@ -91,6 +91,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
+private val HeaderIconSize = 16.dp
+
 internal fun sidebarButtonIcon(visible: Boolean): ImageVector = if (visible) KdvIcons.SidebarCollapse else KdvIcons.SidebarExpand
 
 @Composable
@@ -354,6 +356,7 @@ private fun RepoHeader(
         modifier = Modifier
           .testTag("sidebar-control")
           .titleBarClientRegion("sidebar-control"),
+        iconSize = HeaderIconSize,
       )
     },
     center = {
@@ -417,6 +420,7 @@ private fun RepoHeader(
           segmentWidth = 32.dp,
           icon = { if (it == DiffMode.Unified) KdvIcons.Unified else KdvIcons.Split },
           tooltip = { it.name },
+          iconSize = HeaderIconSize,
         )
         Spacer(Modifier.width(8.dp))
         GlassIconButton(

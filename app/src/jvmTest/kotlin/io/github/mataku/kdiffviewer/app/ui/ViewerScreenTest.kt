@@ -17,6 +17,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -571,6 +572,16 @@ class ViewerScreenTest {
     visible = false
     onNodeWithTag("sidebar-control").performClick()
     assertEquals(2, toggles)
+  }
+
+  @Test
+  fun headerControlIconsAre16dp() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) }
+    for (description in listOf("Hide Sidebar", "Unified", "Split")) {
+      onNodeWithContentDescription(description, useUnmergedTree = true).assertWidthIsEqualTo(16.dp).assertHeightIsEqualTo(16.dp)
+    }
+    onNodeWithTag("sidebar-control").assertWidthIsEqualTo(34.dp).assertHeightIsEqualTo(24.dp)
+    onNodeWithTag("diff-mode-control").assertHeightIsEqualTo(24.dp)
   }
 
   @Test

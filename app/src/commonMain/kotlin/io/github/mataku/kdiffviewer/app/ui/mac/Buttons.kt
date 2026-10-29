@@ -155,6 +155,7 @@ fun MacToolbarButton(
   tooltip: String,
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
+  iconSize: Dp = 14.dp,
 ) {
   val colors = LocalDiffColors.current
   val interactionSource = remember { MutableInteractionSource() }
@@ -180,7 +181,7 @@ fun MacToolbarButton(
         Image(
           imageVector = icon,
           contentDescription = contentDescription,
-          modifier = Modifier.size(14.dp),
+          modifier = Modifier.size(iconSize),
           colorFilter = ColorFilter.tint(colors.text),
         )
       }
@@ -200,6 +201,7 @@ fun <T> MacSegmented(
   segmentWidth: Dp = 44.dp,
   icon: ((T) -> ImageVector)? = null,
   tooltip: ((T) -> String)? = null,
+  iconSize: Dp = 14.dp,
 ) {
   val colors = LocalDiffColors.current
   Row(
@@ -230,7 +232,7 @@ fun <T> MacSegmented(
             Image(
               imageVector = icon(option),
               contentDescription = label(option),
-              modifier = Modifier.size(14.dp),
+              modifier = Modifier.size(iconSize),
               colorFilter = ColorFilter.tint(colors.text),
             )
           } else {
