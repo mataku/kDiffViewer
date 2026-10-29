@@ -1,45 +1,16 @@
 package io.github.mataku.kdiffviewer.app
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyShortcut
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
-import androidx.compose.ui.window.MenuBar
-import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
-import io.github.mataku.kdiffviewer.app.find.FindCommand
-import io.github.mataku.kdiffviewer.app.find.FindRequests
-import io.github.mataku.kdiffviewer.app.find.FindState
-import io.github.mataku.kdiffviewer.app.highlight.LocalCodeHighlighter
-import io.github.mataku.kdiffviewer.app.review.QuitWarning
-import io.github.mataku.kdiffviewer.app.review.ReviewIntegration
-import io.github.mataku.kdiffviewer.app.review.ReviewRequestHandler
-import io.github.mataku.kdiffviewer.app.review.ReviewState
-import io.github.mataku.kdiffviewer.app.review.SessionRegistry
-import io.github.mataku.kdiffviewer.app.review.messageLines
-import io.github.mataku.kdiffviewer.app.review.processAlive
-import io.github.mataku.kdiffviewer.app.review.quitWarningOf
-import io.github.mataku.kdiffviewer.app.selection.LocalNativeContextMenu
-import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
-import io.github.mataku.kdiffviewer.app.selection.TextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.settings.FileSettingsStorage
-import io.github.mataku.kdiffviewer.app.settings.GitBackendController
 import io.github.mataku.kdiffviewer.app.settings.SettingsRepository
 import io.github.mataku.kdiffviewer.app.settings.WindowState
 import io.github.mataku.kdiffviewer.app.settings.WindowStateCodec
@@ -49,40 +20,17 @@ import io.github.mataku.kdiffviewer.app.settings.mainSizeOrNull
 import io.github.mataku.kdiffviewer.app.settings.treeWidthOrNull
 import io.github.mataku.kdiffviewer.app.settings.updated
 import io.github.mataku.kdiffviewer.app.ui.DefaultTreeWidth
-import io.github.mataku.kdiffviewer.app.ui.ErrorScreen
-import io.github.mataku.kdiffviewer.app.ui.KdvTheme
-import io.github.mataku.kdiffviewer.app.ui.LocalTitleBarRegions
 import io.github.mataku.kdiffviewer.app.ui.MaxTreeWidth
 import io.github.mataku.kdiffviewer.app.ui.MinTreeWidth
-import io.github.mataku.kdiffviewer.app.ui.OpenRepositoryScreen
-import io.github.mataku.kdiffviewer.app.ui.ScrollJumps
-import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
-import io.github.mataku.kdiffviewer.app.ui.ViewerTitleBarHeight
-import io.github.mataku.kdiffviewer.app.ui.mac.MacAlertSheet
-import io.github.mataku.kdiffviewer.app.ui.markdown.SafeUriHandler
-import io.github.mataku.kdiffviewer.app.ui.resolveFontFamily
-import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
-import io.github.mataku.kdiffviewer.app.ui.scrollJumpOf
 import io.github.mataku.kdiffviewer.core.git.GitLocation
 import io.github.mataku.kdiffviewer.core.git.GitLocator
 import io.github.mataku.kdiffviewer.core.git.locateOnHost
-import io.github.mataku.kdiffviewer.core.git.probeGit
-import io.github.mataku.kdiffviewer.core.model.RepoPath
-import io.github.mataku.kdiffviewer.protocol.PROTOCOL_VERSION
-import io.github.mataku.kdiffviewer.protocol.RegistryPaths
-import io.github.mataku.kdiffviewer.protocol.WindowInfoResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
-import java.awt.Desktop
 import java.awt.GraphicsEnvironment
-import java.nio.file.Path
 import kotlin.system.exitProcess
-import kotlin.time.Clock
 import androidx.compose.ui.window.WindowState as ComposeWindowState
 
 fun main(args: Array<String>) {
@@ -106,8 +54,6 @@ fun main(args: Array<String>) {
 }
 
 private val MinMainSize = DpSize(640.dp, 400.dp)
-
-private val FallbackTrafficLightsWidth = 78.dp
 
 private fun loadWindowState(storage: FileSettingsStorage): WindowState = try {
   WindowStateCodec.decode(storage.read())
@@ -136,13 +82,6 @@ private fun saveWindowState(storage: FileSettingsStorage, saved: WindowState, wi
   }
 }
 
-private fun bringToFront(window: java.awt.Window, windowState: ComposeWindowState) {
-  windowState.isMinimized = false
-  val desktop = Desktop.getDesktop().takeIf { Desktop.isDesktopSupported() && it.isSupported(Desktop.Action.APP_REQUEST_FOREGROUND) }
-  desktop?.requestForeground(true)
-  window.toFront()
-}
-
 private fun runApplication(
   args: Array<String>,
   repository: SettingsRepository,
@@ -151,239 +90,21 @@ private fun runApplication(
   windowState: ComposeWindowState,
   treeWidth: MutableState<Dp>,
 ) = application(exitProcessOnExit = false) {
-  val scope = remember { MainScope() }
-  DisposableEffect(Unit) { onDispose { scope.cancel() } }
-  val state = remember {
-    val backend = (location as? GitLocation.Found)?.let { factory.create(it.info) }
-    val missingSourceError = (location as? GitLocation.ConfiguredUnavailable)?.let { ViewerError.GitUnavailable(it.path) } ?: ViewerError.GitNotFound
-    DiffViewerState(
-      source = backend?.source,
-      scope = scope,
-      highlightPipeline = backend?.highlightPipeline,
-      missingSourceError = missingSourceError,
-      loadContext = Dispatchers.Default,
-      workingTree = backend?.workingTree,
-    ).also { viewerState ->
-      when (val launch = parseLaunchArgs(args, System.getProperty("user.dir"))) {
-        LaunchArgs.None -> Unit
-        is LaunchArgs.Open -> viewerState.open(launch.repo, launch.base)
-        is LaunchArgs.Invalid -> viewerState.fail(launch.repo, ViewerError.InvalidLaunchArgs(launch.message))
-      }
-    }
-  }
-  val review = remember { ReviewState(scope, Dispatchers.Default, Clock.System::now) }
-  val reviewSnapshot by review.snapshot.collectAsState()
-  val registry = remember {
-    SessionRegistry(
-      Path.of(RegistryPaths.sessionsDir(System.getProperty("user.home"))),
-      ProcessHandle.current().pid(),
-      java.time.Instant::now,
-      ::processAlive,
-    )
-  }
-  val integration = remember {
-    val handler = ReviewRequestHandler(
-      review = review,
-      reload = { withContext(Dispatchers.Main) { state.reload() } },
-      info = {
-        WindowInfoResult(ProcessHandle.current().pid(), registry.repoRoot, PROTOCOL_VERSION)
-      },
-    )
-    ReviewIntegration(registry, Dispatchers.IO, Dispatchers.IO, handler::handle)
-  }
-  LaunchedEffect(Unit) { state.uiState.collect(review::onViewerState) }
-  LaunchedEffect(Unit) {
-    val started = try {
-      withContext(Dispatchers.IO) { integration.start() }
-    } catch (e: Exception) {
-      e.printStackTrace()
-      false
-    }
-    if (!started) return@LaunchedEffect
-    integration.publishRoots(state.uiState)
-  }
-  val shutdown: () -> Unit = {
-    integration.close()
-    exitApplication()
-  }
-  var quitWarning by remember { mutableStateOf<QuitWarning?>(null) }
-  var quitPrompts by remember { mutableIntStateOf(0) }
-  val requestQuit: () -> Unit = {
-    val warning = quitWarning ?: quitWarningOf(review.snapshot.value)
-    if (warning == null) {
-      shutdown()
-    } else {
-      quitWarning = warning
-      quitPrompts++
-    }
-  }
-  DisposableEffect(Unit) { onDispose { integration.close() } }
-  val controller = remember {
-    GitBackendController(
-      initial = location,
-      settings = repository,
-      scope = scope,
-      ioDispatcher = Dispatchers.IO,
-      probe = ::probeGit,
-      locate = { GitLocator.locateOnHost(it) },
-      createBackend = factory::create,
-      onBackend = { state.setBackend(it?.source, it?.highlightPipeline, workingTree = it?.workingTree) },
-    )
-  }
-  val uiState by state.uiState.collectAsState()
+  val appState = rememberKdvAppState(args, repository, location, factory, exit = ::exitApplication)
   val settings by repository.settings.collectAsState()
-  val gitStatus by controller.status.collectAsState()
-  var settingsOpen by remember { mutableStateOf(false) }
-  var focusRequests by remember { mutableIntStateOf(0) }
-  val openSettings = {
-    settingsOpen = true
-    focusRequests++
-  }
-  val openFolder: () -> Unit = { pickFolder()?.let { state.open(RepoPath(it)) } }
-  val nativePreferences = remember {
-    Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.APP_PREFERENCES)
-  }
-  if (nativePreferences) {
-    DisposableEffect(Unit) {
-      Desktop.getDesktop().setPreferencesHandler { openSettings() }
-      onDispose { Desktop.getDesktop().setPreferencesHandler(null) }
-    }
-  }
-
-  DisposableEffect(Unit) {
-    val desktop = Desktop.getDesktop().takeIf { Desktop.isDesktopSupported() && it.isSupported(Desktop.Action.APP_QUIT_HANDLER) }
-    desktop?.setQuitHandler { _, response ->
-      response.cancelQuit()
-      requestQuit()
-    }
-    onDispose { desktop?.setQuitHandler(null) }
-  }
-
-  val scrollJumps = remember { ScrollJumps() }
-  val findState = remember { FindState() }
-  val findRequests = remember { FindRequests() }
-  var diffMode by remember { mutableStateOf(DiffMode.Unified) }
-  val changeMode = { mode: DiffMode -> if (mode != diffMode) diffMode = mode }
-  var sidebarVisible by remember { mutableStateOf(true) }
-  val toggleSidebar = { sidebarVisible = !sidebarVisible }
-  Window(
-    onCloseRequest = requestQuit,
-    title = "kDiffViewer",
-    state = windowState,
-    onKeyEvent = { event -> quitWarning == null && (scrollJumpOf(event)?.let(scrollJumps::request) ?: false) },
-  ) {
-    LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
-    LaunchedEffect(quitPrompts) {
-      if (quitPrompts > 0) bringToFront(window, windowState)
-    }
-    val titleBar = remember { installCustomTitleBar(window, ViewerTitleBarHeight) }
-    var titleBarLeadingInset by remember { mutableStateOf(0.dp) }
-    LaunchedEffect(titleBar) {
-      if (titleBar == null) return@LaunchedEffect
-      withFrameNanos {}
-      titleBarLeadingInset = titleBar.leftInset().takeIf { it > 0f }?.dp ?: FallbackTrafficLightsWidth
-    }
-    val coordinator = remember { TextSelectionCoordinator(AwtClipboardWriter) { repository.settings.value.copyOnSelect } }
-    val nativeMenu = remember(window) { AwtNativeContextMenu(window) }
-    MenuBar {
-      Menu("File") {
-        Item("Open…", shortcut = KeyShortcut(Key.O, meta = true), onClick = openFolder)
-        if (!nativePreferences) {
-          Item("Settings…", shortcut = KeyShortcut(Key.Comma, meta = true), onClick = { openSettings() })
-        }
-      }
-      Menu("Edit") {
-        Item("Copy", shortcut = KeyShortcut(Key.C, meta = true), enabled = coordinator.hasSelection, onClick = { coordinator.copy() })
-        Separator()
-        val findEnabled = uiState.repo != null && uiState.status !is LoadStatus.Failed
-        Menu("Find") {
-          Item("Find…", shortcut = KeyShortcut(Key.F, meta = true), enabled = findEnabled, onClick = { findRequests.request(FindCommand.Show) })
-          Item("Find Next", shortcut = KeyShortcut(Key.G, meta = true), enabled = findEnabled, onClick = { findRequests.request(FindCommand.Next) })
-          Item("Find Previous", shortcut = KeyShortcut(Key.G, meta = true, shift = true), enabled = findEnabled, onClick = { findRequests.request(FindCommand.Previous) })
-        }
-      }
-      Menu("View") {
-        RadioButtonItem("Unified", selected = diffMode == DiffMode.Unified, onClick = { changeMode(DiffMode.Unified) })
-        RadioButtonItem("Split", selected = diffMode == DiffMode.Split, onClick = { changeMode(DiffMode.Split) })
-        Separator()
-        Item(
-          if (sidebarVisible) "Hide Sidebar" else "Show Sidebar",
-          shortcut = KeyShortcut(Key.S, ctrl = true, meta = true),
-          enabled = uiState.repo != null && uiState.status !is LoadStatus.Failed,
-          onClick = toggleSidebar,
-        )
-        Separator()
-        Item("Reload", shortcut = KeyShortcut(Key.R, meta = true), onClick = state::reload)
-      }
-    }
-    val fontFamily = remember(settings.fontFamily) { resolveFontFamily(settings.fontFamily) }
-    val platformUriHandler = LocalUriHandler.current
-    val safeUriHandler = remember(platformUriHandler) { SafeUriHandler(platformUriHandler) }
-    CompositionLocalProvider(
-      LocalTitleBarRegions provides titleBar?.regions,
-      LocalReviewActions provides review,
-      LocalCodeHighlighter provides factory.codeHighlighter,
-      LocalUriHandler provides safeUriHandler,
-      LocalTextSelectionCoordinator provides coordinator,
-      LocalNativeContextMenu provides nativeMenu,
-    ) {
-      KdvTheme(
-        colorTheme = settings.appearance.colorTheme(),
-        fontFamily = fontFamily,
-        fontSize = settings.fontSize,
-        tabWidth = settings.tabWidth,
-        treeFontSize = settings.treeFontSize,
-      ) {
-        val status = uiState.status
-        Box {
-          when {
-            uiState.repo == null -> OpenRepositoryScreen(onOpen = openFolder)
-
-            status is LoadStatus.Failed -> ErrorScreen(status.error, onOpenAnother = openFolder, onOpenSettings = { openSettings() })
-
-            else -> ViewerScreen(
-              uiState,
-              onReload = state::reload,
-              titleBarLeadingInset = titleBarLeadingInset,
-              sidebarVisible = sidebarVisible,
-              onToggleSidebar = toggleSidebar,
-              onToggleFile = state::toggleCollapsed,
-              onExpandFile = state::expand,
-              review = reviewSnapshot,
-              loadBranches = state::branches,
-              onSwitchBase = state::switchBase,
-              scrollJumps = scrollJumps,
-              mode = diffMode,
-              onModeChange = changeMode,
-              onExpandContext = state::expandContext,
-              treeWidth = treeWidth,
-              findState = findState,
-              findRequests = findRequests,
-            )
-          }
-          quitWarning?.let { warning ->
-            MacAlertSheet(
-              title = "Quit kDiffViewer?",
-              messageLines = warning.messageLines(),
-              confirmLabel = "Quit",
-              onConfirm = shutdown,
-              onCancel = { quitWarning = null },
-            )
-          }
-        }
-      }
-    }
-  }
-
-  if (settingsOpen) {
+  val nativePreferences = rememberNativePreferencesSupported()
+  DesktopHandlersEffect(nativePreferences, onPreferences = appState::openSettings, onQuit = appState::requestQuit)
+  MainWindow(appState, repository, settings, factory, windowState, treeWidth, nativePreferences)
+  if (appState.settingsOpen) {
+    val gitStatus by appState.gitBackend.status.collectAsState()
     PreferencesWindow(
-      focusRequests = focusRequests,
-      onClose = { settingsOpen = false },
+      focusRequests = appState.settingsFocusRequests,
+      onClose = appState::closeSettings,
       settings = settings,
       load = repository.load,
       gitStatus = gitStatus,
       onUpdate = repository::update,
-      onCommitGitPath = controller::commit,
+      onCommitGitPath = appState.gitBackend::commit,
     )
   }
 }
