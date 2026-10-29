@@ -1,0 +1,9 @@
+{
+  "name": "kdv",
+  "description": "Review a coding agent's changes in kDiffViewer and answer the comments through the kdv command",
+  "author": {
+    "name": "Takuma Homma"
+  },
+  "repository": "https://github.com/mataku/kDiffViewer",
+  "license": "MIT"
+}

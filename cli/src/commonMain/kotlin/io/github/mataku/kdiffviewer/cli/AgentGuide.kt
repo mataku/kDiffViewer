@@ -57,6 +57,7 @@ Options
 
   --repo <path>    Use the window for that repository instead of the current directory.
   --pid <pid>      Use a specific window; needed when several windows show the same repository.
+                   kdv windows lists the running windows with their pids.
   --author <name>  Author name on a reply (default: agent).
   --timeout <s>    Seconds kdv review wait blocks before exiting 3 (1 to 86400; default: no limit).
 
@@ -105,4 +106,6 @@ snapshot holds the lines as they were when the user commented, so use it to find
 Read the current file before acting on an outdated thread, and ask the user when the intent is unclear.
 
 Exit codes: 0 success, 1 runtime failure (no window, window closed, unknown thread id, load failed, another kdv review wait took over), 2 usage error, 3 kdv review wait timed out.
+
+Run kdv --help for every command and option.
 """.trimIndent() + "\n"

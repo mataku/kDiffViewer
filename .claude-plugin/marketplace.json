@@ -1,0 +1,11 @@
+{
+  "name": "kdiffviewer",
+  "owner": { "name": "Takuma Homma" },
+  "plugins": [
+    {
+      "name": "kdv",
+      "source": "./plugins/kdv",
+      "description": "Review a coding agent's changes in kDiffViewer"
+    }
+  ]
+}
