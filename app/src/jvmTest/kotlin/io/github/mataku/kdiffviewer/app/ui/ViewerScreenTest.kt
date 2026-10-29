@@ -1972,7 +1972,34 @@ class ViewerScreenTest {
     waitForIdle()
     assertEquals(1, review.snapshot.value.submissions.size)
     assertEquals(0, review.snapshot.value.pendingCount)
+    onNodeWithTag("review-bar").assertIsDisplayed()
+  }
+
+  @Test
+  fun reviewBarHiddenBeforeReviewStarts() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
     onNodeWithTag("review-bar").assertDoesNotExist()
+  }
+
+  @Test
+  fun reviewBarStaysAfterSingleComment() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0))))
+    review.updateDraft("single one")
+    review.submitDraft(DraftMode.Single)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithText("Approve").performClick()
+    waitForIdle()
+    assertEquals(SubmissionState.Approved, review.snapshot.value.submissions.last().state)
   }
 
   @Test

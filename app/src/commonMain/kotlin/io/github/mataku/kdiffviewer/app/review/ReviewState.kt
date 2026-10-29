@@ -37,6 +37,7 @@ data class ReviewSnapshot(
   val submissions: List<Submission> = emptyList(),
   val pendingCount: Int = 0,
   val waiting: Boolean = false,
+  val reviewStarted: Boolean = false,
 ) {
   companion object {
     val Empty = ReviewSnapshot(emptyList(), ReviewPlacements.Empty, null, 0L, false)
@@ -254,7 +255,7 @@ class ReviewState(
     val entry = mutate { current ->
       if (current.core.repo == null) return@mutate current to null
       val token = current.core.waiterToken + 1
-      current.copy(waiting = true, core = current.core.copy(waiterToken = token)) to (current.core.generation to token)
+      current.copy(waiting = true, reviewStarted = true, core = current.core.copy(waiterToken = token)) to (current.core.generation to token)
     } ?: return WaitOutcome.NoRepository
     val (generation, token) = entry
     try {
@@ -313,6 +314,7 @@ class ReviewState(
     return copy(
       submissions = submissions + Submission(number, state, summary, now(), commentIds),
       core = core.copy(nextSubmissionNumber = number + 1),
+      reviewStarted = true,
     )
   }
 
@@ -373,12 +375,16 @@ class ReviewState(
 
   private inline fun List<ReviewThread>.replaced(index: Int, transform: (ReviewThread) -> ReviewThread): List<ReviewThread> = toMutableList().also { it[index] = transform(it[index]) }
 
-  private fun ReviewSnapshot.withThreads(threads: List<ReviewThread>, core: ReviewCore): ReviewSnapshot = copy(
-    threads = threads,
-    placements = buildPlacements(placements.loadId, threads, core.placementById),
-    core = core,
-    pendingCount = threads.sumOf { thread -> thread.comments.count { it.pending } },
-  )
+  private fun ReviewSnapshot.withThreads(threads: List<ReviewThread>, core: ReviewCore): ReviewSnapshot {
+    val pending = threads.sumOf { thread -> thread.comments.count { it.pending } }
+    return copy(
+      threads = threads,
+      placements = buildPlacements(placements.loadId, threads, core.placementById),
+      core = core,
+      pendingCount = pending,
+      reviewStarted = reviewStarted || pending > 0,
+    )
+  }
 
   private class Reanchored(
     val threads: Map<String, Pair<ReviewThread, Placement>>,

@@ -316,7 +316,7 @@ fun ViewerScreen(
         }
       },
     )
-    if (review.pendingCount > 0 || review.waiting) {
+    if (review.reviewStarted) {
       Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
       ReviewBar(
         pendingCount = review.pendingCount,

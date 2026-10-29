@@ -34,7 +34,6 @@ fun ReviewBar(
   onSend: (approve: Boolean) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  if (pendingCount == 0 && !waiting) return
   val colors = LocalDiffColors.current
   val mutedStyle = remember(colors) { TextStyle(color = colors.mutedText, fontSize = 12.sp) }
   Row(
@@ -59,7 +58,9 @@ fun ReviewBar(
       containerModifier = Modifier.weight(1f),
       placeholder = "Message to the agent (optional)",
     )
-    BasicText(if (pendingCount == 1) "1 pending comment" else "$pendingCount pending comments", style = mutedStyle)
+    if (pendingCount > 0) {
+      BasicText(if (pendingCount == 1) "1 pending comment" else "$pendingCount pending comments", style = mutedStyle)
+    }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       MacPushButton(text = "Approve", onClick = { onSend(true) })
       MacPushButton(text = "Send to Agent", onClick = { onSend(false) }, enabled = pendingCount > 0 || summary.isNotBlank(), default = true)

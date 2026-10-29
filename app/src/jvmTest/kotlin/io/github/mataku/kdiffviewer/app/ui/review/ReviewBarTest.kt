@@ -37,9 +37,13 @@ class ReviewBarTest {
   }
 
   @Test
-  fun hiddenWithNothingPendingAndNoWaiter() = runComposeUiTest {
+  fun approvableWithNothingPendingAndNoWaiter() = runComposeUiTest {
     showBar(pendingCount = 0)
-    onNodeWithTag("review-bar").assertDoesNotExist()
+    onNodeWithTag("review-bar").assertIsDisplayed()
+    onNodeWithText("0 pending comments").assertDoesNotExist()
+    onNodeWithText("Send to Agent").assertIsNotEnabled()
+    onNodeWithText("Approve").performClick()
+    assertEquals(listOf("" to true), sent)
   }
 
   @Test
