@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -67,6 +68,7 @@ import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.linePosition
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.SelectionSource
+import io.github.mataku.kdiffviewer.app.ui.mac.MacOverlayScrollbar
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.NoteStack
 import io.github.mataku.kdiffviewer.app.ui.review.OrphanSection
@@ -191,114 +193,118 @@ fun DiffView(
   val currentDraft by rememberUpdatedState(draft)
   val draftTargetOf = remember { { currentDraft } }
   val selectionModifier = Modifier.diffSelectionGesture(listState, selection, selectionSource, layouts, rows, layout, display, contentStartX, codeStartX, splitHalfWidth, typography.tabWidth, files, markerWidth, onRange, rangeState, draftTargetOf, loadId)
-  LazyColumn(
-    state = listState,
-    modifier = modifier
-      .testTag("diff-list")
-      .onSizeChanged { listWidth.intValue = it.width }
-      .then(hoverModifier)
-      .then(selectionModifier)
-      .fileFrames(listState, layout, framePainter, colors.border, colors.background, frameInset, frameMargin),
-    contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = FileHeaderTopMargin),
-  ) {
-    if (layout.hasOrphanItem) {
-      item(key = ORPHANS_KEY, contentType = ORPHANS_CONTENT_TYPE) {
-        OrphanSection(placements.orphans, draft, composeNew = draft.isOrphanThread())
-      }
-    }
-    for (fileIndex in 0 until layout.fileCount) {
-      val headerRow = layout.headerRowIndex(fileIndex)
-      val collapsed = layout.isCollapsed(fileIndex)
-      val header = rows[display.unifiedOf(headerRow)] as DiffRow.FileHeader
-      stickyHeader(key = header.key, contentType = HEADER_CONTENT_TYPE) {
-        FileHeaderRow(header, collapsed, iconTint, onFileComment) { currentOnHeaderClick(header.fileIndex) }
-      }
-      if (!collapsed) {
-        if (layout.hasNotes(fileIndex)) {
-          item(key = "n$fileIndex", contentType = NOTES_CONTENT_TYPE) {
-            NoteStack(
-              threads = (if (shown) placements.byFile[fileIndex] else null).orEmpty(),
-              draftTarget = draft,
-              composeNew = draftFileIndex == fileIndex,
-            )
-          }
+  Box(modifier) {
+    LazyColumn(
+      state = listState,
+      modifier = Modifier
+        .fillMaxSize()
+        .testTag("diff-list")
+        .onSizeChanged { listWidth.intValue = it.width }
+        .then(hoverModifier)
+        .then(selectionModifier)
+        .fileFrames(listState, layout, framePainter, colors.border, colors.background, frameInset, frameMargin),
+      contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = FileHeaderTopMargin),
+    ) {
+      if (layout.hasOrphanItem) {
+        item(key = ORPHANS_KEY, contentType = ORPHANS_CONTENT_TYPE) {
+          OrphanSection(placements.orphans, draft, composeNew = draft.isOrphanThread())
         }
-        val bodyStart = headerRow + 1
-        if (display.mode == DiffMode.Split) {
-          items(
-            count = layout.bodyRowCount(fileIndex),
-            key = { splitItemKey(rows, display, bodyStart + it) },
-            contentType = { splitContentType(rows, display, bodyStart + it) },
-          ) { offset ->
-            val displayRow = bodyStart + offset
-            val leftRow = rows.getOrNull(display.unifiedOf(displayRow, Side.Old)) as? DiffRow.Line
-            val rightRow = rows.getOrNull(display.unifiedOf(displayRow, Side.New)) as? DiffRow.Line
-            when (val row = rows[display.unifiedOf(displayRow, null)]) {
-              is DiffRow.FileHeader -> Unit
+      }
+      for (fileIndex in 0 until layout.fileCount) {
+        val headerRow = layout.headerRowIndex(fileIndex)
+        val collapsed = layout.isCollapsed(fileIndex)
+        val header = rows[display.unifiedOf(headerRow)] as DiffRow.FileHeader
+        stickyHeader(key = header.key, contentType = HEADER_CONTENT_TYPE) {
+          FileHeaderRow(header, collapsed, iconTint, onFileComment) { currentOnHeaderClick(header.fileIndex) }
+        }
+        if (!collapsed) {
+          if (layout.hasNotes(fileIndex)) {
+            item(key = "n$fileIndex", contentType = NOTES_CONTENT_TYPE) {
+              NoteStack(
+                threads = (if (shown) placements.byFile[fileIndex] else null).orEmpty(),
+                draftTarget = draft,
+                composeNew = draftFileIndex == fileIndex,
+              )
+            }
+          }
+          val bodyStart = headerRow + 1
+          if (display.mode == DiffMode.Split) {
+            items(
+              count = layout.bodyRowCount(fileIndex),
+              key = { splitItemKey(rows, display, bodyStart + it) },
+              contentType = { splitContentType(rows, display, bodyStart + it) },
+            ) { offset ->
+              val displayRow = bodyStart + offset
+              val leftRow = rows.getOrNull(display.unifiedOf(displayRow, Side.Old)) as? DiffRow.Line
+              val rightRow = rows.getOrNull(display.unifiedOf(displayRow, Side.New)) as? DiffRow.Line
+              when (val row = rows[display.unifiedOf(displayRow, null)]) {
+                is DiffRow.FileHeader -> Unit
 
-              is DiffRow.HunkHeader -> HunkHeaderRow(row)
+                is DiffRow.HunkHeader -> HunkHeaderRow(row)
 
-              is DiffRow.Placeholder -> PlaceholderRow(row.message)
+                is DiffRow.Placeholder -> PlaceholderRow(row.message)
 
-              is DiffRow.Line -> {
-                val slot = highlights.getOrNull(row.fileIndex)
-                val leftPos = if (leftRow != null && (hasLineThreads || draftLinePos >= 0)) linePosition(leftRow.fileIndex, leftRow.hunkIndex, leftRow.lineIndex) else -1L
-                val rightPos = if (rightRow != null && (hasLineThreads || draftLinePos >= 0)) linePosition(rightRow.fileIndex, rightRow.hunkIndex, rightRow.lineIndex) else -1L
-                val leftAll = if (hasLineThreads && leftPos >= 0) placements.byLine[leftPos] else null
-                val rightAll = if (hasLineThreads && rightPos >= 0) placements.byLine[rightPos] else null
-                val leftThreads = leftAll?.filter { (it.anchor as? Anchor.Lines)?.side == ReviewSide.Old }.orEmpty()
-                val rightThreads = rightAll?.filter { (it.anchor as? Anchor.Lines)?.side == ReviewSide.New }.orEmpty()
-                val composingLeft = draftLinePos >= 0 && leftPos == draftLinePos && draftSide == ReviewSide.Old
-                val composingRight = draftLinePos >= 0 && rightPos == draftLinePos && draftSide == ReviewSide.New
-                if (leftThreads.isEmpty() && rightThreads.isEmpty() && !composingLeft && !composingRight) {
-                  SplitLineRow(leftRow, display.unifiedOf(displayRow, Side.Old), rightRow, display.unifiedOf(displayRow, Side.New), slot, hoveredKey, commentable, selection, layouts, rangeState)
-                } else {
-                  Column {
+                is DiffRow.Line -> {
+                  val slot = highlights.getOrNull(row.fileIndex)
+                  val leftPos = if (leftRow != null && (hasLineThreads || draftLinePos >= 0)) linePosition(leftRow.fileIndex, leftRow.hunkIndex, leftRow.lineIndex) else -1L
+                  val rightPos = if (rightRow != null && (hasLineThreads || draftLinePos >= 0)) linePosition(rightRow.fileIndex, rightRow.hunkIndex, rightRow.lineIndex) else -1L
+                  val leftAll = if (hasLineThreads && leftPos >= 0) placements.byLine[leftPos] else null
+                  val rightAll = if (hasLineThreads && rightPos >= 0) placements.byLine[rightPos] else null
+                  val leftThreads = leftAll?.filter { (it.anchor as? Anchor.Lines)?.side == ReviewSide.Old }.orEmpty()
+                  val rightThreads = rightAll?.filter { (it.anchor as? Anchor.Lines)?.side == ReviewSide.New }.orEmpty()
+                  val composingLeft = draftLinePos >= 0 && leftPos == draftLinePos && draftSide == ReviewSide.Old
+                  val composingRight = draftLinePos >= 0 && rightPos == draftLinePos && draftSide == ReviewSide.New
+                  if (leftThreads.isEmpty() && rightThreads.isEmpty() && !composingLeft && !composingRight) {
                     SplitLineRow(leftRow, display.unifiedOf(displayRow, Side.Old), rightRow, display.unifiedOf(displayRow, Side.New), slot, hoveredKey, commentable, selection, layouts, rangeState)
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                      SplitNoteColumn(leftThreads, draft, composingLeft, splitNoteIndent, Modifier.weight(1f))
-                      SplitNoteColumn(rightThreads, draft, composingRight, splitNoteIndent, Modifier.weight(1f))
+                  } else {
+                    Column {
+                      SplitLineRow(leftRow, display.unifiedOf(displayRow, Side.Old), rightRow, display.unifiedOf(displayRow, Side.New), slot, hoveredKey, commentable, selection, layouts, rangeState)
+                      Row(modifier = Modifier.fillMaxWidth()) {
+                        SplitNoteColumn(leftThreads, draft, composingLeft, splitNoteIndent, Modifier.weight(1f))
+                        SplitNoteColumn(rightThreads, draft, composingRight, splitNoteIndent, Modifier.weight(1f))
+                      }
                     }
                   }
                 }
               }
             }
-          }
-        } else {
-          items(
-            count = layout.bodyRowCount(fileIndex),
-            key = { rows[bodyStart + it].key },
-            contentType = { rows[bodyStart + it].contentType() },
-          ) { offset ->
-            when (val row = rows[bodyStart + offset]) {
-              is DiffRow.FileHeader -> Unit
+          } else {
+            items(
+              count = layout.bodyRowCount(fileIndex),
+              key = { rows[bodyStart + it].key },
+              contentType = { rows[bodyStart + it].contentType() },
+            ) { offset ->
+              when (val row = rows[bodyStart + offset]) {
+                is DiffRow.FileHeader -> Unit
 
-              is DiffRow.HunkHeader -> HunkHeaderRow(row)
+                is DiffRow.HunkHeader -> HunkHeaderRow(row)
 
-              is DiffRow.Line -> {
-                val slot = highlights.getOrNull(row.fileIndex)
-                val position = if (hasLineThreads || draftLinePos >= 0) linePosition(row.fileIndex, row.hunkIndex, row.lineIndex) else -1L
-                val threads = if (hasLineThreads) placements.byLine[position] else null
-                val composing = position >= 0 && position == draftLinePos
-                if (threads == null && !composing) {
-                  LineRow(row, bodyStart + offset, slot, hoveredKey, commentable, selection, layouts, rangeState)
-                } else {
-                  Column {
+                is DiffRow.Line -> {
+                  val slot = highlights.getOrNull(row.fileIndex)
+                  val position = if (hasLineThreads || draftLinePos >= 0) linePosition(row.fileIndex, row.hunkIndex, row.lineIndex) else -1L
+                  val threads = if (hasLineThreads) placements.byLine[position] else null
+                  val composing = position >= 0 && position == draftLinePos
+                  if (threads == null && !composing) {
                     LineRow(row, bodyStart + offset, slot, hoveredKey, commentable, selection, layouts, rangeState)
-                    NoteStack(threads.orEmpty(), draft, composing, Modifier.padding(start = noteIndent, end = 8.dp))
+                  } else {
+                    Column {
+                      LineRow(row, bodyStart + offset, slot, hoveredKey, commentable, selection, layouts, rangeState)
+                      NoteStack(threads.orEmpty(), draft, composing, Modifier.padding(start = noteIndent, end = 8.dp))
+                    }
                   }
                 }
-              }
 
-              is DiffRow.Placeholder -> PlaceholderRow(row.message)
+                is DiffRow.Placeholder -> PlaceholderRow(row.message)
+              }
             }
           }
         }
       }
+      if (layout.hasEndItem) {
+        item(key = END_KEY, contentType = END_CONTENT_TYPE) { EndOfDiffFooter() }
+      }
     }
-    if (layout.hasEndItem) {
-      item(key = END_KEY, contentType = END_CONTENT_TYPE) { EndOfDiffFooter() }
-    }
+    MacOverlayScrollbar(listState, Modifier.align(Alignment.CenterEnd).padding(end = 4.dp))
   }
 }
 
