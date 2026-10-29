@@ -53,10 +53,8 @@ import io.github.mataku.kdiffviewer.app.ui.mac.MacTextField
 
 private const val NOT_USABLE_MESSAGE = "Not a usable git executable"
 private const val NOT_FOUND_MESSAGE = "git was not found"
-private const val MIN_FONT_SIZE = 8
-private const val MAX_FONT_SIZE = 32
-private const val MIN_TREE_FONT_SIZE = 10
-private const val MAX_TREE_FONT_SIZE = 20
+private val FontSizeRange = 8..32
+private val TreeFontSizeRange = 10..20
 private const val PARTIAL_MESSAGE = "Some settings in settings.json were invalid and were reset to defaults."
 private const val UNREADABLE_MESSAGE =
   "Could not read settings.json. Using defaults; changes made here are not saved until the file is fixed."
@@ -115,7 +113,7 @@ fun PreferencesScreen(
       SettingRow("Font size") {
         FontSizeSlider(
           size = settings.fontSize,
-          range = MIN_FONT_SIZE..MAX_FONT_SIZE,
+          range = FontSizeRange,
           tagPrefix = "font-size",
           onChange = { value -> onUpdate { it.copy(fontSize = value) } },
         )
@@ -143,7 +141,7 @@ fun PreferencesScreen(
       SettingRow("Font size") {
         FontSizeSlider(
           size = settings.treeFontSize,
-          range = MIN_TREE_FONT_SIZE..MAX_TREE_FONT_SIZE,
+          range = TreeFontSizeRange,
           tagPrefix = "tree-font-size",
           onChange = { value -> onUpdate { it.copy(treeFontSize = value) } },
         )
