@@ -91,11 +91,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
-internal fun sidebarButtonIcon(visible: Boolean, arrow: Boolean): ImageVector = when {
-  !arrow -> KdvIcons.Sidebar
-  visible -> KdvIcons.SidebarCollapse
-  else -> KdvIcons.SidebarExpand
-}
+internal fun sidebarButtonIcon(visible: Boolean): ImageVector = if (visible) KdvIcons.SidebarCollapse else KdvIcons.SidebarExpand
 
 @Composable
 fun ViewerScreen(
@@ -105,7 +101,6 @@ fun ViewerScreen(
   titleBarLeadingInset: Dp = 0.dp,
   sidebarVisible: Boolean = true,
   onToggleSidebar: () -> Unit = {},
-  sidebarButtonArrow: Boolean = false,
   onToggleFile: (Int) -> Unit = {},
   onExpandFile: (Int) -> Unit = {},
   review: ReviewSnapshot = ReviewSnapshot.Empty,
@@ -227,7 +222,6 @@ fun ViewerScreen(
       titleBarLeadingInset = titleBarLeadingInset,
       sidebarVisible = sidebarVisible,
       onToggleSidebar = onToggleSidebar,
-      sidebarButtonArrow = sidebarButtonArrow,
       loadBranches = loadBranches,
       onSwitchBase = onSwitchBase,
       mode = mode,
@@ -331,7 +325,6 @@ private fun RepoHeader(
   titleBarLeadingInset: Dp,
   sidebarVisible: Boolean,
   onToggleSidebar: () -> Unit,
-  sidebarButtonArrow: Boolean,
   loadBranches: suspend () -> List<BranchRef>,
   onSwitchBase: suspend (BaseSpec) -> ViewerError?,
   mode: DiffMode,
@@ -354,7 +347,7 @@ private fun RepoHeader(
       .padding(start = startPadding, end = 20.dp),
     leading = {
       MacToolbarButton(
-        icon = sidebarButtonIcon(sidebarVisible, sidebarButtonArrow),
+        icon = sidebarButtonIcon(sidebarVisible),
         contentDescription = if (sidebarVisible) "Hide Sidebar" else "Show Sidebar",
         tooltip = if (sidebarVisible) "Hide Sidebar (⌃⌘S)" else "Show Sidebar (⌃⌘S)",
         onClick = onToggleSidebar,

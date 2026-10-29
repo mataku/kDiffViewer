@@ -31,7 +31,7 @@ class ButtonsTest {
   @Test
   fun toolbarButtonClicksAndHasControlSize() = runComposeUiTest {
     var clicks = 0
-    setContent { MacToolbarButton(KdvIcons.Sidebar, "Hide Sidebar", "Hide Sidebar (⌃⌘S)", { clicks++ }, Modifier.testTag("button")) }
+    setContent { MacToolbarButton(KdvIcons.SidebarCollapse, "Hide Sidebar", "Hide Sidebar (⌃⌘S)", { clicks++ }, Modifier.testTag("button")) }
     onNodeWithTag("button").performClick()
     onNodeWithTag("button").performClick()
     assertEquals(2, clicks)

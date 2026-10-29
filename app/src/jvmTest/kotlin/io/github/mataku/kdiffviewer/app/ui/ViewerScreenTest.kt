@@ -574,11 +574,9 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun sidebarButtonIconFollowsArrowSwitch() {
-    assertSame(KdvIcons.Sidebar, sidebarButtonIcon(visible = true, arrow = false))
-    assertSame(KdvIcons.Sidebar, sidebarButtonIcon(visible = false, arrow = false))
-    assertSame(KdvIcons.SidebarCollapse, sidebarButtonIcon(visible = true, arrow = true))
-    assertSame(KdvIcons.SidebarExpand, sidebarButtonIcon(visible = false, arrow = true))
+  fun sidebarButtonIconShowsTheClickAction() {
+    assertSame(KdvIcons.SidebarCollapse, sidebarButtonIcon(visible = true))
+    assertSame(KdvIcons.SidebarExpand, sidebarButtonIcon(visible = false))
   }
 
   @Test
