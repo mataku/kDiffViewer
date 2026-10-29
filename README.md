@@ -1,6 +1,6 @@
 # kDiffViewer
 
-<!-- Screenshot: main window. Planned as a <picture> that switches between docs/images/main-light.png and docs/images/main-dark.png with prefers-color-scheme. -->
+![](./docs/images/dim-screen.png)
 
 kDiffViewer is a macOS desktop viewer for the git diff of a branch and its working tree, built with Kotlin Multiplatform and Compose Desktop. It shows everything since the branch point, including uncommitted work, in a GitHub-like view, and lets you leave review comments that a coding agent can read and answer from the terminal.
 
