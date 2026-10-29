@@ -15,6 +15,8 @@ private class TreeNode {
   var unsorted = false
 }
 
+const val MAX_TREE_DEPTH = 4096
+
 private val fileOrder = compareBy<Pair<String, Int>>({ it.first }, { it.second })
 
 class FileTreeBuilder {
@@ -39,8 +41,9 @@ class FileTreeBuilder {
 
   private fun insert(path: String, fileIndex: Int) {
     val segments = path.split('/')
+    val directoryCount = minOf(segments.lastIndex, MAX_TREE_DEPTH - 1)
     var node = root
-    for (i in 0 until segments.lastIndex) {
+    for (i in 0 until directoryCount) {
       val name = segments[i]
       node = node.directoryByName[name] ?: TreeNode().also { child ->
         node.directoryByName[name] = child
@@ -48,30 +51,48 @@ class FileTreeBuilder {
         node.unsorted = true
       }
     }
-    node.files += markControls(segments.last()) to fileIndex
+    val fileName = if (directoryCount == segments.lastIndex) segments.last() else segments.subList(directoryCount, segments.size).joinToString("/")
+    node.files += markControls(fileName) to fileIndex
     node.unsorted = true
   }
 
   private fun flatten() {
     val result = ArrayList<TreeRow>(rows.size + (fileCount - flattenedCount) * 2)
-    emit(root, 0, result)
+    emit(result)
     rows = result
     flattenedCount = fileCount
   }
 
-  private fun emit(node: TreeNode, depth: Int, out: MutableList<TreeRow>) {
+  private fun emit(out: MutableList<TreeRow>) {
+    val nodes = arrayListOf(sorted(root))
+    val nextDirectories = arrayListOf(0)
+    while (nodes.isNotEmpty()) {
+      val depth = nodes.lastIndex
+      val node = nodes[depth]
+      val next = nextDirectories[depth]
+      if (next < node.directories.size) {
+        val (name, child) = node.directories[next]
+        nextDirectories[depth] = next + 1
+        out += TreeRow(depth, name, null)
+        nodes += sorted(child)
+        nextDirectories += 0
+        continue
+      }
+      for ((name, fileIndex) in node.files) {
+        out += TreeRow(depth, name, fileIndex)
+      }
+      nodes.removeAt(depth)
+      nextDirectories.removeAt(depth)
+    }
+  }
+
+  private fun sorted(node: TreeNode): TreeNode {
     if (node.unsorted) {
       node.directories.sortBy { it.first }
       node.files.sortWith(fileOrder)
       node.unsorted = false
     }
-    for ((name, child) in node.directories) {
-      out += TreeRow(depth, name, null)
-      emit(child, depth + 1, out)
-    }
-    for ((name, fileIndex) in node.files) {
-      out += TreeRow(depth, name, fileIndex)
-    }
+    return node
   }
 }
 
@@ -108,12 +129,115 @@ fun filterTree(rows: List<TreeRow>, files: List<FileDiff>, query: String): List<
   return result
 }
 
+fun compactTree(rows: List<TreeRow>): List<TreeRow> {
+  val compactable = BooleanArray(rows.size)
+  val childCounts = IntArray(rows.size)
+  val parents = ArrayList<Int>()
+  for ((index, row) in rows.withIndex()) {
+    while (parents.isNotEmpty() && rows[parents.last()].depth >= row.depth) parents.removeAt(parents.lastIndex)
+    if (parents.isNotEmpty()) childCounts[parents.last()]++
+    if (row.fileIndex == null) parents += index
+  }
+  var anyCompactable = false
+  for (index in 0 until rows.lastIndex) {
+    if (rows[index].fileIndex == null && childCounts[index] == 1 && rows[index + 1].fileIndex == null) {
+      compactable[index] = true
+      anyCompactable = true
+    }
+  }
+  if (!anyCompactable) return rows
+  val result = ArrayList<TreeRow>(rows.size)
+  val shiftDepths = ArrayList<Int>()
+  val shifts = ArrayList<Int>()
+  var index = 0
+  while (index < rows.size) {
+    val row = rows[index]
+    while (shiftDepths.isNotEmpty() && shiftDepths.last() >= row.depth) {
+      shiftDepths.removeAt(shiftDepths.lastIndex)
+      shifts.removeAt(shifts.lastIndex)
+    }
+    val shift = shifts.lastOrNull() ?: 0
+    if (!compactable[index]) {
+      result += if (shift == 0) row else row.copy(depth = row.depth - shift)
+      index++
+      continue
+    }
+    val name = StringBuilder(row.name)
+    var last = index
+    while (compactable[last]) {
+      last++
+      name.append('/').append(rows[last].name)
+    }
+    result += TreeRow(row.depth - shift, name.toString(), null)
+    shiftDepths += rows[last].depth
+    shifts += shift + (last - index)
+    index = last + 1
+  }
+  return result
+}
+
 @Immutable
-data class TreeEntry(val row: TreeRow, val directoryPath: String?, val collapsed: Boolean)
+class DirectoryPath(val parent: DirectoryPath?, val name: String) {
+  private val length: Int = if (parent == null) name.length else parent.length + 1 + name.length
+  private val hash: Int
+
+  init {
+    var h = 0
+    if (parent != null) h = 31 * parent.hash + '/'.code
+    for (c in name) h = 31 * h + c.code
+    hash = h
+  }
+
+  override fun hashCode(): Int = hash
+
+  override fun equals(other: Any?): Boolean {
+    if (this === other) return true
+    if (other !is DirectoryPath || length != other.length || hash != other.hash) return false
+    val mine = ReverseChars(this)
+    val theirs = ReverseChars(other)
+    while (mine.hasNext()) {
+      if (mine.next() != theirs.next()) return false
+    }
+    return true
+  }
+
+  override fun toString(): String {
+    val chars = CharArray(length)
+    var end = length
+    var node: DirectoryPath? = this
+    while (node != null) {
+      val start = end - node.name.length
+      node.name.toCharArray(chars, start)
+      if (start > 0) chars[start - 1] = '/'
+      end = start - 1
+      node = node.parent
+    }
+    return chars.concatToString()
+  }
+
+  private class ReverseChars(private var node: DirectoryPath) {
+    private var index = node.name.length
+
+    fun hasNext(): Boolean = index > 0 || node.parent != null
+
+    fun next(): Char {
+      if (index == 0) {
+        node = node.parent!!
+        index = node.name.length
+        return '/'
+      }
+      return node.name[--index]
+    }
+  }
+}
+
+@Immutable
+data class TreeEntry(val row: TreeRow, val directoryPath: DirectoryPath?, val collapsed: Boolean)
 
 fun visibleTree(rows: List<TreeRow>, collapsed: Set<String>): List<TreeEntry> {
   val result = ArrayList<TreeEntry>(rows.size)
-  val ancestors = ArrayList<String>()
+  val ancestors = ArrayList<DirectoryPath>()
+  val collapsedPaths = collapsed.mapTo(HashSet(collapsed.size)) { DirectoryPath(null, it) }
   var hiddenBelowDepth = Int.MAX_VALUE
   for (row in rows) {
     if (row.depth > hiddenBelowDepth) continue
@@ -123,9 +247,9 @@ fun visibleTree(rows: List<TreeRow>, collapsed: Set<String>): List<TreeEntry> {
       continue
     }
     while (ancestors.size > row.depth) ancestors.removeAt(ancestors.lastIndex)
-    val path = if (row.depth == 0) row.name else "${ancestors.last()}/${row.name}"
+    val path = DirectoryPath(if (row.depth == 0) null else ancestors.last(), row.name)
     ancestors += path
-    val isCollapsed = path in collapsed
+    val isCollapsed = path in collapsedPaths
     if (isCollapsed) hiddenBelowDepth = row.depth
     result += TreeEntry(row, path, isCollapsed)
   }

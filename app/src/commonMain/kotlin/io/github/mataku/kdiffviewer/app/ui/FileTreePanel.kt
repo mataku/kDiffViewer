@@ -116,7 +116,7 @@ fun FileTreePanel(
           val rowModifier = when {
             fileIndex != null -> Modifier.testTag("tree-file-$fileIndex").clickable { onFileClick(fileIndex) }
             directoryPath != null && filtering -> Modifier.testTag("tree-dir-$index")
-            directoryPath != null -> Modifier.testTag("tree-dir-$index").clickable { onDirectoryToggle(directoryPath) }
+            directoryPath != null -> Modifier.testTag("tree-dir-$index").clickable { onDirectoryToggle(directoryPath.toString()) }
             else -> Modifier
           }
           Row(

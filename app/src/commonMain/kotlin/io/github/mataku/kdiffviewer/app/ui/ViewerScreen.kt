@@ -56,6 +56,7 @@ import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ScrollRestorer
 import io.github.mataku.kdiffviewer.app.ViewerError
 import io.github.mataku.kdiffviewer.app.ViewerUiState
+import io.github.mataku.kdiffviewer.app.compactTree
 import io.github.mataku.kdiffviewer.app.diffLayoutOf
 import io.github.mataku.kdiffviewer.app.displayRows
 import io.github.mataku.kdiffviewer.app.filterTree
@@ -273,11 +274,12 @@ fun ViewerScreen(
   }
   val treeListState = remember(state.repo) { LazyListState() }
   val treeComposed = sidebar.treeComposed
-  val treeEntries = remember(state.tree, state.files, collapsed, needle, treeComposed) {
+  val compactedTree = remember(state.tree, treeComposed) { if (treeComposed) compactTree(state.tree) else emptyList() }
+  val treeEntries = remember(state.tree, compactedTree, state.files, collapsed, needle, treeComposed) {
     when {
       !treeComposed -> emptyList()
-      filtering -> visibleTree(filterTree(state.tree, state.files, needle), emptySet())
-      else -> visibleTree(state.tree, collapsed)
+      filtering -> visibleTree(compactTree(filterTree(state.tree, state.files, needle)), emptySet())
+      else -> visibleTree(compactedTree, collapsed)
     }
   }
   Column(modifier = modifier.fillMaxSize().background(colors.background)) {
