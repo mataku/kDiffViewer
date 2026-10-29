@@ -100,13 +100,14 @@ class DiffViewerExpansionTest {
     val state = stateWith(tree, file("f.kt"))
     state.open(repo)
     advanceUntilIdle()
-    val before = state.uiState.value.contentId
+    val before = state.uiState.value
     state.expandContext(0, 1, ExpandDirection.Down)
     advanceUntilIdle()
     val after = state.uiState.value
     assertTrue("L34" in after.lineTexts(0))
     assertTrue("L35" !in after.lineTexts(0))
-    assertTrue(after.contentId > before)
+    assertTrue(after.contentId > before.contentId)
+    assertTrue(after.rowsGeneration > before.rowsGeneration)
     assertEquals(listOf("f.kt" to EXPAND_SIZE_LIMIT), tree.reads)
   }
 
