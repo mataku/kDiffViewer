@@ -23,6 +23,9 @@ import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
+import io.github.mataku.kdiffviewer.app.find.FindCommand
+import io.github.mataku.kdiffviewer.app.find.FindRequests
+import io.github.mataku.kdiffviewer.app.find.FindState
 import io.github.mataku.kdiffviewer.app.highlight.LocalCodeHighlighter
 import io.github.mataku.kdiffviewer.app.review.QuitWarning
 import io.github.mataku.kdiffviewer.app.review.ReviewIntegration
@@ -257,6 +260,8 @@ private fun runApplication(
   }
 
   val scrollJumps = remember { ScrollJumps() }
+  val findState = remember { FindState() }
+  val findRequests = remember { FindRequests() }
   var diffMode by remember { mutableStateOf(DiffMode.Unified) }
   val changeMode = { mode: DiffMode -> if (mode != diffMode) diffMode = mode }
   var sidebarVisible by remember { mutableStateOf(true) }
@@ -289,6 +294,13 @@ private fun runApplication(
       }
       Menu("Edit") {
         Item("Copy", shortcut = KeyShortcut(Key.C, meta = true), enabled = coordinator.hasSelection, onClick = { coordinator.copy() })
+        Separator()
+        val findEnabled = uiState.repo != null && uiState.status !is LoadStatus.Failed
+        Menu("Find") {
+          Item("Find…", shortcut = KeyShortcut(Key.F, meta = true), enabled = findEnabled, onClick = { findRequests.request(FindCommand.Show) })
+          Item("Find Next", shortcut = KeyShortcut(Key.G, meta = true), enabled = findEnabled, onClick = { findRequests.request(FindCommand.Next) })
+          Item("Find Previous", shortcut = KeyShortcut(Key.G, meta = true, shift = true), enabled = findEnabled, onClick = { findRequests.request(FindCommand.Previous) })
+        }
       }
       Menu("View") {
         RadioButtonItem("Unified", selected = diffMode == DiffMode.Unified, onClick = { changeMode(DiffMode.Unified) })
@@ -345,6 +357,8 @@ private fun runApplication(
               onModeChange = changeMode,
               onExpandContext = state::expandContext,
               treeWidth = treeWidth,
+              findState = findState,
+              findRequests = findRequests,
             )
           }
           quitWarning?.let { warning ->
