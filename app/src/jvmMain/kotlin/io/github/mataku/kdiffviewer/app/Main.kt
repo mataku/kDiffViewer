@@ -217,6 +217,7 @@ private fun runApplication(
   val changeMode = { mode: DiffMode -> if (mode != diffMode) diffMode = mode }
   var sidebarVisible by remember { mutableStateOf(true) }
   val toggleSidebar = { sidebarVisible = !sidebarVisible }
+  var sidebarButtonRaised by remember { mutableStateOf(false) }
   Window(
     onCloseRequest = shutdown,
     title = "kDiffViewer",
@@ -253,6 +254,7 @@ private fun runApplication(
           enabled = uiState.repo != null && uiState.status !is LoadStatus.Failed,
           onClick = toggleSidebar,
         )
+        CheckboxItem("Raised Sidebar Button", checked = sidebarButtonRaised, onCheckedChange = { sidebarButtonRaised = it })
         Separator()
         Item("Reload", shortcut = KeyShortcut(Key.R, meta = true), onClick = state::reload)
       }
@@ -287,6 +289,7 @@ private fun runApplication(
             titleBarLeadingInset = titleBarLeadingInset,
             sidebarVisible = sidebarVisible,
             onToggleSidebar = toggleSidebar,
+            sidebarButtonRaised = sidebarButtonRaised,
             onToggleFile = state::toggleCollapsed,
             onExpandFile = state::expand,
             review = reviewSnapshot,
