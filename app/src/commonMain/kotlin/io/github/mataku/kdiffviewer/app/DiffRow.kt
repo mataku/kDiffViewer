@@ -8,6 +8,7 @@ import io.github.mataku.kdiffviewer.core.model.ExpandedFile
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.GapView
 import io.github.mataku.kdiffviewer.core.model.Hunk
+import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.expandContext
 import io.github.mataku.kdiffviewer.core.model.stats
 
@@ -34,7 +35,7 @@ sealed interface DiffRow {
 
   @Immutable
   data class Line(val fileIndex: Int, val hunkIndex: Int, val lineIndex: Int, val line: DiffLine) : DiffRow {
-    override val key: String get() = "l$fileIndex-$hunkIndex-$lineIndex"
+    override val key: String get() = if (line.kind == LineKind.NoNewlineAtEof) "n$fileIndex-$hunkIndex-$lineIndex" else "l$fileIndex-${line.oldLineNo ?: ""}-${line.newLineNo ?: ""}"
   }
 
   @Immutable

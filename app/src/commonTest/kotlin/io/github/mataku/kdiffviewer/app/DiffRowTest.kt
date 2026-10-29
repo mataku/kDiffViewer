@@ -58,10 +58,10 @@ class DiffRowTest {
   }
 
   @Test
-  fun keysAreIndexBasedAndUnique() {
+  fun keysAreFileScopedAndUnique() {
     val rows = flattenRows(listOf(textFile(), textFile()))
     assertEquals(
-      listOf("f0", "h0-0", "l0-0-0", "l0-0-1", "f1", "h1-0", "l1-0-0", "l1-0-1"),
+      listOf("f0", "h0-0", "l0-1-", "l0--1", "f1", "h1-0", "l1-1-", "l1--1"),
       rows.map { it.key },
     )
     assertEquals(rows.size, rows.map { it.key }.toSet().size)
@@ -118,5 +118,11 @@ class DiffRowTest {
   @Test
   fun flattenRowsOmitsTrailingRowWithoutTrailingGap() {
     assertIs<DiffRow.Line>(flattenRows(listOf(textFile())).last())
+  }
+
+  @Test
+  fun lineKeysFollowLineNumbersSoTheySurviveExpansion() {
+    val rows = flattenRows(listOf(textFile()))
+    assertEquals(listOf("f0", "h0-0", "l0-1-", "l0--1"), rows.map { it.key })
   }
 }

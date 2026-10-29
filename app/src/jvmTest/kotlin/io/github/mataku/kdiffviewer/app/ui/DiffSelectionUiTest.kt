@@ -562,10 +562,10 @@ class DiffSelectionUiTest {
         ),
       ),
     )
-    val before = ui.rows.indexOfFirst { it.key == "l1-0-0" }
+    val before = ui.rows.indexOfFirst { it.key == "l1--1" }
     ui = stateOf(listOf(grown, fileB), loadId = 2)
     waitForIdle()
-    assertEquals(before + 1, ui.rows.indexOfFirst { it.key == "l1-0-0" })
+    assertEquals(before + 1, ui.rows.indexOfFirst { it.key == "l1--1" })
     drag(codePosition("epsilon", 2), codePosition("epsilon", 5))
     assertTrue(coordinator.copy())
     assertEquals(listOf("sil"), clipboard.writes)
