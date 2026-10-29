@@ -106,6 +106,7 @@ data class ViewerUiState(
   val expansions: Map<CollapsedFile, ContextExpansion> = emptyMap(),
   val expansionErrors: Map<CollapsedFile, String> = emptyMap(),
   val contentId: Long = 0,
+  val rowsGeneration: Long = 0,
 )
 
 @Immutable
@@ -437,6 +438,7 @@ class DiffViewerState(
     expansions = expansions + content.applied.map { it.entry to it.expansion },
     expansionErrors = expansionErrors - content.applied.map { it.entry }.toSet(),
     contentId = contentId + 1,
+    rowsGeneration = rowsGeneration + 1,
   )
 
   private fun ViewerUiState.pruned(entries: Set<CollapsedFile>): Set<CollapsedFile> {

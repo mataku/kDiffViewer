@@ -652,10 +652,13 @@ class DiffViewerStateTest {
     state.open(repo)
     advanceTimeBy(50)
     runCurrent()
-    assertEquals(2, state.uiState.value.files.size)
+    val partial = state.uiState.value
+    assertEquals(2, partial.files.size)
     advanceUntilIdle()
     val ui = state.uiState.value
     assertEquals(flattenRows(files), ui.rows)
+    assertEquals(partial.rowsGeneration, ui.rowsGeneration)
+    assertEquals(partial.loadId, ui.loadId)
     assertEquals(3, ui.fileHeaderRowIndex.size)
     assertEquals(listOf(0, 4, 9), ui.fileHeaderRowIndex)
     ui.fileHeaderRowIndex.forEachIndexed { fileIndex, rowIndex ->

@@ -24,10 +24,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -57,7 +59,13 @@ import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.diffLayoutOf
 import io.github.mataku.kdiffviewer.app.displayRows
 import io.github.mataku.kdiffviewer.app.filterTree
+import io.github.mataku.kdiffviewer.app.find.FindCommand
+import io.github.mataku.kdiffviewer.app.find.FindKey
+import io.github.mataku.kdiffviewer.app.find.FindRequests
+import io.github.mataku.kdiffviewer.app.find.FindState
+import io.github.mataku.kdiffviewer.app.find.findMatchUpdates
 import io.github.mataku.kdiffviewer.app.gitStatus
+import io.github.mataku.kdiffviewer.app.isCollapsed
 import io.github.mataku.kdiffviewer.app.isLargeDiff
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
@@ -92,9 +100,15 @@ import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.displayPath
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.CoroutineContext
 
+private val FindPanelTopInset = 40.dp
+private val FindPanelWidth = 340.dp
 private val HeaderIconSize = 16.dp
 private val HeaderLeadingGap = 40.dp
 
@@ -119,8 +133,12 @@ fun ViewerScreen(
   rangeState: CommentRangeState = remember { CommentRangeState() },
   treeWidth: MutableState<Dp> = remember { mutableStateOf(DefaultTreeWidth) },
   onExpandContext: (fileIndex: Int, gapIndex: Int, direction: ExpandDirection) -> Unit = { _, _, _ -> },
+  findState: FindState = remember { FindState() },
+  findRequests: FindRequests? = null,
+  findContext: CoroutineContext = Dispatchers.Default,
 ) {
   val colors = LocalDiffColors.current
+  SideEffect { findState.setLive(state.loadId, state.rowsGeneration) }
   val expansionErrors = remember(state.expansionErrors, state.files, state.fingerprints) { state.expansionErrorsByFile() }
   val listState = rememberLazyListState()
   val currentState by rememberUpdatedState(state)
@@ -199,8 +217,45 @@ fun ViewerScreen(
       restorer.next(ui, uiLayout, uiDisplay, firstVisible)?.let { listState.scrollToItem(it) }
     }
   }
-  var collapsed by remember(state.repo) { mutableStateOf(emptySet<String>()) }
   val density = LocalDensity.current
+  val findTopInset = with(density) { FindPanelTopInset.toPx() }
+  val revealMatch: suspend (Int) -> Unit = remember(listState, findTopInset) {
+    { row ->
+      if (findState.isLive && row < currentState.rows.size) {
+        val index = currentLayout.visibleIndexOf(currentDisplay.displayOf(row))
+        val info = listState.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.index == index }
+        val fullyVisible = item != null && item.offset >= info.viewportStartOffset + findTopInset && item.offset + item.size <= info.viewportEndOffset
+        if (index >= 0 && !fullyVisible) {
+          listState.scrollToItem(index)
+          listState.scrollBy(-(info.viewportEndOffset - info.viewportStartOffset) / 3f)
+        }
+      }
+    }
+  }
+  val currentFindContext by rememberUpdatedState(findContext)
+  LaunchedEffect(findState) {
+    findMatchUpdates(snapshotFlow { findState.query }, snapshotFlow { findState.open }, snapshotFlow { currentState }) { previous, query, ui ->
+      withContext(currentFindContext) {
+        previous.updatedFor(ui.rows, FindKey(query, ui.loadId, ui.rowsGeneration, ui.collapsed, ui.expanded), skipFile = ui::isCollapsed)
+      }
+    }.collect { matches ->
+      val count = currentLayout.visibleCount
+      val anchor = if (count == 0) 0 else currentDisplay.unifiedOf(currentLayout.rowIndexOf(listState.firstVisibleItemIndex.coerceIn(0, count - 1)))
+      findState.onMatches(matches, anchor)?.let { revealMatch(it) }
+    }
+  }
+  val findScope = rememberCoroutineScope()
+  val stepFind: (Boolean) -> Unit = remember(findState) { { forward -> findScope.launch { findState.step(forward)?.let { revealMatch(it) } } } }
+  LaunchedEffect(findRequests, findState) {
+    findRequests?.requests?.collect { command ->
+      when {
+        command == FindCommand.Show || !findState.open -> findState.show()
+        else -> stepFind(command == FindCommand.Next)
+      }
+    }
+  }
+  var collapsed by remember(state.repo) { mutableStateOf(emptySet<String>()) }
   val rows = state.rows
   val headerRowIndex = state.fileHeaderRowIndex
   val statsOf: (Int) -> DiffStats? = remember(rows, headerRowIndex) {
@@ -285,6 +340,7 @@ fun ViewerScreen(
                 LocalReviewInProgress provides reviewInProgress,
                 LocalDraftFocusRequests provides focusRequests,
                 LocalReviewActions provides actions,
+                LocalFindState provides findState,
               ) {
                 DiffView(
                   rows = state.rows,
@@ -312,6 +368,9 @@ fun ViewerScreen(
             }
             if (state.status == LoadStatus.Loading) {
               LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
+            }
+            if (findState.open) {
+              FindPanel(findState, stepFind, Modifier.align(Alignment.TopEnd).padding(top = FindPanelTopInset, end = 12.dp).width(FindPanelWidth))
             }
           }
         }

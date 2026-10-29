@@ -36,6 +36,8 @@ data class DiffColors(
   val controlMarkerBackground: Color,
   val emptySideBackground: Color,
   val rangeBackground: Color,
+  val findMatchBackground: Color,
+  val findCurrentBackground: Color,
 )
 
 val LightDiffColors = DiffColors(
@@ -68,6 +70,8 @@ val LightDiffColors = DiffColors(
   controlMarkerBackground = Color(0xFFFFE08A),
   emptySideBackground = Color(0xFFF6F8FA),
   rangeBackground = Color(0xFFFFF8C5),
+  findMatchBackground = Color(0xFFFFF2A8),
+  findCurrentBackground = Color(0xFFFFB454),
 )
 
 val DarkDiffColors = DiffColors(
@@ -100,6 +104,8 @@ val DarkDiffColors = DiffColors(
   controlMarkerBackground = Color(0xFF6B5A1E),
   emptySideBackground = Color(0xFF161B22),
   rangeBackground = Color(0x26BB8009),
+  findMatchBackground = Color(0x66BB8009),
+  findCurrentBackground = Color(0xCCD18616),
 )
 
 val DimDiffColors = DiffColors(
@@ -132,6 +138,8 @@ val DimDiffColors = DiffColors(
   controlMarkerBackground = Color(0xFF6B5A1E),
   emptySideBackground = Color(0xFF1C2732),
   rangeBackground = Color(0x26BB8009),
+  findMatchBackground = Color(0x66BB8009),
+  findCurrentBackground = Color(0xCCD18616),
 )
 
 val LocalDiffColors: ProvidableCompositionLocal<DiffColors> = staticCompositionLocalOf { LightDiffColors }
