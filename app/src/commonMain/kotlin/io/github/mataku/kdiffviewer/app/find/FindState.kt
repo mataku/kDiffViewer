@@ -40,7 +40,9 @@ class FindState {
   private var liveLoadId by mutableLongStateOf(-1L)
   private var liveGeneration by mutableLongStateOf(-1L)
 
-  val isLive: Boolean get() = matches.isFor(liveLoadId, liveGeneration) && matches.key?.query == query
+  val isPaintable: Boolean get() = matches.isFor(liveLoadId, liveGeneration)
+
+  val isLive: Boolean get() = isPaintable && matches.key?.query == query
 
   fun setLive(loadId: Long, rowsGeneration: Long) {
     liveLoadId = loadId
@@ -83,7 +85,7 @@ class FindState {
   }
 
   fun countText(): String? {
-    if (query.isEmpty() || matches.key?.query != query) return null
+    if (query.isEmpty() || matches.key?.query.isNullOrEmpty()) return null
     val count = matches.count
     if (count == 0) return "No results"
     val total = groupThousands(count) + if (matches.capped) "+" else ""

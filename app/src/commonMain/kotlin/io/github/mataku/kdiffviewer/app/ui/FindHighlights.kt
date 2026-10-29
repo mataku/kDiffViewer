@@ -18,7 +18,7 @@ internal fun DrawScope.drawFindMatches(
   matchColor: Color,
   currentColor: Color,
 ) {
-  if (!find.open || !find.isLive) return
+  if (!find.open || !find.isPaintable) return
   val matches = find.matches
   var index = matches.firstIndexOfRow(rowIndex)
   if (index < 0) return

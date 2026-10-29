@@ -82,10 +82,10 @@ fun FindPanel(state: FindState, onStep: (forward: Boolean) -> Unit, modifier: Mo
             else -> false
           }
         },
-      containerModifier = Modifier.weight(1f),
+      containerModifier = Modifier.weight(1f).testTag("find-box"),
       placeholder = "Find",
+      trailing = state.countText()?.let { count -> { BasicText(count, Modifier.testTag("find-count").padding(start = 4.dp), style = countStyle, maxLines = 1) } },
     )
-    state.countText()?.let { BasicText(it, Modifier.testTag("find-count"), style = countStyle, maxLines = 1) }
     MacIconButton(KdvIcons.Chevron, "Previous match", { onStep(false) }, Modifier.testTag("find-previous"), iconRotation = -90f)
     MacIconButton(KdvIcons.Chevron, "Next match", { onStep(true) }, Modifier.testTag("find-next"), iconRotation = 90f)
     MacIconButton(KdvIcons.Close, "Close", state::close, Modifier.testTag("find-close"))

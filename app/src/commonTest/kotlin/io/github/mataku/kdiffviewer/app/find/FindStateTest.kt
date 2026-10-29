@@ -90,8 +90,24 @@ class FindStateTest {
     assertTrue(state.isLive)
     state.query = "fooo"
     assertFalse(state.isLive)
-    assertNull(state.countText())
     assertNull(state.step(forward = true))
+  }
+
+  @Test
+  fun pendingQueryKeepsPreviousCountAndHighlights() {
+    val state = openState()
+    state.onMatches(matches(), anchorRow = 0)
+    state.query = "fooo"
+    assertEquals("1 of 3", state.countText())
+    assertTrue(state.isPaintable)
+    state.setLive(2, 0)
+    assertFalse(state.isPaintable)
+  }
+
+  @Test
+  fun firstQueryShowsNoCountUntilResultsArrive() {
+    val state = openState()
+    assertNull(state.countText())
   }
 
   @Test

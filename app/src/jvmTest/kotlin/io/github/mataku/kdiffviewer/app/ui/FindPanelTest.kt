@@ -39,6 +39,8 @@ import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.displayPath
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class FindPanelTest {
@@ -85,6 +87,36 @@ class FindPanelTest {
   fun typingShowsCount() = runComposeUiTest {
     show { stateOf(three) }
     type("FOO")
+    onNodeWithTag("find-count").assertTextEquals("1 of 3")
+  }
+
+  @Test
+  fun fieldWidthStaysWhileTyping() = runComposeUiTest {
+    show { stateOf(three) }
+    val empty = onNodeWithTag("find-box").fetchSemanticsNode().boundsInRoot.width
+    type("foo")
+    onNodeWithTag("find-count").assertTextEquals("1 of 3")
+    assertEquals(empty, onNodeWithTag("find-box").fetchSemanticsNode().boundsInRoot.width)
+    type("zzz")
+    onNodeWithTag("find-count").assertTextEquals("No results")
+    assertEquals(empty, onNodeWithTag("find-box").fetchSemanticsNode().boundsInRoot.width)
+  }
+
+  @Test
+  fun countSitsInsideField() = runComposeUiTest {
+    show { stateOf(three) }
+    type("foo")
+    val box = onNodeWithTag("find-box").fetchSemanticsNode().boundsInRoot
+    val count = onNodeWithTag("find-count").fetchSemanticsNode().boundsInRoot
+    assertTrue(count.left >= box.left && count.right <= box.right, "count $count inside field $box")
+  }
+
+  @Test
+  fun countStaysWhileNextQueryIsPending() = runComposeUiTest {
+    show { stateOf(three) }
+    type("fo")
+    onNodeWithTag("find-count").assertTextEquals("1 of 3")
+    onNodeWithTag("find-field").performTextInput("o")
     onNodeWithTag("find-count").assertTextEquals("1 of 3")
   }
 

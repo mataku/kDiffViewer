@@ -111,8 +111,9 @@ fun MacSearchField(
   modifier: Modifier = Modifier,
   containerModifier: Modifier = Modifier,
   placeholder: String? = null,
+  trailing: (@Composable () -> Unit)? = null,
 ) {
-  SearchFieldFrame(value.text.isEmpty(), { onValueChange(TextFieldValue()) }, modifier, containerModifier, placeholder) { fieldModifier, textStyle, decorationBox ->
+  SearchFieldFrame(value.text.isEmpty(), { onValueChange(TextFieldValue()) }, modifier, containerModifier, placeholder, trailing) { fieldModifier, textStyle, decorationBox ->
     BasicTextField(
       value = value,
       onValueChange = onValueChange,
@@ -132,6 +133,7 @@ private fun SearchFieldFrame(
   modifier: Modifier,
   containerModifier: Modifier,
   placeholder: String?,
+  trailing: (@Composable () -> Unit)? = null,
   field: @Composable (modifier: Modifier, textStyle: TextStyle, decorationBox: @Composable (innerTextField: @Composable () -> Unit) -> Unit) -> Unit,
 ) {
   val colors = LocalDiffColors.current
@@ -174,6 +176,7 @@ private fun SearchFieldFrame(
         innerTextField()
       }
     }
+    trailing?.invoke()
     if (!empty) {
       Image(
         imageVector = KdvIcons.XCircle,
