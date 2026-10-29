@@ -24,7 +24,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,7 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -67,6 +66,7 @@ import io.github.mataku.kdiffviewer.app.review.toSide
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.ui.mac.MacSegmented
+import io.github.mataku.kdiffviewer.app.ui.mac.MacToolbarButton
 import io.github.mataku.kdiffviewer.app.ui.mac.TAG_FILL_ALPHA
 import io.github.mataku.kdiffviewer.app.ui.mac.TagPadding
 import io.github.mataku.kdiffviewer.app.ui.mac.TagShape
@@ -91,7 +91,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
-private val SidebarOptions = listOf(true, false)
+private val HeaderIconSize = 16.dp
+
+internal fun sidebarButtonIcon(visible: Boolean): ImageVector = if (visible) KdvIcons.SidebarCollapse else KdvIcons.SidebarExpand
 
 @Composable
 fun ViewerScreen(
@@ -222,7 +224,6 @@ fun ViewerScreen(
       titleBarLeadingInset = titleBarLeadingInset,
       sidebarVisible = sidebarVisible,
       onToggleSidebar = onToggleSidebar,
-      sidebar = sidebar,
       loadBranches = loadBranches,
       onSwitchBase = onSwitchBase,
       mode = mode,
@@ -326,7 +327,6 @@ private fun RepoHeader(
   titleBarLeadingInset: Dp,
   sidebarVisible: Boolean,
   onToggleSidebar: () -> Unit,
-  sidebar: SidebarTransition,
   loadBranches: suspend () -> List<BranchRef>,
   onSwitchBase: suspend (BaseSpec) -> ViewerError?,
   mode: DiffMode,
@@ -341,7 +341,6 @@ private fun RepoHeader(
   RepoHeaderLayout(
     startPaddingPx = startPaddingPx,
     repoAnchor = repoAnchor,
-    sidebar = sidebar,
     modifier = Modifier
       .testTag("repo-header")
       .fillMaxWidth()
@@ -349,18 +348,15 @@ private fun RepoHeader(
       .background(colors.fileHeaderBackground)
       .padding(start = startPadding, end = 20.dp),
     leading = {
-      MacSegmented(
-        options = SidebarOptions,
-        selected = sidebarVisible,
-        label = { if (it) "Show Sidebar" else "Hide Sidebar" },
-        tag = { if (it) "sidebar-shown" else "sidebar-hidden" },
-        onSelect = { if (it != sidebarVisible) onToggleSidebar() },
+      MacToolbarButton(
+        icon = sidebarButtonIcon(sidebarVisible),
+        contentDescription = if (sidebarVisible) "Hide Sidebar" else "Show Sidebar",
+        tooltip = if (sidebarVisible) "Hide Sidebar (⌃⌘S)" else "Show Sidebar (⌃⌘S)",
+        onClick = onToggleSidebar,
         modifier = Modifier
           .testTag("sidebar-control")
           .titleBarClientRegion("sidebar-control"),
-        segmentWidth = 32.dp,
-        icon = { if (it) KdvIcons.Sidebar else KdvIcons.NoSidebar },
-        tooltip = { if (it) "Show Sidebar (⌃⌘S)" else "Hide Sidebar (⌃⌘S)" },
+        iconSize = HeaderIconSize,
       )
     },
     center = {
@@ -424,6 +420,7 @@ private fun RepoHeader(
           segmentWidth = 32.dp,
           icon = { if (it == DiffMode.Unified) KdvIcons.Unified else KdvIcons.Split },
           tooltip = { it.name },
+          iconSize = HeaderIconSize,
         )
         Spacer(Modifier.width(8.dp))
         GlassIconButton(
@@ -447,15 +444,10 @@ private fun RepoHeaderLayout(
   trailing: @Composable () -> Unit,
   startPaddingPx: Float,
   repoAnchor: Float,
-  sidebar: SidebarTransition,
   modifier: Modifier,
 ) {
-  val naturalLeft = remember { mutableFloatStateOf(0f) }
-  val centerLayer = Modifier.graphicsLayer {
-    translationX = if (sidebar.diffNarrow) 0f else sidebar.progress * (repoAnchor - naturalLeft.floatValue).coerceAtLeast(0f)
-  }
   Layout(
-    contents = listOf(leading, { Box(centerLayer) { center() } }, trailing),
+    contents = listOf(leading, center, trailing),
     modifier = modifier,
   ) { (leadings, centers, trailings), constraints ->
     val maxWidth = constraints.maxWidth
@@ -466,10 +458,9 @@ private fun RepoHeaderLayout(
       Constraints(maxWidth = (maxWidth - leadingPlaceable.width - 2 * gap).coerceAtLeast(0), maxHeight = maxHeight),
     )
     val natural = startPaddingPx + leadingPlaceable.width + gap
-    val shift = if (sidebar.diffNarrow) (repoAnchor - natural).coerceAtLeast(0f).roundToInt() else 0
+    val shift = (repoAnchor - natural).coerceAtLeast(0f).roundToInt()
     val available = (maxWidth - leadingPlaceable.width - trailingPlaceable.width - 2 * gap).coerceAtLeast(0)
     val centerPlaceable = centers.first().measure(Constraints(maxWidth = (available - shift).coerceAtLeast(0), maxHeight = maxHeight))
-    naturalLeft.floatValue = natural
     val centerSlotX = leadingPlaceable.width + gap
     fun centred(height: Int) = Alignment.CenterVertically.align(height, maxHeight)
     layout(maxWidth, maxHeight) {

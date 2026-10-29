@@ -17,6 +17,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -98,6 +99,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -554,33 +556,49 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun sidebarSegmentsMarkVisibility() = runComposeUiTest {
-    var visible by mutableStateOf(true)
-    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible) }
-    assertEquals(true, onNodeWithTag("sidebar-shown").fetchSemanticsNode().config[SemanticsProperties.Selected])
-    assertEquals(false, onNodeWithTag("sidebar-hidden").fetchSemanticsNode().config[SemanticsProperties.Selected])
-    visible = false
-    waitForIdle()
-    assertEquals(false, onNodeWithTag("sidebar-shown").fetchSemanticsNode().config[SemanticsProperties.Selected])
-    assertEquals(true, onNodeWithTag("sidebar-hidden").fetchSemanticsNode().config[SemanticsProperties.Selected])
-  }
-
-  @Test
-  fun selectingTheOtherSidebarSegmentTogglesAndControlIsClientRegion() = runComposeUiTest {
+  fun sidebarButtonTogglesInBothStatesAndIsClientRegion() = runComposeUiTest {
     val regions = TitleBarRegions()
+    var visible by mutableStateOf(true)
     var toggles = 0
     setContent {
       CompositionLocalProvider(LocalTitleBarRegions provides regions) {
-        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, onToggleSidebar = { toggles++ })
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible, onToggleSidebar = { toggles++ })
       }
     }
     val control = onNodeWithTag("sidebar-control").fetchSemanticsNode().boundsInWindow
     assertTrue(regions.isClientArea(control.center))
-    onNodeWithTag("sidebar-shown").performClick()
-    assertEquals(0, toggles)
-    onNodeWithTag("sidebar-hidden").performClick()
+    onNodeWithTag("sidebar-control").performClick()
     assertEquals(1, toggles)
-    onNodeWithTag("sidebar-hidden").assertWidthIsEqualTo(32.dp)
+    visible = false
+    onNodeWithTag("sidebar-control").performClick()
+    assertEquals(2, toggles)
+  }
+
+  @Test
+  fun headerControlIconsAre16dp() = runComposeUiTest {
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}) }
+    for (description in listOf("Hide Sidebar", "Unified", "Split")) {
+      onNodeWithContentDescription(description, useUnmergedTree = true).assertWidthIsEqualTo(16.dp).assertHeightIsEqualTo(16.dp)
+    }
+    onNodeWithTag("sidebar-control").assertWidthIsEqualTo(34.dp).assertHeightIsEqualTo(24.dp)
+    onNodeWithTag("diff-mode-control").assertHeightIsEqualTo(24.dp)
+  }
+
+  @Test
+  fun sidebarButtonIconShowsTheClickAction() {
+    assertSame(KdvIcons.SidebarCollapse, sidebarButtonIcon(visible = true))
+    assertSame(KdvIcons.SidebarExpand, sidebarButtonIcon(visible = false))
+  }
+
+  @Test
+  fun sidebarButtonDescribesTheAction() = runComposeUiTest {
+    var visible by mutableStateOf(true)
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible) }
+    onNodeWithContentDescription("Hide Sidebar").assertExists()
+    visible = false
+    waitForIdle()
+    onNodeWithContentDescription("Show Sidebar").assertExists()
+    onNodeWithContentDescription("Hide Sidebar").assertDoesNotExist()
   }
 
   @Test
@@ -602,15 +620,35 @@ class ViewerScreenTest {
   }
 
   @Test
-  fun repoNameFollowsControlWhenTreeHidden() = runComposeUiTest {
+  fun repoNameStaysPutWhileTreeToggles() = runComposeUiTest {
+    var visible by mutableStateOf(true)
+    setContent {
+      Box(modifier = Modifier.size(800.dp, 600.dp)) {
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible)
+      }
+    }
+    val before = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
+    mainClock.autoAdvance = false
+    visible = false
+    mainClock.advanceTimeBy(100)
+    assertEquals(before, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
+    mainClock.autoAdvance = true
+    waitForIdle()
+    assertEquals(before, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
+    visible = true
+    waitForIdle()
+    assertEquals(before, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
+  }
+
+  @Test
+  fun repoNameKeepsDiffAlignedPositionWhenStartingHidden() = runComposeUiTest {
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {
         ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = false)
       }
     }
-    val control = onNodeWithTag("sidebar-control").getUnclippedBoundsInRoot()
     val name = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
-    assertEquals(control.right + 12.dp, name.left)
+    assertEquals(DefaultTreeWidth + PaneDividerWidth + ContentHorizontalMargin, name.left)
   }
 
   @Test

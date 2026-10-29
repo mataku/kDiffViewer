@@ -25,9 +25,14 @@ internal fun DiffColors.buttonFill(pressed: Boolean): Color = when {
   else -> if (pressed) Color(0xFFE4E4E4) else Color(0xFFFFFFFF)
 }
 
-internal fun DiffColors.trackFill(): Color = if (isDark) Color(0x1FFFFFFF) else Color(0x14000000)
+internal fun DiffColors.trackFill(pressed: Boolean = false): Color = when {
+  isDark -> if (pressed) Color(0x33FFFFFF) else Color(0x1FFFFFFF)
+  else -> if (pressed) Color(0x24000000) else Color(0x14000000)
+}
 
 internal fun DiffColors.raisedFill(): Color = if (isDark) Color(0x4DFFFFFF) else Color(0xFFFFFFFF)
+
+internal fun Modifier.raisedSegment(colors: DiffColors): Modifier = shadow(if (colors.isDark) 0.dp else 1.dp, SegmentShape, clip = false).background(colors.raisedFill(), SegmentShape)
 
 internal fun Modifier.buttonSurface(colors: DiffColors, fill: Color): Modifier = if (colors.isDark) {
   background(fill, ControlShape)

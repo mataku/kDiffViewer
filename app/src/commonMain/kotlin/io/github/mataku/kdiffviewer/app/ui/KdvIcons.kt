@@ -120,18 +120,22 @@ object KdvIcons {
     lineTo(12.5f, 8f)
   }
 
-  val Sidebar: ImageVector = outlineIcon("Sidebar") {
+  val SidebarCollapse: ImageVector = outlineIcon("SidebarCollapse") {
     roundedRect(1.5f, 2.5f, 14.5f, 13.5f, 1.5f)
     moveTo(6f, 2.5f)
     lineTo(6f, 13.5f)
-    moveTo(3f, 5.5f)
-    lineTo(4.5f, 5.5f)
-    moveTo(3f, 7.5f)
-    lineTo(4.5f, 7.5f)
+    moveTo(11.25f, 5.5f)
+    lineTo(9f, 8f)
+    lineTo(11.25f, 10.5f)
   }
 
-  val NoSidebar: ImageVector = outlineIcon("NoSidebar") {
+  val SidebarExpand: ImageVector = outlineIcon("SidebarExpand") {
     roundedRect(1.5f, 2.5f, 14.5f, 13.5f, 1.5f)
+    moveTo(6f, 2.5f)
+    lineTo(6f, 13.5f)
+    moveTo(9.25f, 5.5f)
+    lineTo(11.5f, 8f)
+    lineTo(9.25f, 10.5f)
   }
 
   val Search: ImageVector = outlineIcon("Search") {
