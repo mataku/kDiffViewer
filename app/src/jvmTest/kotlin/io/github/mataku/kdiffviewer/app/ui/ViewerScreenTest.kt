@@ -23,6 +23,7 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -66,6 +67,9 @@ import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.ReviewState
 import io.github.mataku.kdiffviewer.app.review.buildPlacements
+import io.github.mataku.kdiffviewer.app.selection.ClipboardWriter
+import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
+import io.github.mataku.kdiffviewer.app.selection.TextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.splitRowsOf
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.core.model.BaseSpec
@@ -1151,6 +1155,80 @@ class ViewerScreenTest {
     assertEquals(before, after)
   }
 
+  private fun ComposeUiTest.clickAddComment() {
+    val center = onNodeWithTag("add-comment").fetchSemanticsNode().boundsInRoot.center - onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot.topLeft
+    onNodeWithTag("diff-list").performMouseInput { click(center) }
+  }
+
+  @Test
+  fun addCommentButtonSitsOnMarkerColumn() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithText("TWO").performMouseInput { moveTo(center) }
+    waitForIdle()
+    val button = onNodeWithTag("add-comment").fetchSemanticsNode().boundsInRoot
+    val code = onNodeWithText("TWO").fetchSemanticsNode().boundsInRoot
+    assertTrue(abs(button.right - code.left) <= 1f, "button=$button code=$code")
+    assertEquals(with(density) { 16.dp.toPx() }, button.width, 0.5f)
+  }
+
+  @Test
+  fun clickWithJitterOpensSingleLineDraft() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithText("TWO").performMouseInput { moveTo(center) }
+    waitForIdle()
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val button = onNodeWithTag("add-comment").fetchSemanticsNode().boundsInRoot.center - list.topLeft
+    onNodeWithTag("diff-list").performMouseInput {
+      moveTo(button)
+      press()
+      moveBy(Offset(1f, 1f))
+      release()
+    }
+    waitForIdle()
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+    val anchor = (review.snapshot.value.draft!!.target as DraftTarget.NewThread).anchor
+    assertEquals(Anchor.Lines("a.kt", io.github.mataku.kdiffviewer.core.review.Side.New, 1, 1, listOf("TWO")), anchor)
+  }
+
+  @Test
+  fun markerPressClearsTextSelection() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    val coordinator = TextSelectionCoordinator(object : ClipboardWriter {
+      override fun write(text: String) = Unit
+    }) { false }
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review, LocalTextSelectionCoordinator provides coordinator) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
+    val code = onNodeWithText("TWO").fetchSemanticsNode().boundsInRoot
+    onNodeWithTag("diff-list").performMouseInput {
+      moveTo(Offset(code.left + 1f, code.center.y) - list.topLeft)
+      press()
+      moveTo(Offset(code.left + 20f, code.center.y) - list.topLeft)
+      release()
+    }
+    waitForIdle()
+    assertTrue(coordinator.hasSelection)
+    onNodeWithText("TWO").performMouseInput { moveTo(center) }
+    waitForIdle()
+    clickAddComment()
+    waitForIdle()
+    assertFalse(coordinator.hasSelection)
+    onNodeWithTag("comment-composer").assertIsDisplayed()
+  }
+
   @Test
   fun addCommentButtonSitsOnFirstLineOfWrappedRow() = runComposeUiTest {
     val long = "TWO " + "word ".repeat(80)
@@ -1207,7 +1285,7 @@ class ViewerScreenTest {
     onNodeWithText("TWO").performMouseInput { moveTo(center) }
     waitForIdle()
     onNodeWithTag("add-comment").assertIsDisplayed()
-    onNodeWithTag("add-comment").performClick()
+    clickAddComment()
     waitForIdle()
     val line = onNodeWithText("TWO").fetchSemanticsNode().boundsInRoot
     val composer = onNodeWithTag("comment-composer").fetchSemanticsNode().boundsInRoot
@@ -1224,7 +1302,7 @@ class ViewerScreenTest {
     }
     onNodeWithText("TWO").performMouseInput { moveTo(center) }
     waitForIdle()
-    onNodeWithTag("add-comment").performClick()
+    clickAddComment()
     waitForIdle()
     onNodeWithTag("comment-composer").performTextInput("looks wrong")
     onNodeWithTag("comment-composer").performKeyInput { withKeyDown(Key.MetaLeft) { pressKey(Key.Enter) } }
@@ -1362,7 +1440,7 @@ class ViewerScreenTest {
     onNodeWithText("Comments on files no longer in the diff").assertDoesNotExist()
     onNodeWithText("TWO").performMouseInput { moveTo(center) }
     waitForIdle()
-    onNodeWithTag("add-comment").performClick()
+    clickAddComment()
     waitForIdle()
     onNodeWithTag("comment-composer").assertIsDisplayed()
   }
@@ -1407,7 +1485,7 @@ class ViewerScreenTest {
     onNodeWithTag("comment-composer").assertDoesNotExist()
     onAllNodesWithText("TWO").onLast().performMouseInput { moveTo(center) }
     waitForIdle()
-    onNodeWithTag("add-comment").performClick()
+    clickAddComment()
     waitForIdle()
     assertFalse(ui.isCollapsed(0))
     onNodeWithTag("comment-composer").assertIsDisplayed()
@@ -1741,7 +1819,7 @@ class ViewerScreenTest {
     }
     onAllNodesWithText("same", useUnmergedTree = true)[0].performMouseInput { moveTo(center) }
     waitForIdle()
-    onNodeWithTag("add-comment").performClick()
+    clickAddComment()
     waitForIdle()
     val anchor = ((review.snapshot.value.draft!!.target) as DraftTarget.NewThread).anchor as Anchor.Lines
     assertEquals(io.github.mataku.kdiffviewer.core.review.Side.Old, anchor.side)

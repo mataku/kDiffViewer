@@ -32,6 +32,7 @@ import io.github.mataku.kdiffviewer.app.DiffLayout
 import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.DisplayRows
+import io.github.mataku.kdiffviewer.app.review.toReviewSide
 import io.github.mataku.kdiffviewer.app.selection.ClickCounter
 import io.github.mataku.kdiffviewer.app.selection.ContextMenuItem
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
@@ -45,7 +46,10 @@ import io.github.mataku.kdiffviewer.app.selection.nextSelectableRow
 import io.github.mataku.kdiffviewer.app.selection.positionAtOrAfter
 import io.github.mataku.kdiffviewer.app.selection.selectableRow
 import io.github.mataku.kdiffviewer.app.selection.selectedText
+import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.Side
+import io.github.mataku.kdiffviewer.core.review.RangeAnchor
+import io.github.mataku.kdiffviewer.core.review.anchorOfRange
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -95,6 +99,9 @@ internal fun Modifier.diffSelectionGesture(
   codeStartX: Float,
   splitHalfWidth: () -> Float,
   tabWidth: Int,
+  files: List<FileDiff>,
+  markerWidth: Float,
+  onRange: ((RangeAnchor) -> Unit)?,
 ): Modifier {
   val coordinator = LocalTextSelectionCoordinator.current
   val contextMenu = LocalNativeContextMenu.current
@@ -111,6 +118,9 @@ internal fun Modifier.diffSelectionGesture(
     gesture.codeStartX = codeStartX
     gesture.splitHalfWidth = splitHalfWidth
     gesture.tabWidth = tabWidth
+    gesture.files = files
+    gesture.markerWidth = markerWidth
+    gesture.onRange = onRange
     gesture.density = density
     gesture.focusManager = focusManager
   }
@@ -132,6 +142,9 @@ internal class DiffSelectionGesture(
   var codeStartX = 0f
   var splitHalfWidth: () -> Float = { 0f }
   var tabWidth = 1
+  var files: List<FileDiff> = emptyList()
+  var markerWidth = 0f
+  var onRange: ((RangeAnchor) -> Unit)? = null
   var density = Density(1f)
   var coordinates: LayoutCoordinates? = null
   var focusManager: FocusManager? = null
@@ -155,6 +168,17 @@ internal class DiffSelectionGesture(
       if (!buttons.isPrimaryPressed) return@awaitEachGesture
       val shift = event.keyboardModifiers.isShiftPressed
       side = pressSide(down.position, shift)
+      val rangeAnchor = markerAnchorAt(down.position)
+      if (rangeAnchor != null) {
+        selection.clear()
+        focusManager?.clearFocus()
+        while (true) {
+          val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+          if (!change.pressed) break
+        }
+        onRange?.invoke(rangeAnchor)
+        return@awaitEachGesture
+      }
       val hit = hitTest(down.position, press = true) ?: return@awaitEachGesture
       coordinator?.activate(source)
       focusManager?.clearFocus()
@@ -223,6 +247,21 @@ internal class DiffSelectionGesture(
     if (display?.mode != DiffMode.Split) return null
     if (shift) selection.selection?.side?.let { return it }
     return if (position.x - contentStartX < splitHalfWidth()) Side.Old else Side.New
+  }
+
+  private fun markerAnchorAt(position: Offset): RangeAnchor? {
+    if (onRange == null) return null
+    val side = side
+    val codeStart = codeStartFor(side)
+    if (position.x < codeStart - markerWidth || position.x >= codeStart) return null
+    val layout = layout ?: return null
+    val item = itemAt(position.y, preferLast = false) ?: return null
+    val displayRow = layout.rowIndexOf(item.index)
+    val row = display?.unifiedOf(displayRow, side) ?: displayRow
+    if (row < 0) return null
+    val line = lineAt(row, position.y - item.offset, side) ?: return null
+    val file = files.getOrNull(line.fileIndex) ?: return null
+    return anchorOfRange(file, line.fileIndex, line.hunkIndex, line.lineIndex, line.lineIndex, side?.toReviewSide())
   }
 
   private fun codeStartFor(side: Side?): Float = if (side == Side.New) codeStartX + splitHalfWidth() else codeStartX
