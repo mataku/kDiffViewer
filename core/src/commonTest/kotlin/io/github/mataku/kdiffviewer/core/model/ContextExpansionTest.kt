@@ -187,4 +187,9 @@ class ContextExpansionTest {
     val binary = FileDiff("b", "b", ChangeType.Modified, false, DiffContent.Binary)
     assertEquals(emptyList(), expandContext(binary, null, null).gapBefore)
   }
+
+  @Test
+  fun hunkWithoutChangesHasNoTrailingGap() {
+    assertFalse(modified("f.kt", Hunk(1, 5, 1, 5, "", (1..5).map { context(it) })).hasTrailingGap())
+  }
 }

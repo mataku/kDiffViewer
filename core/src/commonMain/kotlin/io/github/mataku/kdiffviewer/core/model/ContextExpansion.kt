@@ -27,10 +27,10 @@ fun FileDiff.hasTrailingGap(): Boolean {
     when (lines[index].kind) {
       LineKind.Context -> trailingContext++
       LineKind.NoNewlineAtEof -> if (index > 0 && lines[index - 1].kind != LineKind.Removed) return false
-      LineKind.Added, LineKind.Removed -> break
+      LineKind.Added, LineKind.Removed -> return trailingContext >= CONTEXT_LINES
     }
   }
-  return trailingContext >= CONTEXT_LINES
+  return false
 }
 
 fun gapsOf(file: FileDiff, newLineCount: Int?): List<IntRange?> {

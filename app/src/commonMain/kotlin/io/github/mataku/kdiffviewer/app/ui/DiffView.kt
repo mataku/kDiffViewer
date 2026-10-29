@@ -102,12 +102,14 @@ private const val ORPHANS_KEY = "orphans"
 private const val END_CONTENT_TYPE = 6
 private const val END_KEY = "end"
 private const val SPLIT_LINE_CONTENT_TYPE = 7
+private const val TRAILING_GAP_CONTENT_TYPE = 8
 
 private fun DiffRow.contentType(): Int = when (this) {
   is DiffRow.FileHeader -> HEADER_CONTENT_TYPE
   is DiffRow.HunkHeader -> HUNK_HEADER_CONTENT_TYPE
   is DiffRow.Line -> LINE_CONTENT_TYPE
   is DiffRow.Placeholder -> PLACEHOLDER_CONTENT_TYPE
+  is DiffRow.TrailingGap -> TRAILING_GAP_CONTENT_TYPE
 }
 
 private fun splitItemKey(rows: List<DiffRow>, display: DisplayRows, displayRow: Int): String {
@@ -242,6 +244,8 @@ fun DiffView(
 
                 is DiffRow.HunkHeader -> HunkHeaderRow(row)
 
+                is DiffRow.TrailingGap -> Unit
+
                 is DiffRow.Placeholder -> PlaceholderRow(row.message)
 
                 is DiffRow.Line -> {
@@ -278,6 +282,8 @@ fun DiffView(
                 is DiffRow.FileHeader -> Unit
 
                 is DiffRow.HunkHeader -> HunkHeaderRow(row)
+
+                is DiffRow.TrailingGap -> Unit
 
                 is DiffRow.Line -> {
                   val slot = highlights.getOrNull(row.fileIndex)

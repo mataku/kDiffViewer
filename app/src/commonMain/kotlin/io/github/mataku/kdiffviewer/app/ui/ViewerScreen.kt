@@ -138,7 +138,7 @@ fun ViewerScreen(
   }
   val coordinator = LocalTextSelectionCoordinator.current
   val diffSelection = remember { DiffSelectionState() }
-  diffSelection.resetFor(listOf(state.loadId, state.collapsed, state.expanded, mode))
+  diffSelection.resetFor(listOf(state.loadId, state.contentId, state.collapsed, state.expanded, mode))
   val selectionSource = remember(diffSelection) {
     DiffSelectionSource(
       diffSelection,

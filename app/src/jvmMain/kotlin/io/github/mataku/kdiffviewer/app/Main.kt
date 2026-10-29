@@ -132,6 +132,7 @@ private fun runApplication(
       highlightPipeline = backend?.highlightPipeline,
       missingSourceError = missingSourceError,
       loadContext = Dispatchers.Default,
+      workingTree = backend?.workingTree,
     ).also { viewerState ->
       when (val launch = parseLaunchArgs(args, System.getProperty("user.dir"))) {
         LaunchArgs.None -> Unit
@@ -192,7 +193,7 @@ private fun runApplication(
       probe = ::probeGit,
       locate = { GitLocator.locateOnHost(it) },
       createBackend = factory::create,
-      onBackend = { state.setBackend(it?.source, it?.highlightPipeline) },
+      onBackend = { state.setBackend(it?.source, it?.highlightPipeline, workingTree = it?.workingTree) },
     )
   }
   val uiState by state.uiState.collectAsState()
