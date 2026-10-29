@@ -91,7 +91,7 @@ npx skills add mataku/kDiffViewer
 
 The skill does not grant itself any permissions, so your agent's usual permission rules apply to each `kdv` command. To let Claude Code run them without asking, add `"Bash(kdv *)"` to `permissions.allow` in your settings.
 
-Without the skill, tell the agent to run `kdv agent-guide`, or put that instruction in the agent's instructions file.
+Without the skill, tell the agent to run `kdv agent-guide`, or put that instruction in the agent's instructions file. If you pasted the output of `kdv agent-guide` into an instructions file before, remove it after installing the skill so the agent follows the guide that matches your `kdv`.
 
 A typical round looks like this:
 
