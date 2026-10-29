@@ -74,6 +74,7 @@ fun CommentComposer(
   Column(
     modifier = Modifier
       .fillMaxWidth()
+      .padding(top = 4.dp)
       .onPreviewKeyEvent { event ->
         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
         when {
@@ -128,7 +129,7 @@ fun CommentComposer(
       }
     }
     Row(
-      modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
+      modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
       horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
     ) {
       MacPushButton(text = "Cancel", onClick = onCancel)
