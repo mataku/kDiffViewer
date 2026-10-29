@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app.find
 
+import io.github.mataku.kdiffviewer.app.CollapsedFile
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.flattenRows
 import io.github.mataku.kdiffviewer.core.model.ChangeType
@@ -59,7 +60,6 @@ class FindMatchesTest {
     val appended = flattenRows(listOf(file("a.kt", "zzz", "foo"), file("b.kt", "foo foo")))
     val after = before.updatedFor(appended, key("foo"))
     assertEquals(listOf(2 to 0, 6 to 0, 6 to 4), after.positions())
-    assertEquals(listOf(0, 1, 1), (0 until after.count).map { after.fileAt(it) })
     assertEquals(appended.size, after.scannedRows)
   }
 
@@ -109,13 +109,27 @@ class FindMatchesTest {
   }
 
   @Test
-  fun filterDropsFiles() {
+  fun skipsFiles() {
     val rows = flattenRows(listOf(file("a.kt", "foo"), file("b.kt", "foo")))
-    val matches = FindMatches.Empty.updatedFor(rows, key("foo")).filter { it != 0 }
+    val matches = FindMatches.Empty.updatedFor(rows, key("foo"), skipFile = { it == 0 })
+    assertEquals(listOf(5 to 0), matches.positions())
+  }
+
+  @Test
+  fun skippedFilesDoNotUseTheCap() {
+    val rows = flattenRows(listOf(file("a.kt", "x", "x", "x"), file("b.kt", "x")))
+    val matches = FindMatches.Empty.updatedFor(rows, key("x"), limit = 2, skipFile = { it == 0 })
     assertEquals(1, matches.count)
-    assertEquals(1, matches.fileAt(0))
-    assertEquals(5, matches.rowAt(0))
-    assertEquals(key("foo"), matches.key)
+    assertFalse(matches.capped)
+  }
+
+  @Test
+  fun collapseChangeRescans() {
+    val rows = flattenRows(listOf(file("a.kt", "foo"), file("b.kt", "foo")))
+    val before = FindMatches.Empty.updatedFor(rows, key("foo"))
+    val collapsed = setOf(CollapsedFile("a.kt", 1L))
+    val after = before.updatedFor(rows, FindKey("foo", 1, 0, collapsed = collapsed), skipFile = { it == 0 })
+    assertEquals(listOf(5 to 0), after.positions())
   }
 
   @Test

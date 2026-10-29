@@ -51,7 +51,7 @@ class FindHighlightUiTest {
     if (open) show()
     query = "foo"
     val matches = FindMatches.Empty.updatedFor(ui.rows, FindKey("foo", ui.loadId, ui.rowsGeneration))
-    onMatches(matches, { true }, anchorRow = matches.rowAt(1))
+    onMatches(matches, anchorRow = matches.rowAt(1))
   }
 
   private fun ComposeUiTest.render(find: FindState): PixelMap {

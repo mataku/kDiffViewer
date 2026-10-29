@@ -31,9 +31,7 @@ class FindState {
 
   var open by mutableStateOf(false)
     private set
-  var all by mutableStateOf(FindMatches.Empty)
-    private set
-  var visible by mutableStateOf(FindMatches.Empty)
+  var matches by mutableStateOf(FindMatches.Empty)
     private set
   var current by mutableIntStateOf(-1)
     private set
@@ -42,7 +40,7 @@ class FindState {
   private var liveLoadId by mutableLongStateOf(-1L)
   private var liveGeneration by mutableLongStateOf(-1L)
 
-  val isLive: Boolean get() = all.isFor(liveLoadId, liveGeneration)
+  val isLive: Boolean get() = matches.isFor(liveLoadId, liveGeneration) && matches.key?.query == query
 
   fun setLive(loadId: Long, rowsGeneration: Long) {
     liveLoadId = loadId
@@ -63,40 +61,32 @@ class FindState {
     if (query.isNotEmpty()) query = "" else close()
   }
 
-  fun onMatches(matches: FindMatches, keepFile: (fileIndex: Int) -> Boolean, anchorRow: Int): Int? {
-    val fresh = current < 0 || matches.key?.query != all.key?.query
-    val previousRow = if (fresh) anchorRow else visible.rowAt(current)
-    val previousStart = if (fresh) 0 else visible.startAt(current)
-    all = matches
-    visible = matches.filter(keepFile)
-    current = visible.indexAtOrAfterWrapping(previousRow, previousStart)
-    return if (fresh && current >= 0) visible.rowAt(current) else null
-  }
-
-  fun onVisibility(loadId: Long, rowsGeneration: Long, keepFile: (fileIndex: Int) -> Boolean) {
-    if (!all.isFor(loadId, rowsGeneration)) return
-    val previousRow = if (current >= 0) visible.rowAt(current) else -1
-    val previousStart = if (current >= 0) visible.startAt(current) else 0
-    visible = all.filter(keepFile)
-    current = if (previousRow < 0) -1 else visible.indexAtOrAfterWrapping(previousRow, previousStart)
+  fun onMatches(matches: FindMatches, anchorRow: Int): Int? {
+    val previous = this.matches
+    val fresh = current < 0 || matches.key?.query != previous.key?.query
+    val previousRow = if (fresh) anchorRow else previous.rowAt(current)
+    val previousStart = if (fresh) 0 else previous.startAt(current)
+    this.matches = matches
+    current = matches.indexAtOrAfterWrapping(previousRow, previousStart)
+    return if (fresh && current >= 0) matches.rowAt(current) else null
   }
 
   fun step(forward: Boolean): Int? {
-    val count = visible.count
-    if (count == 0) return null
+    val count = matches.count
+    if (count == 0 || !isLive) return null
     current = when {
       current < 0 -> if (forward) 0 else count - 1
       forward -> (current + 1) % count
       else -> (current - 1 + count) % count
     }
-    return visible.rowAt(current)
+    return matches.rowAt(current)
   }
 
   fun countText(): String? {
-    if (query.isEmpty()) return null
-    val count = visible.count
+    if (query.isEmpty() || matches.key?.query != query) return null
+    val count = matches.count
     if (count == 0) return "No results"
-    val total = groupThousands(count) + if (visible.capped) "+" else ""
+    val total = groupThousands(count) + if (matches.capped) "+" else ""
     return "${current + 1} of $total"
   }
 

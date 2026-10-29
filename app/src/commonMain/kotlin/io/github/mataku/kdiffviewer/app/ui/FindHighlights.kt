@@ -19,7 +19,7 @@ internal fun DrawScope.drawFindMatches(
   currentColor: Color,
 ) {
   if (!find.open || !find.isLive) return
-  val matches = find.visible
+  val matches = find.matches
   var index = matches.firstIndexOfRow(rowIndex)
   if (index < 0) return
   val length = matches.queryLength

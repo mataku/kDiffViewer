@@ -63,7 +63,9 @@ import io.github.mataku.kdiffviewer.app.find.FindCommand
 import io.github.mataku.kdiffviewer.app.find.FindKey
 import io.github.mataku.kdiffviewer.app.find.FindRequests
 import io.github.mataku.kdiffviewer.app.find.FindState
+import io.github.mataku.kdiffviewer.app.find.findMatchUpdates
 import io.github.mataku.kdiffviewer.app.gitStatus
+import io.github.mataku.kdiffviewer.app.isCollapsed
 import io.github.mataku.kdiffviewer.app.isLargeDiff
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
@@ -99,8 +101,6 @@ import io.github.mataku.kdiffviewer.core.model.displayPath
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -109,7 +109,6 @@ import kotlin.coroutines.CoroutineContext
 
 private val FindPanelTopInset = 40.dp
 private val FindPanelWidth = 340.dp
-private const val FIND_DEBOUNCE_MILLIS = 100L
 private val HeaderIconSize = 16.dp
 private val HeaderLeadingGap = 40.dp
 
@@ -220,35 +219,32 @@ fun ViewerScreen(
   }
   val density = LocalDensity.current
   val findTopInset = with(density) { FindPanelTopInset.toPx() }
-  val keepFile: (Int) -> Boolean = remember { { fileIndex -> fileIndex < currentLayout.fileCount && !currentLayout.isCollapsed(fileIndex) } }
   val revealMatch: suspend (Int) -> Unit = remember(listState, findTopInset) {
     { row ->
-      val index = currentLayout.visibleIndexOf(currentDisplay.displayOf(row))
-      val info = listState.layoutInfo
-      val item = info.visibleItemsInfo.firstOrNull { it.index == index }
-      val fullyVisible = item != null && item.offset >= info.viewportStartOffset + findTopInset && item.offset + item.size <= info.viewportEndOffset
-      if (index >= 0 && !fullyVisible) {
-        listState.scrollToItem(index)
-        listState.scrollBy(-(info.viewportEndOffset - info.viewportStartOffset) / 3f)
+      if (findState.isLive && row < currentState.rows.size) {
+        val index = currentLayout.visibleIndexOf(currentDisplay.displayOf(row))
+        val info = listState.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.index == index }
+        val fullyVisible = item != null && item.offset >= info.viewportStartOffset + findTopInset && item.offset + item.size <= info.viewportEndOffset
+        if (index >= 0 && !fullyVisible) {
+          listState.scrollToItem(index)
+          listState.scrollBy(-(info.viewportEndOffset - info.viewportStartOffset) / 3f)
+        }
       }
     }
   }
   val currentFindContext by rememberUpdatedState(findContext)
   LaunchedEffect(findState) {
-    var lastQuery = findState.query
-    snapshotFlow { Triple(findState.query, findState.open, currentState) }.collectLatest { (query, open, ui) ->
-      if (!open) return@collectLatest
-      if (query != lastQuery) {
-        lastQuery = query
-        if (query.isNotEmpty()) delay(FIND_DEBOUNCE_MILLIS)
+    findMatchUpdates(snapshotFlow { findState.query }, snapshotFlow { findState.open }, snapshotFlow { currentState }) { previous, query, ui ->
+      withContext(currentFindContext) {
+        previous.updatedFor(ui.rows, FindKey(query, ui.loadId, ui.rowsGeneration, ui.collapsed, ui.expanded), skipFile = ui::isCollapsed)
       }
-      val previous = findState.all
-      val matches = withContext(currentFindContext) { previous.updatedFor(ui.rows, FindKey(query, ui.loadId, ui.rowsGeneration)) }
-      val anchor = currentDisplay.unifiedOf(currentLayout.rowIndexOf(listState.firstVisibleItemIndex))
-      findState.onMatches(matches, keepFile, anchor)?.let { revealMatch(it) }
+    }.collect { matches ->
+      val count = currentLayout.visibleCount
+      val anchor = if (count == 0) 0 else currentDisplay.unifiedOf(currentLayout.rowIndexOf(listState.firstVisibleItemIndex.coerceIn(0, count - 1)))
+      findState.onMatches(matches, anchor)?.let { revealMatch(it) }
     }
   }
-  LaunchedEffect(layout) { findState.onVisibility(state.loadId, state.rowsGeneration, keepFile) }
   val findScope = rememberCoroutineScope()
   val stepFind: (Boolean) -> Unit = remember(findState) { { forward -> findScope.launch { findState.step(forward)?.let { revealMatch(it) } } } }
   LaunchedEffect(findRequests, findState) {
