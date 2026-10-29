@@ -187,7 +187,10 @@ fun ViewerScreen(
   }
   DraftRevealEffect(revealRequests, listState, currentReview, currentState, currentLayout, currentDisplay, currentOnExpandFile) { focusRequests.intValue++ }
   ScrollRestoreEffect(listState, currentState, currentLayout, currentDisplay)
-  val stepFind = rememberFindNavigation(findState, screenState.findRequests, listState, currentState, currentLayout, currentDisplay, findContext)
+  val revealMatch = rememberFindReveal(findState, listState, currentState, currentLayout, currentDisplay)
+  FindMatchesEffect(findState, listState, currentState, currentLayout, currentDisplay, findContext, revealMatch)
+  val stepFind = rememberFindStepper(findState, revealMatch)
+  FindRequestsEffect(screenState.findRequests, findState, stepFind)
   val tree = rememberFileTreeState(state.repo)
   val rows = state.rows
   val headerRowIndex = state.fileHeaderRowIndex
@@ -351,12 +354,10 @@ private fun DraftRevealEffect(
       onExpandFile.value(fileIndex)
       withTimeoutOrNull(1_000) { snapshotFlow { layout.value }.first { !it.isCollapsed(fileIndex) } }
     }
-    val currentLayout = layout.value
-    val currentDisplay = display.value
-    val index = revealIndex(placement, draftAnchor(target, snapshot.threads), currentLayout, state.value.rows, currentDisplay)
+    val index = revealIndex(placement, draftAnchor(target, snapshot.threads), layout.value, state.value.rows, display.value)
     listState.scrollToItem(index)
     if (fileIndex != null && placement is Placement.OnLine) {
-      val headerKey = state.value.rows[currentDisplay.unifiedOf(currentLayout.headerRowIndex(fileIndex))].key
+      val headerKey = state.value.rows[display.value.unifiedOf(layout.value.headerRowIndex(fileIndex))].key
       val pinned = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == headerKey && it.index != index }
       if (pinned != null) listState.scrollBy(-pinned.size.toFloat())
     }
@@ -376,17 +377,15 @@ private fun ScrollRestoreEffect(listState: LazyListState, state: State<ViewerUiS
 }
 
 @Composable
-private fun rememberFindNavigation(
+private fun rememberFindReveal(
   findState: FindState,
-  findRequests: FindRequests,
   listState: LazyListState,
   state: State<ViewerUiState>,
   layout: State<DiffLayout>,
   display: State<DisplayRows>,
-  findContext: CoroutineContext,
-): (Boolean) -> Unit {
+): suspend (Int) -> Unit {
   val findTopInset = with(LocalDensity.current) { FindPanelTopInset.toPx() }
-  val revealMatch: suspend (Int) -> Unit = remember(listState, findTopInset) {
+  return remember(findState, listState, findTopInset) {
     { row ->
       if (findState.isLive && row < state.value.rows.size) {
         val index = layout.value.visibleIndexOf(display.value.displayOf(row))
@@ -400,7 +399,20 @@ private fun rememberFindNavigation(
       }
     }
   }
+}
+
+@Composable
+private fun FindMatchesEffect(
+  findState: FindState,
+  listState: LazyListState,
+  state: State<ViewerUiState>,
+  layout: State<DiffLayout>,
+  display: State<DisplayRows>,
+  findContext: CoroutineContext,
+  revealMatch: suspend (Int) -> Unit,
+) {
   val currentFindContext by rememberUpdatedState(findContext)
+  val currentRevealMatch by rememberUpdatedState(revealMatch)
   LaunchedEffect(findState) {
     findMatchUpdates(snapshotFlow { findState.query }, snapshotFlow { findState.open }, snapshotFlow { state.value }) { previous, query, ui ->
       withContext(currentFindContext) {
@@ -409,20 +421,29 @@ private fun rememberFindNavigation(
     }.collect { matches ->
       val count = layout.value.visibleCount
       val anchor = if (count == 0) 0 else display.value.unifiedOf(layout.value.rowIndexOf(listState.firstVisibleItemIndex.coerceIn(0, count - 1)))
-      findState.onMatches(matches, anchor)?.let { revealMatch(it) }
+      findState.onMatches(matches, anchor)?.let { currentRevealMatch(it) }
     }
   }
-  val findScope = rememberCoroutineScope()
-  val stepFind: (Boolean) -> Unit = remember(findState) { { forward -> findScope.launch { findState.step(forward)?.let { revealMatch(it) } } } }
+}
+
+@Composable
+private fun rememberFindStepper(findState: FindState, revealMatch: suspend (Int) -> Unit): (Boolean) -> Unit {
+  val scope = rememberCoroutineScope()
+  val currentRevealMatch by rememberUpdatedState(revealMatch)
+  return remember(findState, scope) { { forward -> scope.launch { findState.step(forward)?.let { currentRevealMatch(it) } } } }
+}
+
+@Composable
+private fun FindRequestsEffect(findRequests: FindRequests, findState: FindState, stepFind: (Boolean) -> Unit) {
+  val currentStepFind by rememberUpdatedState(stepFind)
   LaunchedEffect(findRequests, findState) {
     findRequests.requests.collect { command ->
       when {
         command == FindCommand.Show || !findState.open -> findState.show()
-        else -> stepFind(command == FindCommand.Next)
+        else -> currentStepFind(command == FindCommand.Next)
       }
     }
   }
-  return stepFind
 }
 
 @Composable
@@ -589,12 +610,12 @@ private fun ViewerUiState.expansionErrorsByFile(): Map<Int, String> {
   val result = HashMap<Int, String>()
   files.forEachIndexed { index, file ->
     val fingerprint = fingerprints.getOrNull(index) ?: return@forEachIndexed
-    expansionErrors[CollapsedFile(file.displayPath, fingerprint)]?.let { result[index] = it.message() }
+    expansionErrors[CollapsedFile(file.displayPath, fingerprint)]?.let { result[index] = it.expansionErrorText() }
   }
   return result
 }
 
-internal fun ExpansionError.message(): String = when (this) {
+internal fun ExpansionError.expansionErrorText(): String = when (this) {
   ExpansionError.Unreadable -> "Could not read this file"
   ExpansionError.TooLarge -> "Too large to expand"
   ExpansionError.Stale -> "The file no longer matches this diff — reload to expand"
