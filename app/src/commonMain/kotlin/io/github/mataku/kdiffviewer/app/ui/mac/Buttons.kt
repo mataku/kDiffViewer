@@ -149,6 +149,49 @@ private fun Chevron(color: Color) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun MacToolbarButton(
+  icon: ImageVector,
+  contentDescription: String,
+  tooltip: String,
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  raised: Boolean = false,
+) {
+  val colors = LocalDiffColors.current
+  val interactionSource = remember { MutableInteractionSource() }
+  val pressed by interactionSource.collectIsPressedAsState()
+  TooltipBox(
+    positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
+    tooltip = { PlainTooltip { Text(tooltip) } },
+    state = rememberTooltipState(),
+  ) {
+    Box(
+      modifier = modifier
+        .height(24.dp)
+        .background(colors.trackFill(pressed), ControlShape)
+        .clickable(interactionSource = interactionSource, indication = null, role = Role.Button, onClick = onClick)
+        .padding(1.dp),
+    ) {
+      Box(
+        modifier = Modifier
+          .height(22.dp)
+          .width(32.dp)
+          .then(if (raised) Modifier.raisedSegment(colors) else Modifier),
+        contentAlignment = Alignment.Center,
+      ) {
+        Image(
+          imageVector = icon,
+          contentDescription = contentDescription,
+          modifier = Modifier.size(14.dp),
+          colorFilter = ColorFilter.tint(colors.text),
+        )
+      }
+    }
+  }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun <T> MacSegmented(
   options: List<T>,
   selected: T,
@@ -170,7 +213,7 @@ fun <T> MacSegmented(
     options.forEach { option ->
       val isSelected = option == selected
       val segmentModifier = if (isSelected) {
-        Modifier.shadow(if (colors.isDark) 0.dp else 1.dp, SegmentShape, clip = false).background(colors.raisedFill(), SegmentShape)
+        Modifier.raisedSegment(colors)
       } else {
         Modifier
       }
