@@ -647,6 +647,9 @@ private fun LineHalf(
   val tabWidth = typography.tabWidth
   val controlStyle = typography.controlMarker
   val selectionColor = colors.selectionBackground
+  val find = LocalFindState.current
+  val matchColor = colors.findMatchBackground
+  val currentColor = colors.findCurrentBackground
   Row(modifier = modifier) {
     if (side != Side.New) LineNumberCell(line.oldLineNo, typography)
     if (side != Side.Old) LineNumberCell(line.newLineNo, typography)
@@ -655,12 +658,13 @@ private fun LineHalf(
     } else {
       BasicText(markerOf(line.kind), Modifier.width(MarkerColumnWidth), style = typography.marker)
     }
-    val contentModifier = remember(range, layoutState, line.text, tabWidth, selectionColor) {
+    val contentModifier = remember(range, layoutState, line.text, tabWidth, selectionColor, find, rowIndex, matchColor, currentColor) {
       Modifier
         .weight(1f)
         .drawBehind {
-          val selected = range.value ?: return@drawBehind
           val layout = layoutState.value ?: return@drawBehind
+          if (find != null) drawFindMatches(find, rowIndex, line.text, layout, tabWidth, matchColor, currentColor)
+          val selected = range.value ?: return@drawBehind
           drawPath(layout.getPathForRange(sourceToDisplay(line.text, selected.first, tabWidth), sourceToDisplay(line.text, selected.last + 1, tabWidth)), selectionColor)
         }
         .then(TextCursor)

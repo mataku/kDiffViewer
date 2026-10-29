@@ -24,6 +24,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +58,7 @@ import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.diffLayoutOf
 import io.github.mataku.kdiffviewer.app.displayRows
 import io.github.mataku.kdiffviewer.app.filterTree
+import io.github.mataku.kdiffviewer.app.find.FindState
 import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.isLargeDiff
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
@@ -119,8 +121,10 @@ fun ViewerScreen(
   rangeState: CommentRangeState = remember { CommentRangeState() },
   treeWidth: MutableState<Dp> = remember { mutableStateOf(DefaultTreeWidth) },
   onExpandContext: (fileIndex: Int, gapIndex: Int, direction: ExpandDirection) -> Unit = { _, _, _ -> },
+  findState: FindState = remember { FindState() },
 ) {
   val colors = LocalDiffColors.current
+  SideEffect { findState.setLive(state.loadId, state.rowsGeneration) }
   val expansionErrors = remember(state.expansionErrors, state.files, state.fingerprints) { state.expansionErrorsByFile() }
   val listState = rememberLazyListState()
   val currentState by rememberUpdatedState(state)
@@ -285,6 +289,7 @@ fun ViewerScreen(
                 LocalReviewInProgress provides reviewInProgress,
                 LocalDraftFocusRequests provides focusRequests,
                 LocalReviewActions provides actions,
+                LocalFindState provides findState,
               ) {
                 DiffView(
                   rows = state.rows,
