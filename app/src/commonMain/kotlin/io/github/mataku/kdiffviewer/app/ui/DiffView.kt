@@ -251,10 +251,10 @@ fun DiffView(
                 val composingLeft = draftLinePos >= 0 && leftPos == draftLinePos && draftSide == ReviewSide.Old
                 val composingRight = draftLinePos >= 0 && rightPos == draftLinePos && draftSide == ReviewSide.New
                 if (leftThreads.isEmpty() && rightThreads.isEmpty() && !composingLeft && !composingRight) {
-                  SplitLineRow(leftRow, display.unifiedOf(displayRow, Side.Old), rightRow, display.unifiedOf(displayRow, Side.New), slot, hoveredKey, commentable, selection, layouts)
+                  SplitLineRow(leftRow, display.unifiedOf(displayRow, Side.Old), rightRow, display.unifiedOf(displayRow, Side.New), slot, hoveredKey, commentable, selection, layouts, rangeState)
                 } else {
                   Column {
-                    SplitLineRow(leftRow, display.unifiedOf(displayRow, Side.Old), rightRow, display.unifiedOf(displayRow, Side.New), slot, hoveredKey, commentable, selection, layouts)
+                    SplitLineRow(leftRow, display.unifiedOf(displayRow, Side.Old), rightRow, display.unifiedOf(displayRow, Side.New), slot, hoveredKey, commentable, selection, layouts, rangeState)
                     Row(modifier = Modifier.fillMaxWidth()) {
                       SplitNoteColumn(leftThreads, draft, composingLeft, splitNoteIndent, Modifier.weight(1f))
                       SplitNoteColumn(rightThreads, draft, composingRight, splitNoteIndent, Modifier.weight(1f))
@@ -281,10 +281,10 @@ fun DiffView(
                 val threads = if (hasLineThreads) placements.byLine[position] else null
                 val composing = position >= 0 && position == draftLinePos
                 if (threads == null && !composing) {
-                  LineRow(row, bodyStart + offset, slot, hoveredKey, commentable, selection, layouts)
+                  LineRow(row, bodyStart + offset, slot, hoveredKey, commentable, selection, layouts, rangeState)
                 } else {
                   Column {
-                    LineRow(row, bodyStart + offset, slot, hoveredKey, commentable, selection, layouts)
+                    LineRow(row, bodyStart + offset, slot, hoveredKey, commentable, selection, layouts, rangeState)
                     NoteStack(threads.orEmpty(), draft, composing, Modifier.padding(start = noteIndent, end = 8.dp))
                   }
                 }
@@ -446,6 +446,7 @@ private fun LineRow(
   commentable: Boolean,
   selection: DiffSelectionState,
   layouts: VisibleLineLayouts,
+  rangeState: CommentRangeState,
 ) {
   val key = row.key
   val hovered by remember(key) { derivedStateOf { hoveredKey.value == key } }
@@ -455,6 +456,9 @@ private fun LineRow(
     typography.lineNumberWidth * 2,
     gutterColor(row.line.kind, colors),
     contentColor(row.line.kind, colors),
+    range = rangeState,
+    rangeColor = colors.rangeBackground,
+    leftLine = LineId(linePosition(row.fileIndex, row.hunkIndex, row.lineIndex)),
   )
   LineHalf(row, rowIndex, null, slot, hovered && commentable, selection, layouts, modifier)
 }
@@ -470,6 +474,7 @@ private fun SplitLineRow(
   commentable: Boolean,
   selection: DiffSelectionState,
   layouts: VisibleLineLayouts,
+  rangeState: CommentRangeState,
 ) {
   val key = remember(left?.key, right?.key) { "s" + (left?.key ?: "-") + "|" + (right?.key ?: "-") }
   val leftKey = remember(key) { "$key:L" }
@@ -485,6 +490,10 @@ private fun SplitLineRow(
     right?.let { gutterColor(it.line.kind, colors) } ?: colors.emptySideBackground,
     right?.let { contentColor(it.line.kind, colors) } ?: colors.emptySideBackground,
     split = true,
+    range = rangeState,
+    rangeColor = colors.rangeBackground,
+    leftLine = left?.let { LineId(linePosition(it.fileIndex, it.hunkIndex, it.lineIndex)) } ?: LineId.None,
+    rightLine = right?.let { LineId(linePosition(it.fileIndex, it.hunkIndex, it.lineIndex)) } ?: LineId.None,
   )
   SplitLineLayout(
     left = { LineHalf(left, leftIndex, Side.Old, slot, leftHovered && commentable, selection, layouts, Modifier) },

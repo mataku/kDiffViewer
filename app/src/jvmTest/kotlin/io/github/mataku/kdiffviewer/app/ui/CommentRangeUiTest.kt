@@ -286,6 +286,7 @@ class CommentRangeUiTest {
     assertFalse(rangeState.dragging == null)
     ui = stateOf(loadId = 2)
     waitForIdle()
+    assertNull(rangeState.dragging)
     release()
     assertNull(review.snapshot.value.draft)
     assertNull(rangeState.dragging)

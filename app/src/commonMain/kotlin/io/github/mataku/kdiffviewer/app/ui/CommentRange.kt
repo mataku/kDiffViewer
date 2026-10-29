@@ -48,6 +48,11 @@ class CommentRangeState {
     }
 
   fun highlights(fileIndex: Int, hunkIndex: Int, lineIndex: Int, side: Side?): Boolean = (dragging ?: drafted)?.contains(fileIndex, hunkIndex, lineIndex, side) == true
+
+  fun highlights(position: Long, side: Side?): Boolean {
+    if (position < 0) return false
+    return highlights((position shr 40).toInt(), ((position shr 20) and 0xFFFFF).toInt(), (position and 0xFFFFF).toInt(), side)
+  }
 }
 
 fun draftRange(target: DraftTarget?, files: List<FileDiff>, split: Boolean): CommentRange? {

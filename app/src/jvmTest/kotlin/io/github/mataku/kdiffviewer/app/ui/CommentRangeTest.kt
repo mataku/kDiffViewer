@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.app.ui
 
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
+import io.github.mataku.kdiffviewer.app.review.linePosition
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -101,5 +102,34 @@ class CommentRangeTest {
     val split = CommentRange(0, 0, Side.Old, 2, 0)
     assertFalse(split.contains(0, 0, 1, Side.New))
     assertTrue(split.contains(0, 0, 1, Side.Old))
+  }
+
+  @Test
+  fun packedHighlightsMatchesUnpacked() {
+    val state = CommentRangeState()
+    state.dragging = CommentRange(2, 1, Side.New, 3, 6)
+    for (file in 1..3) {
+      for (hunk in 0..2) {
+        for (line in 0..8) {
+          for (side in listOf(null, Side.Old, Side.New)) {
+            assertEquals(
+              state.highlights(file, hunk, line, side),
+              state.highlights(linePosition(file, hunk, line), side),
+              "file=$file hunk=$hunk line=$line side=$side",
+            )
+          }
+        }
+      }
+    }
+    assertTrue(state.highlights(linePosition(2, 1, 3), Side.New))
+    assertTrue(state.highlights(linePosition(2, 1, 6), Side.New))
+    assertFalse(state.highlights(linePosition(2, 1, 7), Side.New))
+  }
+
+  @Test
+  fun noneLineIdNeverHighlights() {
+    val state = CommentRangeState()
+    state.dragging = CommentRange(0, 0, null, 0, 1_000_000)
+    assertFalse(state.highlights(LineId.None.packed, null))
   }
 }

@@ -133,6 +133,7 @@ internal fun Modifier.diffSelectionGesture(
     gesture.range = range
     gesture.draftTarget = draftTarget
     gesture.loadId = loadId
+    gesture.dropStaleRange()
     gesture.density = density
     gesture.focusManager = focusManager
   }
@@ -307,6 +308,11 @@ internal class DiffSelectionGesture(
       rangeDrag = null
       range.dragging = null
     }
+  }
+
+  fun dropStaleRange() {
+    val drag = rangeDrag ?: return
+    if (isStale(drag)) range.dragging = null
   }
 
   private fun isStale(drag: RangeDrag): Boolean = loadId != drag.loadId || display !== drag.display
