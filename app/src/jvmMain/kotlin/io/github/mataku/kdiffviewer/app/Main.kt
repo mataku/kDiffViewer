@@ -116,6 +116,13 @@ private fun saveMainSize(storage: FileSettingsStorage, windowState: ComposeWindo
   }
 }
 
+private fun bringToFront(window: java.awt.Window, windowState: ComposeWindowState) {
+  windowState.isMinimized = false
+  val desktop = Desktop.getDesktop().takeIf { Desktop.isDesktopSupported() && it.isSupported(Desktop.Action.APP_REQUEST_FOREGROUND) }
+  desktop?.requestForeground(true)
+  window.toFront()
+}
+
 private fun runApplication(
   args: Array<String>,
   repository: SettingsRepository,
@@ -179,10 +186,14 @@ private fun runApplication(
     exitApplication()
   }
   var quitWarning by remember { mutableStateOf<QuitWarning?>(null) }
+  var quitPrompts by remember { mutableIntStateOf(0) }
   val requestQuit: () -> Unit = {
-    if (quitWarning == null) {
-      val warning = quitWarningOf(review.snapshot.value)
-      if (warning == null) shutdown() else quitWarning = warning
+    val warning = quitWarning ?: quitWarningOf(review.snapshot.value)
+    if (warning == null) {
+      shutdown()
+    } else {
+      quitWarning = warning
+      quitPrompts++
     }
   }
   DisposableEffect(Unit) { onDispose { integration.close() } }
@@ -239,6 +250,9 @@ private fun runApplication(
     onKeyEvent = { event -> quitWarning == null && (scrollJumpOf(event)?.let(scrollJumps::request) ?: false) },
   ) {
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
+    LaunchedEffect(quitPrompts) {
+      if (quitPrompts > 0) bringToFront(window, windowState)
+    }
     val titleBar = remember { installCustomTitleBar(window, ViewerTitleBarHeight) }
     var titleBarLeadingInset by remember { mutableStateOf(0.dp) }
     LaunchedEffect(titleBar) {
