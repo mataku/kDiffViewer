@@ -90,6 +90,7 @@ compose.desktop {
   application {
     mainClass = "io.github.mataku.kdiffviewer.app.MainKt"
     javaHome = jbrHome
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
 
     if (System.getProperty("os.name").startsWith("Mac")) {
       jvmArgs("-Xdock:name=kDiffViewer")
@@ -116,6 +117,10 @@ compose.desktop {
       }
     }
   }
+}
+
+tasks.withType<Test>().configureEach {
+  jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
 
 val macAppContentResources = layout.projectDirectory.dir("packaging/app-content/Resources")
