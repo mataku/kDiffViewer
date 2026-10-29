@@ -58,9 +58,10 @@ class FindPanelTest {
   private fun ViewerUiState.collapsing(fileIndex: Int) = copy(collapsed = collapsed + CollapsedFile(files[fileIndex].displayPath, fingerprints[fileIndex]))
 
   private fun ComposeUiTest.show(ui: () -> ViewerUiState): FindRequests {
-    val requests = FindRequests()
+    val screen = ViewerScreenState()
+    val requests = screen.findRequests
     setContent {
-      Box(Modifier.size(800.dp, 400.dp)) { ViewerScreen(ui(), {}, findRequests = requests, findContext = EmptyCoroutineContext) }
+      Box(Modifier.size(800.dp, 400.dp)) { ViewerScreen(ui(), {}, screenState = screen, findContext = EmptyCoroutineContext) }
     }
     waitForIdle()
     requests.request(FindCommand.Show)

@@ -16,6 +16,7 @@ fun FrameWindowScope.AppMenuBar(
   nativePreferences: Boolean,
 ) {
   val viewerAvailable = uiState.repo != null && uiState.status !is LoadStatus.Failed
+  val screen = appState.screen
   MenuBar {
     Menu("File") {
       Item("Open…", shortcut = KeyShortcut(Key.O, meta = true), onClick = appState::openFolder)
@@ -27,21 +28,21 @@ fun FrameWindowScope.AppMenuBar(
       Item("Copy", shortcut = KeyShortcut(Key.C, meta = true), enabled = coordinator.hasSelection, onClick = { coordinator.copy() })
       Separator()
       Menu("Find") {
-        val requests = appState.findRequests
+        val requests = screen.findRequests
         Item("Find…", shortcut = KeyShortcut(Key.F, meta = true), enabled = viewerAvailable, onClick = { requests.request(FindCommand.Show) })
         Item("Find Next", shortcut = KeyShortcut(Key.G, meta = true), enabled = viewerAvailable, onClick = { requests.request(FindCommand.Next) })
         Item("Find Previous", shortcut = KeyShortcut(Key.G, meta = true, shift = true), enabled = viewerAvailable, onClick = { requests.request(FindCommand.Previous) })
       }
     }
     Menu("View") {
-      RadioButtonItem("Unified", selected = appState.diffMode == DiffMode.Unified, onClick = { appState.changeMode(DiffMode.Unified) })
-      RadioButtonItem("Split", selected = appState.diffMode == DiffMode.Split, onClick = { appState.changeMode(DiffMode.Split) })
+      RadioButtonItem("Unified", selected = screen.mode == DiffMode.Unified, onClick = { screen.changeMode(DiffMode.Unified) })
+      RadioButtonItem("Split", selected = screen.mode == DiffMode.Split, onClick = { screen.changeMode(DiffMode.Split) })
       Separator()
       Item(
-        if (appState.sidebarVisible) "Hide Sidebar" else "Show Sidebar",
+        if (screen.sidebarVisible) "Hide Sidebar" else "Show Sidebar",
         shortcut = KeyShortcut(Key.S, ctrl = true, meta = true),
         enabled = viewerAvailable,
-        onClick = appState::toggleSidebar,
+        onClick = screen::toggleSidebar,
       )
       Separator()
       Item("Reload", shortcut = KeyShortcut(Key.R, meta = true), onClick = { appState.viewer.reload() })

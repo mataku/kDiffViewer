@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -12,7 +11,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import io.github.mataku.kdiffviewer.app.highlight.LocalCodeHighlighter
@@ -45,7 +43,6 @@ fun MainWindow(
   settings: Settings,
   factory: GitBackendFactory,
   windowState: ComposeWindowState,
-  treeWidth: MutableState<Dp>,
   nativePreferences: Boolean,
 ) {
   val viewer = appState.viewer
@@ -55,7 +52,7 @@ fun MainWindow(
     onCloseRequest = appState::requestQuit,
     title = "kDiffViewer",
     state = windowState,
-    onKeyEvent = { event -> appState.quitWarning == null && (scrollJumpOf(event)?.let(appState.scrollJumps::request) ?: false) },
+    onKeyEvent = { event -> appState.quitWarning == null && (scrollJumpOf(event)?.let(appState.screen.scrollJumps::request) ?: false) },
   ) {
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     LaunchedEffect(appState.quitPrompts) {
@@ -99,21 +96,14 @@ fun MainWindow(
             else -> ViewerScreen(
               uiState,
               onReload = { viewer.reload() },
+              screenState = appState.screen,
               titleBarLeadingInset = titleBarLeadingInset,
-              sidebarVisible = appState.sidebarVisible,
-              onToggleSidebar = appState::toggleSidebar,
               onToggleFile = viewer::toggleCollapsed,
               onExpandFile = viewer::expand,
               review = reviewSnapshot,
               loadBranches = viewer::branches,
               onSwitchBase = viewer::switchBase,
-              scrollJumps = appState.scrollJumps,
-              mode = appState.diffMode,
-              onModeChange = appState::changeMode,
               onExpandContext = viewer::expandContext,
-              treeWidth = treeWidth,
-              findState = appState.findState,
-              findRequests = appState.findRequests,
             )
           }
           appState.quitWarning?.let { warning ->

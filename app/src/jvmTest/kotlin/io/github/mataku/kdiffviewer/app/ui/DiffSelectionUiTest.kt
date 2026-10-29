@@ -312,7 +312,7 @@ class DiffSelectionUiTest {
   private fun ComposeUiTest.showSplit(state: ViewerUiState) {
     setContent {
       CompositionLocalProvider(LocalTextSelectionCoordinator provides coordinator, LocalNativeContextMenu provides menu) {
-        Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split) }
+        Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, screenState = rememberViewerScreenState(mode = DiffMode.Split)) }
       }
     }
   }
@@ -490,15 +490,15 @@ class DiffSelectionUiTest {
   @Test
   fun modeSwitchClearsSelection() = runComposeUiTest {
     val state = splitStateOf(mixedFile)
-    var mode by mutableStateOf(DiffMode.Split)
+    val screen = ViewerScreenState(mode = DiffMode.Split)
     setContent {
       CompositionLocalProvider(LocalTextSelectionCoordinator provides coordinator, LocalNativeContextMenu provides menu) {
-        Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = mode) }
+        Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, screenState = screen) }
       }
     }
     drag(splitCodePosition("alpha", 0, 0), splitCodePosition("delta", 0, 5))
     assertTrue(coordinator.hasSelection)
-    mode = DiffMode.Unified
+    screen.changeMode(DiffMode.Unified)
     waitForIdle()
     assertFalse(coordinator.hasSelection)
     assertFalse(coordinator.copy())

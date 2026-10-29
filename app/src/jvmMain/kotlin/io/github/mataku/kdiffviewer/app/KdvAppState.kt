@@ -9,8 +9,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import io.github.mataku.kdiffviewer.app.find.FindRequests
-import io.github.mataku.kdiffviewer.app.find.FindState
 import io.github.mataku.kdiffviewer.app.review.QuitWarning
 import io.github.mataku.kdiffviewer.app.review.ReviewIntegration
 import io.github.mataku.kdiffviewer.app.review.ReviewRequestHandler
@@ -20,7 +18,7 @@ import io.github.mataku.kdiffviewer.app.review.processAlive
 import io.github.mataku.kdiffviewer.app.review.quitWarningOf
 import io.github.mataku.kdiffviewer.app.settings.GitBackendController
 import io.github.mataku.kdiffviewer.app.settings.SettingsRepository
-import io.github.mataku.kdiffviewer.app.ui.ScrollJumps
+import io.github.mataku.kdiffviewer.app.ui.ViewerScreenState
 import io.github.mataku.kdiffviewer.core.git.GitLocation
 import io.github.mataku.kdiffviewer.core.git.GitLocator
 import io.github.mataku.kdiffviewer.core.git.locateOnHost
@@ -43,12 +41,9 @@ class KdvAppState(
   val review: ReviewState,
   val gitBackend: GitBackendController,
   val integration: ReviewIntegration,
+  val screen: ViewerScreenState,
   private val exit: () -> Unit,
 ) {
-  val scrollJumps = ScrollJumps()
-  val findState = FindState()
-  val findRequests = FindRequests()
-
   var quitWarning by mutableStateOf<QuitWarning?>(null)
     private set
 
@@ -59,12 +54,6 @@ class KdvAppState(
     private set
 
   var settingsFocusRequests by mutableIntStateOf(0)
-    private set
-
-  var diffMode by mutableStateOf(DiffMode.Unified)
-    private set
-
-  var sidebarVisible by mutableStateOf(true)
     private set
 
   fun requestQuit() {
@@ -98,14 +87,6 @@ class KdvAppState(
   fun openFolder() {
     pickFolder()?.let { viewer.open(RepoPath(it)) }
   }
-
-  fun changeMode(mode: DiffMode) {
-    if (mode != diffMode) diffMode = mode
-  }
-
-  fun toggleSidebar() {
-    sidebarVisible = !sidebarVisible
-  }
 }
 
 @Composable
@@ -114,6 +95,7 @@ fun rememberKdvAppState(
   settings: SettingsRepository,
   location: GitLocation,
   factory: GitBackendFactory,
+  screen: ViewerScreenState,
   exit: () -> Unit,
 ): KdvAppState {
   val scope = remember { MainScope() }
@@ -126,6 +108,7 @@ fun rememberKdvAppState(
       review = review,
       gitBackend = createGitBackendController(location, settings, factory, scope, viewer),
       integration = createIntegration(viewer, review),
+      screen = screen,
       exit = exit,
     )
   }

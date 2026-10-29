@@ -85,7 +85,7 @@ class ContextExpanderUiTest {
   private fun ComposeUiTest.show(state: ViewerUiState, mode: DiffMode = DiffMode.Unified, onExpand: (Int, Int, ExpandDirection) -> Unit = { _, _, _ -> }) {
     setContent {
       CompositionLocalProvider(LocalTextSelectionCoordinator provides coordinator, LocalNativeContextMenu provides menu) {
-        ViewerScreen(state, {}, mode = mode, onExpandContext = onExpand)
+        ViewerScreen(state, {}, screenState = rememberViewerScreenState(mode = mode), onExpandContext = onExpand)
       }
     }
   }

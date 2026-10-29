@@ -1,9 +1,7 @@
 package io.github.mataku.kdiffviewer.app
 
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -22,6 +20,7 @@ import io.github.mataku.kdiffviewer.app.settings.updated
 import io.github.mataku.kdiffviewer.app.ui.DefaultTreeWidth
 import io.github.mataku.kdiffviewer.app.ui.MaxTreeWidth
 import io.github.mataku.kdiffviewer.app.ui.MinTreeWidth
+import io.github.mataku.kdiffviewer.app.ui.ViewerScreenState
 import io.github.mataku.kdiffviewer.core.git.GitLocation
 import io.github.mataku.kdiffviewer.core.git.GitLocator
 import io.github.mataku.kdiffviewer.core.git.locateOnHost
@@ -46,9 +45,9 @@ fun main(args: Array<String>) {
   val windowStateStorage = FileSettingsStorage(defaultWindowStateFile())
   val saved = loadWindowState(windowStateStorage)
   val windowState = ComposeWindowState(size = initialMainSize(saved) ?: DpSize(800.dp, 600.dp))
-  val treeWidth = mutableStateOf(saved.treeWidthOrNull(MinTreeWidth, MaxTreeWidth) ?: DefaultTreeWidth)
-  runApplication(args, repository, location, factory, windowState, treeWidth)
-  saveWindowState(windowStateStorage, saved, windowState, treeWidth.value)
+  val screen = ViewerScreenState(treeWidth = saved.treeWidthOrNull(MinTreeWidth, MaxTreeWidth) ?: DefaultTreeWidth)
+  runApplication(args, repository, location, factory, windowState, screen)
+  saveWindowState(windowStateStorage, saved, windowState, screen.treeWidth)
   runBlocking { repository.flush() }
   exitProcess(0)
 }
@@ -88,13 +87,13 @@ private fun runApplication(
   location: GitLocation,
   factory: GitBackendFactory,
   windowState: ComposeWindowState,
-  treeWidth: MutableState<Dp>,
+  screen: ViewerScreenState,
 ) = application(exitProcessOnExit = false) {
-  val appState = rememberKdvAppState(args, repository, location, factory, exit = ::exitApplication)
+  val appState = rememberKdvAppState(args, repository, location, factory, screen, exit = ::exitApplication)
   val settings by repository.settings.collectAsState()
   val nativePreferences = rememberNativePreferencesSupported()
   DesktopHandlersEffect(nativePreferences, onPreferences = appState::openSettings, onQuit = appState::requestQuit)
-  MainWindow(appState, repository, settings, factory, windowState, treeWidth, nativePreferences)
+  MainWindow(appState, repository, settings, factory, windowState, nativePreferences)
   if (appState.settingsOpen) {
     val gitStatus by appState.gitBackend.status.collectAsState()
     PreferencesWindow(
