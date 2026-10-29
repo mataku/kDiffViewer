@@ -89,6 +89,8 @@ For other agents, with [skills](https://github.com/vercel-labs/skills):
 npx skills add mataku/kDiffViewer
 ```
 
+The skill does not grant itself any permissions, so your agent's usual permission rules apply to each `kdv` command. To let Claude Code run them without asking, add `"Bash(kdv *)"` to `permissions.allow` in your settings.
+
 Without the skill, tell the agent to run `kdv agent-guide`, or put that instruction in the agent's instructions file.
 
 A typical round looks like this:
