@@ -72,7 +72,7 @@ class ReviewRequestHandlerTest {
   private fun Fixture.addThread(lineIndex: Int, text: String = "fix") {
     review.onViewerState(ui(1))
     val anchor = anchorOf(base, 0, lineIndex)!!
-    review.startDraft(DraftTarget.NewThread(anchor, Placement.OnLine(LineLocation(0, 0, lineIndex))))
+    review.startDraft(DraftTarget.NewThread(anchor, Placement.OnLine(LineLocation(0))))
     review.updateDraft(text)
     review.submitDraft(DraftMode.Single)
   }

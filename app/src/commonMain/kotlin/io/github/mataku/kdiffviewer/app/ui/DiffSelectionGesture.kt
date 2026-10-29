@@ -55,6 +55,7 @@ import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.RangeAnchor
 import io.github.mataku.kdiffviewer.core.review.anchorOfRange
+import io.github.mataku.kdiffviewer.core.review.locate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -363,14 +364,16 @@ internal class DiffSelectionGesture(
     val target = draftTarget() as? DraftTarget.NewThread ?: return null
     val anchor = target.anchor as? Anchor.Lines ?: return null
     val location = (target.placement as? Placement.OnLine)?.location ?: return null
-    if (location.fileIndex != drag.fileIndex || location.hunkIndex != drag.hunkIndex) return null
+    if (location.fileIndex != drag.fileIndex) return null
     val file = files.getOrNull(drag.fileIndex) ?: return null
+    val last = file.locate(anchor.side, anchor.endLine) ?: return null
+    if (last.hunkIndex != drag.hunkIndex) return null
     if (drag.side != null) {
       if (drag.side.toReviewSide() != anchor.side) return null
     } else if (anchorOfRange(file, drag.fileIndex, drag.hunkIndex, drag.pressLine, drag.pressLine, anchor.side) == null) {
       return null
     }
-    drag.from = draftRange(target, files, display?.mode == DiffMode.Split)?.fromLineIndex ?: location.lineIndex
+    drag.from = draftRange(target, files, display?.mode == DiffMode.Split)?.fromLineIndex ?: last.lineIndex
     return anchor.side
   }
 

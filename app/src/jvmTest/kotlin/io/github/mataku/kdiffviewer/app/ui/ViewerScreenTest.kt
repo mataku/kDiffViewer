@@ -1354,7 +1354,7 @@ class ViewerScreenTest {
   fun agentReplyAppearsInCard() = runComposeUiTest {
     val ui = reviewUi
     val review = reviewState(ui)
-    review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
+    review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0))))
     review.updateDraft("mine")
     review.submitDraft(DraftMode.Single)
     setContent {
@@ -1459,7 +1459,7 @@ class ViewerScreenTest {
     val first = stateOf(listOf(modified("a.kt"), modified("b.kt"))).copy(loadId = 1)
     var ui by mutableStateOf(first)
     val review = reviewState(first)
-    review.startDraft(DraftTarget.NewThread(anchorOf(first.files[1], 0, 1)!!, Placement.OnLine(LineLocation(1, 0, 1))))
+    review.startDraft(DraftTarget.NewThread(anchorOf(first.files[1], 0, 1)!!, Placement.OnLine(LineLocation(1))))
     review.updateDraft("still here")
     setContent {
       val snapshot by review.snapshot.collectAsState()
@@ -1509,7 +1509,7 @@ class ViewerScreenTest {
     val initial = manyFilesUi()
     var ui by mutableStateOf(initial)
     val review = reviewState(initial)
-    review.startDraft(DraftTarget.NewThread(anchorOf(initial.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
+    review.startDraft(DraftTarget.NewThread(anchorOf(initial.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0))))
     review.updateDraft("keep")
     ui = ui.toggled(0)
     setContent {
@@ -1886,7 +1886,7 @@ class ViewerScreenTest {
   fun splitThreadRendersInItsColumn() = runComposeUiTest {
     val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 1, 1))
     val threads = listOf(anchoredThread("t1", io.github.mataku.kdiffviewer.core.review.Side.Old, 1), anchoredThread("t2", io.github.mataku.kdiffviewer.core.review.Side.New, 1))
-    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshotOf(1, 1, threads, Placement.OnLine(LineLocation(0, 0, 0))), mode = DiffMode.Split) } }
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshotOf(1, 1, threads, Placement.OnLine(LineLocation(0))), mode = DiffMode.Split) } }
     val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
     val old = onNodeWithTag("thread-t1").fetchSemanticsNode().boundsInRoot
     val new = onNodeWithTag("thread-t2").fetchSemanticsNode().boundsInRoot
@@ -1898,7 +1898,7 @@ class ViewerScreenTest {
   fun splitDraftRendersInItsColumn() = runComposeUiTest {
     val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 1, 1))
     val review = reviewState(ui)
-    review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 0, io.github.mataku.kdiffviewer.core.review.Side.Old)!!, Placement.OnLine(LineLocation(0, 0, 0))))
+    review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 0, io.github.mataku.kdiffviewer.core.review.Side.Old)!!, Placement.OnLine(LineLocation(0))))
     setContent {
       val snapshot by review.snapshot.collectAsState()
       CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
@@ -1912,7 +1912,7 @@ class ViewerScreenTest {
   fun draftSurvivesModeSwitch() = runComposeUiTest {
     val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 1, 1))
     val review = reviewState(ui)
-    review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 0, io.github.mataku.kdiffviewer.core.review.Side.New)!!, Placement.OnLine(LineLocation(0, 0, 0))))
+    review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 0, io.github.mataku.kdiffviewer.core.review.Side.New)!!, Placement.OnLine(LineLocation(0))))
     var mode by mutableStateOf(DiffMode.Unified)
     setContent {
       val snapshot by review.snapshot.collectAsState()
@@ -1943,7 +1943,7 @@ class ViewerScreenTest {
   }
 
   private fun ReviewState.addPending(ui: ViewerUiState) {
-    startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0, 0, 1))))
+    startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 1)!!, Placement.OnLine(LineLocation(0))))
     updateDraft("pending one")
     submitDraft(DraftMode.Review)
   }

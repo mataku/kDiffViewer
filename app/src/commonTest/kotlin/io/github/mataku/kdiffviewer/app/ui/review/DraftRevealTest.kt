@@ -28,10 +28,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.time.Instant
+import io.github.mataku.kdiffviewer.core.review.Side as ReviewSide
 
 class DraftRevealTest {
   private val at = Instant.fromEpochSeconds(0)
-  private val onLine = Placement.OnLine(LineLocation(1, 0, 1))
+  private val onLine = Placement.OnLine(LineLocation(1))
+  private val newLine = Anchor.Lines("b.kt", ReviewSide.New, 2, 2, listOf("b"))
+  private val oldLine = Anchor.Lines("b.kt", ReviewSide.Old, 2, 2, listOf("b"))
   private val placed = ReviewThread("t1", Anchor.File("a.kt"), listOf(Comment("c1", Author.User, "x", at)), false, false)
   private val unplaced = ReviewThread("t2", Anchor.File("b.kt"), listOf(Comment("c2", Author.User, "y", at)), false, false)
   private val threads = listOf(placed, unplaced)
@@ -69,9 +72,9 @@ class DraftRevealTest {
     val ui = stateOf(listOf(file("a.kt"), file("b.kt")))
     val layout = diffLayoutOf(ui)
     val display = ui.displayRows(DiffMode.Unified)
-    assertEquals(layout.visibleIndexOf(ui.fileHeaderRowIndex[1] + 3), revealIndex(onLine, layout, ui.rows, display, null))
-    assertEquals(layout.headerVisibleIndex(1), revealIndex(Placement.OnFile(1), layout, ui.rows, display, null))
-    assertEquals(0, revealIndex(Placement.Orphan, layout, ui.rows, display, null))
+    assertEquals(layout.visibleIndexOf(ui.fileHeaderRowIndex[1] + 3), revealIndex(onLine, newLine, layout, ui.rows, display))
+    assertEquals(layout.headerVisibleIndex(1), revealIndex(Placement.OnFile(1), null, layout, ui.rows, display))
+    assertEquals(0, revealIndex(Placement.Orphan, null, layout, ui.rows, display))
   }
 
   @Test
@@ -80,7 +83,7 @@ class DraftRevealTest {
     val ui = base.copy(collapsed = setOf(CollapsedFile(base.files[1].displayPath, base.fingerprints[1])))
     val layout = diffLayoutOf(ui)
     val display = ui.displayRows(DiffMode.Unified)
-    assertEquals(layout.headerVisibleIndex(1), revealIndex(onLine, layout, ui.rows, display, null))
+    assertEquals(layout.headerVisibleIndex(1), revealIndex(onLine, newLine, layout, ui.rows, display))
   }
 
   @Test
@@ -90,6 +93,20 @@ class DraftRevealTest {
     val layout = diffLayoutOf(ui, DiffMode.Split)
     val display = ui.displayRows(DiffMode.Split)
     val contextRow = ui.fileHeaderRowIndex[1] + 3
-    assertEquals(layout.visibleIndexOf(ui.split.splitIndexOf(contextRow)), revealIndex(onLine, layout, ui.rows, display, Side.Old))
+    assertEquals(layout.visibleIndexOf(ui.split.splitIndexOf(contextRow)), revealIndex(onLine, oldLine, layout, ui.rows, display))
+  }
+}
+
+class DraftAnchorTest {
+  private val at = Instant.fromEpochSeconds(0)
+  private val anchor = Anchor.Lines("a.kt", io.github.mataku.kdiffviewer.core.review.Side.New, 3, 3, listOf("c"))
+  private val thread = ReviewThread("t1", anchor, listOf(Comment("c1", Author.User, "x", at)), false, false)
+
+  @Test
+  fun draftAnchorComesFromTheTargetOrItsThread() {
+    assertEquals(anchor, draftAnchor(DraftTarget.NewThread(anchor, Placement.OnLine(LineLocation(0))), emptyList()))
+    assertEquals(anchor, draftAnchor(DraftTarget.Reply("t1"), listOf(thread)))
+    assertEquals(anchor, draftAnchor(DraftTarget.Edit("c1"), listOf(thread)))
+    assertNull(draftAnchor(DraftTarget.Reply("t9"), listOf(thread)))
   }
 }

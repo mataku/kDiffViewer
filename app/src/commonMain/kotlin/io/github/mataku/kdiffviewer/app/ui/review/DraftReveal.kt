@@ -6,7 +6,10 @@ import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.DisplayRows
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
+import io.github.mataku.kdiffviewer.app.review.toSide
+import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.Side
+import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.ReviewThread
 
@@ -37,25 +40,27 @@ internal fun Placement.fileIndexOrNull(): Int? = when (this) {
   Placement.Orphan -> null
 }
 
-internal fun revealIndex(placement: Placement, layout: DiffLayout, rows: List<DiffRow>, display: DisplayRows, side: Side?): Int {
+internal fun draftAnchor(target: DraftTarget, threads: List<ReviewThread>): Anchor? = when (target) {
+  is DraftTarget.NewThread -> target.anchor
+  is DraftTarget.Reply -> threads.firstOrNull { it.id == target.threadId }?.anchor
+  is DraftTarget.Edit -> threads.firstOrNull { thread -> thread.comments.any { it.id == target.commentId } }?.anchor
+}
+
+internal fun revealIndex(placement: Placement, anchor: Anchor?, layout: DiffLayout, rows: List<DiffRow>, display: DisplayRows): Int {
   val fileIndex = placement.fileIndexOrNull()
   if (fileIndex == null || fileIndex >= layout.fileCount) return 0
   val header = layout.headerRowIndex(fileIndex)
-  if (placement !is Placement.OnLine) return layout.headerVisibleIndex(fileIndex)
-  val location = placement.location
+  val lines = anchor as? Anchor.Lines
+  if (placement !is Placement.OnLine || lines == null) return layout.headerVisibleIndex(fileIndex)
+  val side = lines.side.toSide()
   fun matches(unifiedRow: Int): Boolean {
-    val row = rows.getOrNull(unifiedRow) as? DiffRow.Line ?: return false
-    return row.hunkIndex == location.hunkIndex && row.lineIndex == location.lineIndex
+    val line = (rows.getOrNull(unifiedRow) as? DiffRow.Line)?.line ?: return false
+    if (line.kind == LineKind.NoNewlineAtEof) return false
+    return (if (side == Side.Old) line.oldLineNo else line.newLineNo) == lines.endLine
   }
   for (offset in 1..layout.bodyRowCount(fileIndex)) {
     val displayRow = header + offset
-    val hit = if (display.mode == DiffMode.Unified) {
-      matches(displayRow)
-    } else if (side == null) {
-      matches(display.unifiedOf(displayRow, Side.Old)) || matches(display.unifiedOf(displayRow, Side.New))
-    } else {
-      matches(display.unifiedOf(displayRow, side))
-    }
+    val hit = if (display.mode == DiffMode.Unified) matches(displayRow) else matches(display.unifiedOf(displayRow, side))
     if (hit) return layout.visibleIndexOf(displayRow)
   }
   return layout.headerVisibleIndex(fileIndex)

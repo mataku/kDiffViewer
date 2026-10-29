@@ -26,7 +26,7 @@ class ReanchorTest {
     val anchor = linesAnchor("a.kt", Side.New, 3, 3, "c")
     val (result, placement) = reanchor(thread(anchor), files)
     assertEquals(anchor, result.anchor)
-    assertEquals(Placement.OnLine(LineLocation(0, 0, 2)), placement)
+    assertEquals(Placement.OnLine(LineLocation(0)), placement)
     assertEquals(false, result.outdated)
   }
 
@@ -35,7 +35,7 @@ class ReanchorTest {
     val files = listOf(modified("a.kt", hunk(added("n1", 1), added("n2", 2), ctx("a", 1, 3), ctx("b", 2, 4))))
     val (result, placement) = reanchor(linesAnchor("a.kt", Side.New, 2, 2, "b"), files)
     assertEquals(linesAnchor("a.kt", Side.New, 4, 4, "b"), result)
-    assertEquals(Placement.OnLine(LineLocation(0, 0, 3)), placement)
+    assertEquals(Placement.OnLine(LineLocation(0)), placement)
   }
 
   private fun braceFile() = listOf(
@@ -51,7 +51,7 @@ class ReanchorTest {
   fun duplicateSnapshotPicksNearest() {
     val (result, placement) = reanchor(linesAnchor("a.kt", Side.New, 12, 12, "}"), braceFile())
     assertEquals(linesAnchor("a.kt", Side.New, 10, 10, "}"), result)
-    assertEquals(Placement.OnLine(LineLocation(0, 1, 0)), placement)
+    assertEquals(Placement.OnLine(LineLocation(0)), placement)
   }
 
   @Test
@@ -75,7 +75,8 @@ class ReanchorTest {
     val files = listOf(modified("a.kt", hunk(ctx("a", 1, 1))))
     val (result, placement) = reanchor(thread(linesAnchor("a.kt", Side.New, 1, 1, "a"), outdated = true), files)
     assertEquals(false, result.outdated)
-    assertEquals(Placement.OnLine(LineLocation(0, 0, 0)), placement)
+    assertEquals(linesAnchor("a.kt", Side.New, 1, 1, "a"), result.anchor)
+    assertEquals(Placement.OnLine(LineLocation(0)), placement)
   }
 
   @Test
@@ -110,7 +111,7 @@ class ReanchorTest {
     val files = listOf(modified("a.kt", hunk(ctx("a", 1, 1), removed("x", 2), added("y", 2))))
     val (result, placement) = reanchor(linesAnchor("a.kt", Side.Old, 2, 2, "x"), files)
     assertEquals(linesAnchor("a.kt", Side.Old, 2, 2, "x"), result)
-    assertEquals(Placement.OnLine(LineLocation(0, 0, 1)), placement)
+    assertEquals(Placement.OnLine(LineLocation(0)), placement)
   }
 
   @Test
@@ -125,7 +126,7 @@ class ReanchorTest {
     val joined = listOf(modified("a.kt", hunk(ctx("z", 1, 1), ctx("a", 2, 2), ctx("b", 3, 3))))
     val (joinedResult, joinedPlacement) = reanchor(anchor, joined)
     assertEquals(linesAnchor("a.kt", Side.New, 2, 3, "a", "b"), joinedResult)
-    assertEquals(Placement.OnLine(LineLocation(0, 0, 2)), joinedPlacement)
+    assertEquals(Placement.OnLine(LineLocation(0)), joinedPlacement)
   }
 
   @Test
@@ -134,8 +135,8 @@ class ReanchorTest {
       deletedFile("x.txt", hunk(removed("a", 1))),
       addedFile("x.txt", hunk(added("a", 1)), untracked = true),
     )
-    assertEquals(Placement.OnLine(LineLocation(0, 0, 0)), reanchor(linesAnchor("x.txt", Side.Old, 1, 1, "a"), files).second)
-    assertEquals(Placement.OnLine(LineLocation(1, 0, 0)), reanchor(linesAnchor("x.txt", Side.New, 1, 1, "a"), files).second)
+    assertEquals(Placement.OnLine(LineLocation(0)), reanchor(linesAnchor("x.txt", Side.Old, 1, 1, "a"), files).second)
+    assertEquals(Placement.OnLine(LineLocation(1)), reanchor(linesAnchor("x.txt", Side.New, 1, 1, "a"), files).second)
   }
 
   @Test
@@ -145,5 +146,15 @@ class ReanchorTest {
     val (result, _) = reanchor(original, files)
     assertEquals(true, result.resolved)
     assertEquals(original.comments, result.comments)
+  }
+
+  @Test
+  fun locateFindsTheRowOfASideAndLine() {
+    val file = modified("a.kt", hunk(ctx("a", 1, 1), removed("r", 2), added("n", 2), ctx("z", 3, 3)), hunk(ctx("y", 10, 10), added("m", 11)))
+    assertEquals(HunkLine(0, 1), file.locate(Side.Old, 2))
+    assertEquals(HunkLine(0, 2), file.locate(Side.New, 2))
+    assertEquals(HunkLine(0, 3), file.locate(Side.Old, 3))
+    assertEquals(HunkLine(1, 1), file.locate(Side.New, 11))
+    assertEquals(null, file.locate(Side.New, 5))
   }
 }

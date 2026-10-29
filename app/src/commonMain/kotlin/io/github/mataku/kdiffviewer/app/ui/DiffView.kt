@@ -66,6 +66,7 @@ import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewPlacements
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.linePosition
+import io.github.mataku.kdiffviewer.app.review.sidePosition
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.SelectionSource
 import io.github.mataku.kdiffviewer.app.ui.mac.MacInlineError
@@ -168,7 +169,7 @@ fun DiffView(
   val shown = placements.loadId == loadId
   val draft = if (shown) draftTarget else null
   val draftPlacement = (draft as? DraftTarget.NewThread)?.placement
-  val draftLinePos = remember(draftPlacement) { (draftPlacement as? Placement.OnLine)?.location?.let { linePosition(it.fileIndex, it.hunkIndex, it.lineIndex) } ?: -1L }
+  val draftLinePos = remember(draft) { draftLinePosition(draft) }
   val draftFileIndex = remember(draftPlacement) { (draftPlacement as? Placement.OnFile)?.fileIndex ?: -1 }
   val hasLineThreads = shown && placements.byLine.isNotEmpty()
   val hoveredKey = remember { mutableStateOf<String?>(null) }
@@ -256,8 +257,9 @@ fun DiffView(
 
                 is DiffRow.Line -> {
                   val slot = highlights.getOrNull(row.fileIndex)
-                  val leftPos = if (leftRow != null && (hasLineThreads || draftLinePos >= 0)) linePosition(leftRow.fileIndex, leftRow.hunkIndex, leftRow.lineIndex) else -1L
-                  val rightPos = if (rightRow != null && (hasLineThreads || draftLinePos >= 0)) linePosition(rightRow.fileIndex, rightRow.hunkIndex, rightRow.lineIndex) else -1L
+                  val needsPositions = hasLineThreads || draftLinePos >= 0
+                  val leftPos = if (needsPositions) sidePositionOf(leftRow, ReviewSide.Old) else -1L
+                  val rightPos = if (needsPositions) sidePositionOf(rightRow, ReviewSide.New) else -1L
                   val leftAll = if (hasLineThreads && leftPos >= 0) placements.byLine[leftPos] else null
                   val rightAll = if (hasLineThreads && rightPos >= 0) placements.byLine[rightPos] else null
                   val leftThreads = leftAll?.filter { (it.anchor as? Anchor.Lines)?.side == ReviewSide.Old }.orEmpty()
@@ -293,9 +295,11 @@ fun DiffView(
 
                 is DiffRow.Line -> {
                   val slot = highlights.getOrNull(row.fileIndex)
-                  val position = if (hasLineThreads || draftLinePos >= 0) linePosition(row.fileIndex, row.hunkIndex, row.lineIndex) else -1L
-                  val threads = if (hasLineThreads) placements.byLine[position] else null
-                  val composing = position >= 0 && position == draftLinePos
+                  val needsPositions = hasLineThreads || draftLinePos >= 0
+                  val oldPos = if (needsPositions) sidePositionOf(row, ReviewSide.Old) else -1L
+                  val newPos = if (needsPositions) sidePositionOf(row, ReviewSide.New) else -1L
+                  val threads = if (hasLineThreads) concatOrNull(placements.byLine[oldPos], placements.byLine[newPos]) else null
+                  val composing = draftLinePos >= 0 && (oldPos == draftLinePos || newPos == draftLinePos)
                   if (threads == null && !composing) {
                     LineRow(row, bodyStart + offset, slot, hoveredKey, commentable, selection, layouts, rangeState)
                   } else {
@@ -318,6 +322,26 @@ fun DiffView(
     }
     MacOverlayScrollbar(listState, Modifier.align(Alignment.CenterEnd).padding(end = 4.dp))
   }
+}
+
+private fun draftLinePosition(draft: DraftTarget?): Long {
+  val target = draft as? DraftTarget.NewThread ?: return -1L
+  val anchor = target.anchor as? Anchor.Lines ?: return -1L
+  val placement = target.placement as? Placement.OnLine ?: return -1L
+  return sidePosition(placement.location.fileIndex, anchor.side, anchor.endLine)
+}
+
+private fun sidePositionOf(row: DiffRow.Line?, side: ReviewSide): Long {
+  val line = row?.line ?: return -1L
+  if (line.kind == LineKind.NoNewlineAtEof) return -1L
+  val number = (if (side == ReviewSide.Old) line.oldLineNo else line.newLineNo) ?: return -1L
+  return sidePosition(row.fileIndex, side, number)
+}
+
+private fun concatOrNull(first: List<ReviewThread>?, second: List<ReviewThread>?): List<ReviewThread>? = when {
+  first == null -> second
+  second == null -> first
+  else -> first + second
 }
 
 private fun keyAt(listState: LazyListState, y: Float): String? = listState.layoutInfo.visibleItemsInfo.firstOrNull { y >= it.offset && y < it.offset + it.size }?.key as? String

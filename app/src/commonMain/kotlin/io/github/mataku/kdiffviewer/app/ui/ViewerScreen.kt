@@ -77,6 +77,7 @@ import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewInProgress
 import io.github.mataku.kdiffviewer.app.ui.review.RevealingReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.ReviewBar
+import io.github.mataku.kdiffviewer.app.ui.review.draftAnchor
 import io.github.mataku.kdiffviewer.app.ui.review.draftPlacement
 import io.github.mataku.kdiffviewer.app.ui.review.fileIndexOrNull
 import io.github.mataku.kdiffviewer.app.ui.review.revealIndex
@@ -181,7 +182,7 @@ fun ViewerScreen(
       currentOnExpandFile(fileIndex)
       withTimeoutOrNull(1_000) { snapshotFlow { currentLayout }.first { !it.isCollapsed(fileIndex) } }
     }
-    val index = revealIndex(placement, currentLayout, currentState.rows, currentDisplay, ((target as? DraftTarget.NewThread)?.anchor as? Anchor.Lines)?.side?.toSide())
+    val index = revealIndex(placement, draftAnchor(target, snapshot.threads), currentLayout, currentState.rows, currentDisplay)
     listState.scrollToItem(index)
     if (fileIndex != null && placement is Placement.OnLine) {
       val headerKey = currentState.rows[currentDisplay.unifiedOf(currentLayout.headerRowIndex(fileIndex))].key
