@@ -27,7 +27,9 @@ import io.github.mataku.kdiffviewer.core.model.Side
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.LineLocation
 import io.github.mataku.kdiffviewer.core.review.Placement
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
@@ -75,9 +77,11 @@ class DiffViewerExpansionTest {
 
   private class FakeWorkingTree(val entries: MutableMap<String, UntrackedEntry>) : WorkingTreeReader {
     val reads = mutableListOf<Pair<String, Long>>()
+    val contexts = mutableListOf<String?>()
 
     override suspend fun read(root: String, relativePath: String, maxBytes: Long): UntrackedEntry {
       reads += relativePath to maxBytes
+      contexts += currentCoroutineContext()[CoroutineName]?.name
       return entries[relativePath] ?: UntrackedEntry.Unreadable
     }
   }
@@ -301,5 +305,31 @@ class DiffViewerExpansionTest {
     val thread = review.snapshot.value.threads.single()
     assertFalse(thread.outdated)
     assertEquals(listOf(thread), review.snapshot.value.placements.byLine[sidePosition(0, ReviewSide.New, 20)])
+  }
+
+  @Test
+  fun expansionWorkRunsInLoadContext() = runTest(StandardTestDispatcher()) {
+    val tree = FakeWorkingTree(mutableMapOf("f.kt" to regular(lines)))
+    val state = DiffViewerState(FakeSource { flow { emit(file("f.kt")) } }, this, 16, loadContext = CoroutineName("load"), workingTree = tree)
+    state.open(repo)
+    advanceUntilIdle()
+    state.expandContext(0, 1, ExpandDirection.Down)
+    advanceUntilIdle()
+    state.reload()
+    advanceUntilIdle()
+    assertEquals(listOf<String?>("load", "load"), tree.contexts)
+  }
+
+  @Test
+  fun repeatedExpandAllIsANoOp() = runTest(StandardTestDispatcher()) {
+    val state = stateWith(FakeWorkingTree(mutableMapOf("f.kt" to regular(lines))), file("f.kt"))
+    state.open(repo)
+    advanceUntilIdle()
+    state.expandContext(0, 1, ExpandDirection.All)
+    advanceUntilIdle()
+    val before = state.uiState.value
+    state.expandContext(0, 1, ExpandDirection.All)
+    advanceUntilIdle()
+    assertSame(before, state.uiState.value)
   }
 }
