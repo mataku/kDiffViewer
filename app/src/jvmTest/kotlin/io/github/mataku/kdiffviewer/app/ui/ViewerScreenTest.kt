@@ -275,13 +275,13 @@ class ViewerScreenTest {
     }
     val file = FileDiff("long.kt", "long.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 121, 1, 121, "", body))))
     val ui = stateOf(listOf(file)).let { it.copy(split = splitRowsOf(it.rows)) }
-    var mode by mutableStateOf(DiffMode.Unified)
-    setContent { ViewerScreen(ui, {}, mode = mode) }
+    val screen = ViewerScreenState(mode = DiffMode.Unified)
+    setContent { ViewerScreen(ui, {}, screenState = screen) }
     onNodeWithTag("diff-list").performScrollToIndex(ui.rows.indexOfFirst { it is DiffRow.Line && it.line.text == "REMOVED_LINE" })
     waitForIdle()
     val listTop = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot.top
     val unifiedTop = onNodeWithText("REMOVED_LINE").fetchSemanticsNode().boundsInRoot.top - listTop
-    mode = DiffMode.Split
+    screen.changeMode(DiffMode.Split)
     waitForIdle()
     val splitTop = onNodeWithText("REMOVED_LINE").fetchSemanticsNode().boundsInRoot.top - listTop
     assertEquals(unifiedTop, splitTop)
@@ -298,23 +298,23 @@ class ViewerScreenTest {
 
   @Test
   fun modeControlSwitchesToSplit() = runComposeUiTest {
-    val changes = mutableListOf<DiffMode>()
-    setContent { ViewerScreen(stateOf(emptyList()), {}, mode = DiffMode.Unified, onModeChange = { changes += it }) }
+    val screen = ViewerScreenState(mode = DiffMode.Unified)
+    setContent { ViewerScreen(stateOf(emptyList()), {}, screenState = screen) }
     onNodeWithTag("diff-mode-split").performClick()
-    assertEquals(listOf(DiffMode.Split), changes)
+    assertEquals(DiffMode.Split, screen.mode)
   }
 
   @Test
   fun clickingCurrentModeIsNoOp() = runComposeUiTest {
-    val changes = mutableListOf<DiffMode>()
-    setContent { ViewerScreen(stateOf(emptyList()), {}, mode = DiffMode.Unified, onModeChange = { changes += it }) }
+    val screen = ViewerScreenState(mode = DiffMode.Unified)
+    setContent { ViewerScreen(stateOf(emptyList()), {}, screenState = screen) }
     onNodeWithTag("diff-mode-unified").performClick()
-    assertEquals(emptyList(), changes)
+    assertEquals(DiffMode.Unified, screen.mode)
   }
 
   @Test
   fun modeControlMarksSelected() = runComposeUiTest {
-    setContent { ViewerScreen(stateOf(emptyList()), {}, mode = DiffMode.Split) }
+    setContent { ViewerScreen(stateOf(emptyList()), {}, screenState = rememberViewerScreenState(mode = DiffMode.Split)) }
     assertEquals(true, onNodeWithTag("diff-mode-split").fetchSemanticsNode().config[SemanticsProperties.Selected])
     assertEquals(false, onNodeWithTag("diff-mode-unified").fetchSemanticsNode().config[SemanticsProperties.Selected])
   }
@@ -451,7 +451,7 @@ class ViewerScreenTest {
   fun hiddenFromStartHasNoTreeAndFullWidthDiff() = runComposeUiTest {
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {
-        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = false)
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, screenState = rememberViewerScreenState(sidebarVisible = false))
       }
     }
     onNodeWithTag("tree-panel").assertDoesNotExist()
@@ -462,14 +462,14 @@ class ViewerScreenTest {
 
   @Test
   fun hidingRemovesTreeAfterAnimation() = runComposeUiTest {
-    var visible by mutableStateOf(true)
+    val screen = ViewerScreenState(sidebarVisible = true)
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {
-        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible)
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, screenState = screen)
       }
     }
     mainClock.autoAdvance = false
-    visible = false
+    screen.toggleSidebar()
     mainClock.advanceTimeBy(100)
     onNodeWithTag("tree-panel").assertExists()
     val diff = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
@@ -480,14 +480,14 @@ class ViewerScreenTest {
 
   @Test
   fun showingNarrowsDiffOnlyAtEnd() = runComposeUiTest {
-    var visible by mutableStateOf(false)
+    val screen = ViewerScreenState(sidebarVisible = false)
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {
-        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible)
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, screenState = screen)
       }
     }
     mainClock.autoAdvance = false
-    visible = true
+    screen.toggleSidebar()
     mainClock.advanceTimeBy(100)
     onNodeWithTag("tree-panel").assertExists()
     val midway = onNodeWithTag("diff-column").getUnclippedBoundsInRoot()
@@ -502,10 +502,10 @@ class ViewerScreenTest {
 
   @Test
   fun hideShowKeepsTreeWidthAndScroll() = runComposeUiTest {
-    var visible by mutableStateOf(true)
+    val screen = ViewerScreenState(sidebarVisible = true)
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {
-        ViewerScreen(stateOf((0 until 40).map { modified("f${it.toString().padStart(2, '0')}.kt") }), {}, sidebarVisible = visible)
+        ViewerScreen(stateOf((0 until 40).map { modified("f${it.toString().padStart(2, '0')}.kt") }), {}, screenState = screen)
       }
     }
     onNodeWithTag("tree-divider").performMouseInput {
@@ -518,10 +518,10 @@ class ViewerScreenTest {
     waitForIdle()
     val width = onNodeWithTag("tree-panel").getUnclippedBoundsInRoot().let { it.right - it.left }
     val row = onNodeWithTag("tree-file-30").getUnclippedBoundsInRoot()
-    visible = false
+    screen.toggleSidebar()
     waitForIdle()
     onNodeWithTag("tree-panel").assertDoesNotExist()
-    visible = true
+    screen.toggleSidebar()
     waitForIdle()
     assertEquals(width, onNodeWithTag("tree-panel").getUnclippedBoundsInRoot().let { it.right - it.left })
     assertEquals(row, onNodeWithTag("tree-file-30").getUnclippedBoundsInRoot())
@@ -529,12 +529,12 @@ class ViewerScreenTest {
 
   @Test
   fun hideShowKeepsFilterText() = runComposeUiTest {
-    var visible by mutableStateOf(true)
-    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"), modified("b.kt"))), {}, sidebarVisible = visible) }
+    val screen = ViewerScreenState(sidebarVisible = true)
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"), modified("b.kt"))), {}, screenState = screen) }
     onNodeWithTag("tree-filter").performTextInput("b.kt")
-    visible = false
+    screen.toggleSidebar()
     waitForIdle()
-    visible = true
+    screen.toggleSidebar()
     waitForIdle()
     onNodeWithTag("tree-file-0").assertDoesNotExist()
     onNodeWithTag("tree-file-1").assertExists()
@@ -557,20 +557,18 @@ class ViewerScreenTest {
   @Test
   fun sidebarButtonTogglesInBothStatesAndIsClientRegion() = runComposeUiTest {
     val regions = TitleBarRegions()
-    var visible by mutableStateOf(true)
-    var toggles = 0
+    val screen = ViewerScreenState(sidebarVisible = true)
     setContent {
       CompositionLocalProvider(LocalTitleBarRegions provides regions) {
-        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible, onToggleSidebar = { toggles++ })
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, screenState = screen)
       }
     }
     val control = onNodeWithTag("sidebar-control").fetchSemanticsNode().boundsInWindow
     assertTrue(regions.isClientArea(control.center))
     onNodeWithTag("sidebar-control").performClick()
-    assertEquals(1, toggles)
-    visible = false
+    assertFalse(screen.sidebarVisible)
     onNodeWithTag("sidebar-control").performClick()
-    assertEquals(2, toggles)
+    assertTrue(screen.sidebarVisible)
   }
 
   @Test
@@ -591,10 +589,10 @@ class ViewerScreenTest {
 
   @Test
   fun sidebarButtonDescribesTheAction() = runComposeUiTest {
-    var visible by mutableStateOf(true)
-    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible) }
+    val screen = ViewerScreenState(sidebarVisible = true)
+    setContent { ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, screenState = screen) }
     onNodeWithContentDescription("Hide Sidebar").assertExists()
-    visible = false
+    screen.toggleSidebar()
     waitForIdle()
     onNodeWithContentDescription("Show Sidebar").assertExists()
     onNodeWithContentDescription("Hide Sidebar").assertDoesNotExist()
@@ -624,21 +622,21 @@ class ViewerScreenTest {
 
   @Test
   fun repoNameStaysPutWhileTreeToggles() = runComposeUiTest {
-    var visible by mutableStateOf(true)
+    val screen = ViewerScreenState(sidebarVisible = true)
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {
-        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = visible)
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, screenState = screen)
       }
     }
     val before = onNodeWithTag("repo-name").getUnclippedBoundsInRoot()
     mainClock.autoAdvance = false
-    visible = false
+    screen.toggleSidebar()
     mainClock.advanceTimeBy(100)
     assertEquals(before, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
     mainClock.autoAdvance = true
     waitForIdle()
     assertEquals(before, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
-    visible = true
+    screen.toggleSidebar()
     waitForIdle()
     assertEquals(before, onNodeWithTag("repo-name").getUnclippedBoundsInRoot())
   }
@@ -647,7 +645,7 @@ class ViewerScreenTest {
   fun repoNameKeepsTogglePositionWhenStartingHidden() = runComposeUiTest {
     setContent {
       Box(modifier = Modifier.size(800.dp, 600.dp)) {
-        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, sidebarVisible = false)
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, screenState = rememberViewerScreenState(sidebarVisible = false))
       }
     }
     val toggle = onNodeWithTag("sidebar-control").getUnclippedBoundsInRoot()
@@ -846,10 +844,10 @@ class ViewerScreenTest {
 
   @Test
   fun treeWidthComesFromAndGoesToHoistedState() = runComposeUiTest {
-    val treeWidth = mutableStateOf(400.dp)
+    val screen = ViewerScreenState(treeWidth = 400.dp)
     setContent {
       Box(modifier = Modifier.size(1000.dp, 600.dp)) {
-        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, treeWidth = treeWidth)
+        ViewerScreen(stateOf(listOf(modified("a.kt"))), {}, screenState = screen)
       }
     }
     assertEquals(with(density) { 400.dp.toPx() }, onNodeWithTag("file-tree").fetchSemanticsNode().boundsInRoot.width)
@@ -860,7 +858,7 @@ class ViewerScreenTest {
       release()
     }
     waitForIdle()
-    assertEquals(MinTreeWidth, treeWidth.value)
+    assertEquals(MinTreeWidth, screen.treeWidth)
   }
 
   @Test
@@ -1723,8 +1721,9 @@ class ViewerScreenTest {
 
   @Test
   fun scrollJumpBottomShowsFooter() = runComposeUiTest {
-    val jumps = ScrollJumps()
-    setContent { ViewerScreen(stateOf((0 until 30).map { modified("f$it.kt", 20) }), {}, scrollJumps = jumps) }
+    val screen = ViewerScreenState()
+    val jumps = screen.scrollJumps
+    setContent { ViewerScreen(stateOf((0 until 30).map { modified("f$it.kt", 20) }), {}, screenState = screen) }
     waitForIdle()
     jumps.request(ScrollJump.Bottom)
     waitForIdle()
@@ -1733,8 +1732,9 @@ class ViewerScreenTest {
 
   @Test
   fun scrollJumpTopReturnsToFirstItem() = runComposeUiTest {
-    val jumps = ScrollJumps()
-    setContent { ViewerScreen(stateOf((0 until 30).map { modified("f$it.kt", 20) }), {}, scrollJumps = jumps) }
+    val screen = ViewerScreenState()
+    val jumps = screen.scrollJumps
+    setContent { ViewerScreen(stateOf((0 until 30).map { modified("f$it.kt", 20) }), {}, screenState = screen) }
     waitForIdle()
     jumps.request(ScrollJump.Bottom)
     waitForIdle()
@@ -1746,8 +1746,9 @@ class ViewerScreenTest {
 
   @Test
   fun scrollJumpOnNoChangesIsNoOp() = runComposeUiTest {
-    val jumps = ScrollJumps()
-    setContent { ViewerScreen(stateOf(emptyList()), {}, scrollJumps = jumps) }
+    val screen = ViewerScreenState()
+    val jumps = screen.scrollJumps
+    setContent { ViewerScreen(stateOf(emptyList()), {}, screenState = screen) }
     waitForIdle()
     jumps.request(ScrollJump.Bottom)
     waitForIdle()
@@ -1765,7 +1766,7 @@ class ViewerScreenTest {
   @Test
   fun splitShowsPairInOneItem() = runComposeUiTest {
     val state = splitState(DiffLine(LineKind.Removed, "oldtext", 1, null), DiffLine(LineKind.Added, "newtext", null, 1))
-    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split) } }
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, screenState = rememberViewerScreenState(mode = DiffMode.Split)) } }
     val old = onNodeWithText("oldtext", useUnmergedTree = true).getUnclippedBoundsInRoot()
     val new = onNodeWithText("newtext", useUnmergedTree = true).getUnclippedBoundsInRoot()
     assertEquals(old.top, new.top)
@@ -1779,7 +1780,7 @@ class ViewerScreenTest {
       DiffLine(LineKind.Removed, "bbb", 2, null),
       DiffLine(LineKind.Added, "ccc", null, 1),
     )
-    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split) } }
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, screenState = rememberViewerScreenState(mode = DiffMode.Split)) } }
     val a = onNodeWithText("aaa", useUnmergedTree = true).getUnclippedBoundsInRoot()
     val b = onNodeWithText("bbb", useUnmergedTree = true).getUnclippedBoundsInRoot()
     val c = onNodeWithText("ccc", useUnmergedTree = true).getUnclippedBoundsInRoot()
@@ -1799,7 +1800,7 @@ class ViewerScreenTest {
     val text = "lorem ".repeat(80)
     val file = FileDiff("a.kt", "a.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", listOf(DiffLine(LineKind.Added, text, null, 1))))))
     val state = stateOf(listOf(file))
-    setContent { Box(modifier = Modifier.size(700.dp, 500.dp)) { ViewerScreen(state, {}, sidebarVisible = false) } }
+    setContent { Box(modifier = Modifier.size(700.dp, 500.dp)) { ViewerScreen(state, {}, screenState = rememberViewerScreenState(sidebarVisible = false)) } }
     val t = onNodeWithText(text, useUnmergedTree = true).getUnclippedBoundsInRoot()
     assertTrue(t.bottom - t.top > 30.dp, "t=$t")
     val pixels = listPixels()
@@ -1815,7 +1816,7 @@ class ViewerScreenTest {
   fun splitWrappedSideFillsOtherHalfToRowBottom() = runComposeUiTest {
     val text = "lorem ".repeat(80)
     val state = splitState(DiffLine(LineKind.Removed, "a", 1, null), DiffLine(LineKind.Added, text, null, 1))
-    setContent { Box(modifier = Modifier.size(900.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split, sidebarVisible = false) } }
+    setContent { Box(modifier = Modifier.size(900.dp, 500.dp)) { ViewerScreen(state, {}, screenState = rememberViewerScreenState(mode = DiffMode.Split, sidebarVisible = false)) } }
     val t = onNodeWithText(text, useUnmergedTree = true).getUnclippedBoundsInRoot()
     assertTrue(t.bottom - t.top > 30.dp, "t=$t")
     val pixels = listPixels()
@@ -1830,7 +1831,7 @@ class ViewerScreenTest {
   @Test
   fun splitOrphanPressWithNoFilesDoesNotCrash() = runComposeUiTest {
     val ui = stateOf(emptyList()).copy(loadId = 1)
-    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshotOf(1, 1, listOf(staticThread()), null), mode = DiffMode.Split) } }
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshotOf(1, 1, listOf(staticThread()), null), screenState = rememberViewerScreenState(mode = DiffMode.Split)) } }
     onNodeWithTag("diff-list").performMouseInput {
       moveTo(Offset(20f, 10f))
       press()
@@ -1843,7 +1844,7 @@ class ViewerScreenTest {
   @Test
   fun splitContextOnBothSides() = runComposeUiTest {
     val state = splitState(DiffLine(LineKind.Context, "same", 1, 1))
-    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = DiffMode.Split) } }
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, screenState = rememberViewerScreenState(mode = DiffMode.Split)) } }
     onAllNodesWithText("same", useUnmergedTree = true).assertCountEquals(2)
   }
 
@@ -1857,7 +1858,7 @@ class ViewerScreenTest {
     val review = reviewState(ui)
     setContent {
       val snapshot by review.snapshot.collectAsState()
-      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, screenState = rememberViewerScreenState(mode = DiffMode.Split)) } }
     }
     val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
     onAllNodesWithText("same", useUnmergedTree = true)[0].performMouseInput { moveTo(center) }
@@ -1876,7 +1877,7 @@ class ViewerScreenTest {
     val review = reviewState(ui)
     setContent {
       val snapshot by review.snapshot.collectAsState()
-      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, screenState = rememberViewerScreenState(mode = DiffMode.Split)) } }
     }
     onAllNodesWithText("same", useUnmergedTree = true)[0].performMouseInput { moveTo(center) }
     waitForIdle()
@@ -1898,7 +1899,7 @@ class ViewerScreenTest {
     val review = reviewState(ui)
     setContent {
       val snapshot by review.snapshot.collectAsState()
-      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, screenState = rememberViewerScreenState(mode = DiffMode.Split)) } }
     }
     onNodeWithText("fresh", useUnmergedTree = true).performMouseInput { moveTo(center) }
     waitForIdle()
@@ -1909,7 +1910,7 @@ class ViewerScreenTest {
   fun splitThreadRendersInItsColumn() = runComposeUiTest {
     val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 1, 1))
     val threads = listOf(anchoredThread("t1", io.github.mataku.kdiffviewer.core.review.Side.Old, 1), anchoredThread("t2", io.github.mataku.kdiffviewer.core.review.Side.New, 1))
-    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshotOf(1, 1, threads, Placement.OnLine(LineLocation(0))), mode = DiffMode.Split) } }
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshotOf(1, 1, threads, Placement.OnLine(LineLocation(0))), screenState = rememberViewerScreenState(mode = DiffMode.Split)) } }
     val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
     val old = onNodeWithTag("thread-t1").fetchSemanticsNode().boundsInRoot
     val new = onNodeWithTag("thread-t2").fetchSemanticsNode().boundsInRoot
@@ -1924,7 +1925,7 @@ class ViewerScreenTest {
     review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 0, io.github.mataku.kdiffviewer.core.review.Side.Old)!!, Placement.OnLine(LineLocation(0))))
     setContent {
       val snapshot by review.snapshot.collectAsState()
-      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = DiffMode.Split) } }
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, screenState = rememberViewerScreenState(mode = DiffMode.Split)) } }
     }
     val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
     val composer = onNodeWithTag("comment-composer").fetchSemanticsNode().boundsInRoot
@@ -1936,16 +1937,16 @@ class ViewerScreenTest {
     val ui = splitReviewUi(DiffLine(LineKind.Context, "same", 1, 1))
     val review = reviewState(ui)
     review.startDraft(DraftTarget.NewThread(anchorOf(ui.files[0], 0, 0, io.github.mataku.kdiffviewer.core.review.Side.New)!!, Placement.OnLine(LineLocation(0))))
-    var mode by mutableStateOf(DiffMode.Unified)
+    val screen = ViewerScreenState(mode = DiffMode.Unified)
     setContent {
       val snapshot by review.snapshot.collectAsState()
-      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = mode) } }
+      CompositionLocalProvider(LocalReviewActions provides review) { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, screenState = screen) } }
     }
     onNodeWithTag("comment-composer").performTextInput("typed")
-    mode = DiffMode.Split
+    screen.changeMode(DiffMode.Split)
     waitForIdle()
     onNodeWithTag("comment-composer").assertTextEquals("typed")
-    mode = DiffMode.Unified
+    screen.changeMode(DiffMode.Unified)
     waitForIdle()
     onNodeWithTag("comment-composer").assertTextEquals("typed")
   }
@@ -1953,12 +1954,12 @@ class ViewerScreenTest {
   @Test
   fun splitKeepsFileHeaderFullWidth() = runComposeUiTest {
     val state = splitState(DiffLine(LineKind.Removed, "oldtext", 1, null), DiffLine(LineKind.Added, "newtext", null, 1))
-    var mode by mutableStateOf(DiffMode.Unified)
-    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, mode = mode) } }
+    val screen = ViewerScreenState(mode = DiffMode.Unified)
+    setContent { Box(modifier = Modifier.size(1000.dp, 500.dp)) { ViewerScreen(state, {}, screenState = screen) } }
     val list = onNodeWithTag("diff-list").fetchSemanticsNode().boundsInRoot
     val margin = with(density) { ContentHorizontalMargin.toPx() }
     val unified = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot.width
-    mode = DiffMode.Split
+    screen.changeMode(DiffMode.Split)
     waitForIdle()
     val split = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot.width
     assertEquals(unified, split)

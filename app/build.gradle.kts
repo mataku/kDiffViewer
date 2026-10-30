@@ -64,6 +64,10 @@ kotlin {
   }
 }
 
+composeCompiler {
+  stabilityConfigurationFiles.add(layout.projectDirectory.file("compose-stability.conf"))
+}
+
 compose.resources {
   packageOfResClass = "io.github.mataku.kdiffviewer.app.generated.resources"
 }

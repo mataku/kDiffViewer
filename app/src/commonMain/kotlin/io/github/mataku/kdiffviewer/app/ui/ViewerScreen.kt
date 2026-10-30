@@ -23,8 +23,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,8 +49,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.CollapsedFile
+import io.github.mataku.kdiffviewer.app.DiffLayout
 import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
+import io.github.mataku.kdiffviewer.app.DisplayRows
+import io.github.mataku.kdiffviewer.app.ExpansionError
 import io.github.mataku.kdiffviewer.app.GitFileStatus
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ScrollRestorer
@@ -120,30 +123,24 @@ fun ViewerScreen(
   state: ViewerUiState,
   onReload: () -> Unit,
   modifier: Modifier = Modifier,
+  screenState: ViewerScreenState = rememberViewerScreenState(),
   titleBarLeadingInset: Dp = 0.dp,
-  sidebarVisible: Boolean = true,
-  onToggleSidebar: () -> Unit = {},
   onToggleFile: (Int) -> Unit = {},
   onExpandFile: (Int) -> Unit = {},
   review: ReviewSnapshot = ReviewSnapshot.Empty,
   loadBranches: suspend () -> List<BranchRef> = { emptyList() },
   onSwitchBase: suspend (BaseSpec) -> ViewerError? = { null },
-  scrollJumps: ScrollJumps? = null,
-  mode: DiffMode = DiffMode.Unified,
-  onModeChange: (DiffMode) -> Unit = {},
   rangeState: CommentRangeState = remember { CommentRangeState() },
-  treeWidth: MutableState<Dp> = remember { mutableStateOf(DefaultTreeWidth) },
   onExpandContext: (fileIndex: Int, gapIndex: Int, direction: ExpandDirection) -> Unit = { _, _, _ -> },
-  findState: FindState = remember { FindState() },
-  findRequests: FindRequests? = null,
   findContext: CoroutineContext = Dispatchers.Default,
 ) {
   val colors = LocalDiffColors.current
+  val mode = screenState.mode
+  val findState = screenState.findState
   SideEffect { findState.setLive(state.loadId, state.rowsGeneration) }
   val expansionErrors = remember(state.expansionErrors, state.files, state.fingerprints) { state.expansionErrorsByFile() }
   val listState = rememberLazyListState()
-  val currentState by rememberUpdatedState(state)
-  val restorer = remember { ScrollRestorer() }
+  val currentState = rememberUpdatedState(state)
   val shown = review.placements.loadId == state.loadId
   val draftTarget = review.draft?.target
   val draftText = rememberUpdatedState(review.draft?.text.orEmpty())
@@ -154,23 +151,18 @@ fun ViewerScreen(
   val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasOrphans, hasEnd, mode, state.split) {
     diffLayoutOf(state, mode, notesFiles, hasOrphans, hasEnd)
   }
-  val currentLayout by rememberUpdatedState(layout)
+  val currentLayout = rememberUpdatedState(layout)
   val display = remember(state.rows, state.split, mode) { state.displayRows(mode) }
-  val currentDisplay by rememberUpdatedState(display)
-  LaunchedEffect(scrollJumps, listState) {
-    scrollJumps?.requests?.collect { jump ->
-      val count = currentLayout.visibleCount
-      if (count > 0) listState.requestScrollToItem(if (jump == ScrollJump.Top) 0 else count - 1)
-    }
-  }
+  val currentDisplay = rememberUpdatedState(display)
+  ScrollJumpEffect(screenState.scrollJumps, listState, currentLayout)
   val coordinator = LocalTextSelectionCoordinator.current
   val diffSelection = remember { DiffSelectionState() }
   diffSelection.resetFor(listOf(state.loadId, state.contentId, state.collapsed, state.expanded, mode))
   val selectionSource = remember(diffSelection) {
     DiffSelectionSource(
       diffSelection,
-      { currentState.rows },
-      { row -> (currentState.rows[row] as? DiffRow.Line)?.let { !currentLayout.isCollapsed(it.fileIndex) } ?: false },
+      { currentState.value.rows },
+      { row -> (currentState.value.rows[row] as? DiffRow.Line)?.let { !currentLayout.value.isCollapsed(it.fileIndex) } ?: false },
     )
   }
   DisposableEffect(coordinator, selectionSource) {
@@ -185,78 +177,21 @@ fun ViewerScreen(
     reviewSummary = ""
   }
   val actions = remember(baseActions, draftText) { baseActions?.let { RevealingReviewActions(it, draftText) { revealRequests++ } } }
-  val currentReview by rememberUpdatedState(review)
-  val currentOnExpandFile by rememberUpdatedState(onExpandFile)
+  val currentReview = rememberUpdatedState(review)
+  val currentOnExpandFile = rememberUpdatedState(onExpandFile)
   val threadFiles = remember(shown, review.placements) { if (shown) review.placements.threadFiles() else emptySet() }
   LaunchedEffect(state.loadId, threadFiles, layout.fileCount) {
     for (fileIndex in threadFiles) {
-      if (fileIndex < currentLayout.fileCount && currentLayout.isCollapsed(fileIndex) && currentState.isLargeDiff(fileIndex)) currentOnExpandFile(fileIndex)
+      if (fileIndex < currentLayout.value.fileCount && currentLayout.value.isCollapsed(fileIndex) && currentState.value.isLargeDiff(fileIndex)) currentOnExpandFile.value(fileIndex)
     }
   }
-  LaunchedEffect(revealRequests) {
-    if (revealRequests == 0) return@LaunchedEffect
-    val snapshot = currentReview
-    val target = snapshot.draft?.target ?: return@LaunchedEffect
-    val placement = draftPlacement(target, snapshot.threads, snapshot.core.placementById) ?: return@LaunchedEffect
-    val fileIndex = placement.fileIndexOrNull()?.takeIf { it < currentLayout.fileCount }
-    if (fileIndex != null && currentLayout.isCollapsed(fileIndex)) {
-      currentOnExpandFile(fileIndex)
-      withTimeoutOrNull(1_000) { snapshotFlow { currentLayout }.first { !it.isCollapsed(fileIndex) } }
-    }
-    val index = revealIndex(placement, draftAnchor(target, snapshot.threads), currentLayout, currentState.rows, currentDisplay)
-    listState.scrollToItem(index)
-    if (fileIndex != null && placement is Placement.OnLine) {
-      val headerKey = currentState.rows[currentDisplay.unifiedOf(currentLayout.headerRowIndex(fileIndex))].key
-      val pinned = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == headerKey && it.index != index }
-      if (pinned != null) listState.scrollBy(-pinned.size.toFloat())
-    }
-    focusRequests.intValue++
-  }
-  LaunchedEffect(listState) {
-    snapshotFlow { Pair(Triple(currentState, currentLayout, currentDisplay), listState.firstVisibleItemIndex) }.collect { (inputs, firstVisible) ->
-      val (ui, uiLayout, uiDisplay) = inputs
-      restorer.next(ui, uiLayout, uiDisplay, firstVisible)?.let { listState.scrollToItem(it) }
-    }
-  }
-  val density = LocalDensity.current
-  val findTopInset = with(density) { FindPanelTopInset.toPx() }
-  val revealMatch: suspend (Int) -> Unit = remember(listState, findTopInset) {
-    { row ->
-      if (findState.isLive && row < currentState.rows.size) {
-        val index = currentLayout.visibleIndexOf(currentDisplay.displayOf(row))
-        val info = listState.layoutInfo
-        val item = info.visibleItemsInfo.firstOrNull { it.index == index }
-        val fullyVisible = item != null && item.offset >= info.viewportStartOffset + findTopInset && item.offset + item.size <= info.viewportEndOffset
-        if (index >= 0 && !fullyVisible) {
-          listState.scrollToItem(index)
-          listState.scrollBy(-(info.viewportEndOffset - info.viewportStartOffset) / 3f)
-        }
-      }
-    }
-  }
-  val currentFindContext by rememberUpdatedState(findContext)
-  LaunchedEffect(findState) {
-    findMatchUpdates(snapshotFlow { findState.query }, snapshotFlow { findState.open }, snapshotFlow { currentState }) { previous, query, ui ->
-      withContext(currentFindContext) {
-        previous.updatedFor(ui.rows, FindKey(query, ui.loadId, ui.rowsGeneration, ui.collapsed, ui.expanded), skipFile = ui::isCollapsed)
-      }
-    }.collect { matches ->
-      val count = currentLayout.visibleCount
-      val anchor = if (count == 0) 0 else currentDisplay.unifiedOf(currentLayout.rowIndexOf(listState.firstVisibleItemIndex.coerceIn(0, count - 1)))
-      findState.onMatches(matches, anchor)?.let { revealMatch(it) }
-    }
-  }
-  val findScope = rememberCoroutineScope()
-  val stepFind: (Boolean) -> Unit = remember(findState) { { forward -> findScope.launch { findState.step(forward)?.let { revealMatch(it) } } } }
-  LaunchedEffect(findRequests, findState) {
-    findRequests?.requests?.collect { command ->
-      when {
-        command == FindCommand.Show || !findState.open -> findState.show()
-        else -> stepFind(command == FindCommand.Next)
-      }
-    }
-  }
-  var collapsed by remember(state.repo) { mutableStateOf(emptySet<String>()) }
+  DraftRevealEffect(revealRequests, listState, currentReview, currentState, currentLayout, currentDisplay, currentOnExpandFile) { focusRequests.intValue++ }
+  ScrollRestoreEffect(listState, currentState, currentLayout, currentDisplay)
+  val revealMatch = rememberFindReveal(findState, listState, currentState, currentLayout, currentDisplay)
+  FindMatchesEffect(findState, listState, currentState, currentLayout, currentDisplay, findContext, revealMatch)
+  val stepFind = rememberFindStepper(findState, revealMatch)
+  FindRequestsEffect(screenState.findRequests, findState, stepFind)
+  val tree = rememberFileTreeState(state.repo)
   val rows = state.rows
   val headerRowIndex = state.fileHeaderRowIndex
   val statsOf: (Int) -> DiffStats? = remember(rows, headerRowIndex) {
@@ -265,33 +200,34 @@ fun ViewerScreen(
   val statusOf: (Int) -> GitFileStatus? = remember(rows, headerRowIndex) {
     { fileIndex -> (headerRowIndex.getOrNull(fileIndex)?.let(rows::getOrNull) as? DiffRow.FileHeader)?.file?.gitStatus() }
   }
-  var treeQuery by remember(state.repo) { mutableStateOf("") }
-  val needle = treeQuery.trim()
+  val needle = tree.query.trim()
   val filtering = needle.isNotEmpty()
+  val sidebarVisible = screenState.sidebarVisible
   val sidebar = remember { SidebarTransition(sidebarVisible) }
   LaunchedEffect(sidebarVisible) {
     if (sidebar.target != sidebarVisible) sidebar.animateTo(sidebarVisible)
   }
-  val treeListState = remember(state.repo) { LazyListState() }
   val treeComposed = sidebar.treeComposed
+  val collapsedDirectories = tree.collapsedDirectories
   val compactedTree = remember(state.tree, treeComposed) { if (treeComposed) compactTree(state.tree) else emptyList() }
-  val treeEntries = remember(state.tree, compactedTree, state.files, collapsed, needle, treeComposed) {
+  val treeEntries = remember(state.tree, compactedTree, state.files, collapsedDirectories, needle, treeComposed) {
     when {
       !treeComposed -> emptyList()
       filtering -> visibleTree(compactTree(filterTree(state.tree, state.files, needle)), emptySet())
-      else -> visibleTree(compactedTree, collapsed)
+      else -> visibleTree(compactedTree, collapsedDirectories)
     }
   }
+  val density = LocalDensity.current
   Column(modifier = modifier.fillMaxSize().background(colors.background)) {
     RepoHeader(
       state = state,
       titleBarLeadingInset = titleBarLeadingInset,
       sidebarVisible = sidebarVisible,
-      onToggleSidebar = onToggleSidebar,
+      onToggleSidebar = screenState::toggleSidebar,
       loadBranches = loadBranches,
       onSwitchBase = onSwitchBase,
       mode = mode,
-      onModeChange = onModeChange,
+      onModeChange = screenState::changeMode,
       onReload = onReload,
     )
     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
@@ -301,27 +237,23 @@ fun ViewerScreen(
       tree = {
         FileTreePanel(
           entries = treeEntries,
-          listState = treeListState,
+          listState = tree.listState,
           topInset = 12.dp,
           onFileClick = { fileIndex ->
             onExpandFile(fileIndex)
             listState.requestScrollToItem(layout.headerVisibleIndex(fileIndex))
           },
-          onDirectoryToggle = { path -> collapsed = if (path in collapsed) collapsed - path else collapsed + path },
+          onDirectoryToggle = tree::toggleDirectory,
           statsOf = statsOf,
           statusOf = statusOf,
-          width = { treeWidth.value },
-          query = treeQuery,
-          onQueryChange = { treeQuery = it },
+          width = { screenState.treeWidth },
+          query = tree.query,
+          onQueryChange = tree::changeQuery,
           filtering = filtering,
         )
       },
       divider = {
-        PaneDivider(
-          onDrag = { delta ->
-            treeWidth.value = (treeWidth.value + with(density) { delta.toDp() }).coerceIn(MinTreeWidth, MaxTreeWidth)
-          },
-        )
+        PaneDivider(onDrag = { delta -> screenState.resizeTree(with(density) { delta.toDp() }) })
       },
       diff = {
         Column(modifier = Modifier.testTag("diff-column").fillMaxSize()) {
@@ -387,6 +319,129 @@ fun ViewerScreen(
         onSummaryChange = { reviewSummary = it },
         onSend = sendReview,
       )
+    }
+  }
+}
+
+@Composable
+private fun ScrollJumpEffect(scrollJumps: ScrollJumps, listState: LazyListState, layout: State<DiffLayout>) {
+  LaunchedEffect(scrollJumps, listState) {
+    scrollJumps.requests.collect { jump ->
+      val count = layout.value.visibleCount
+      if (count > 0) listState.requestScrollToItem(if (jump == ScrollJump.Top) 0 else count - 1)
+    }
+  }
+}
+
+@Composable
+private fun DraftRevealEffect(
+  revealRequests: Int,
+  listState: LazyListState,
+  review: State<ReviewSnapshot>,
+  state: State<ViewerUiState>,
+  layout: State<DiffLayout>,
+  display: State<DisplayRows>,
+  onExpandFile: State<(Int) -> Unit>,
+  onRevealed: () -> Unit,
+) {
+  LaunchedEffect(revealRequests) {
+    if (revealRequests == 0) return@LaunchedEffect
+    val snapshot = review.value
+    val target = snapshot.draft?.target ?: return@LaunchedEffect
+    val placement = draftPlacement(target, snapshot.threads, snapshot.core.placementById) ?: return@LaunchedEffect
+    val fileIndex = placement.fileIndexOrNull()?.takeIf { it < layout.value.fileCount }
+    if (fileIndex != null && layout.value.isCollapsed(fileIndex)) {
+      onExpandFile.value(fileIndex)
+      withTimeoutOrNull(1_000) { snapshotFlow { layout.value }.first { !it.isCollapsed(fileIndex) } }
+    }
+    val index = revealIndex(placement, draftAnchor(target, snapshot.threads), layout.value, state.value.rows, display.value)
+    listState.scrollToItem(index)
+    if (fileIndex != null && placement is Placement.OnLine) {
+      val headerKey = state.value.rows[display.value.unifiedOf(layout.value.headerRowIndex(fileIndex))].key
+      val pinned = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == headerKey && it.index != index }
+      if (pinned != null) listState.scrollBy(-pinned.size.toFloat())
+    }
+    onRevealed()
+  }
+}
+
+@Composable
+private fun ScrollRestoreEffect(listState: LazyListState, state: State<ViewerUiState>, layout: State<DiffLayout>, display: State<DisplayRows>) {
+  val restorer = remember { ScrollRestorer() }
+  LaunchedEffect(listState) {
+    snapshotFlow { Pair(Triple(state.value, layout.value, display.value), listState.firstVisibleItemIndex) }.collect { (inputs, firstVisible) ->
+      val (ui, uiLayout, uiDisplay) = inputs
+      restorer.next(ui, uiLayout, uiDisplay, firstVisible)?.let { listState.scrollToItem(it) }
+    }
+  }
+}
+
+@Composable
+private fun rememberFindReveal(
+  findState: FindState,
+  listState: LazyListState,
+  state: State<ViewerUiState>,
+  layout: State<DiffLayout>,
+  display: State<DisplayRows>,
+): suspend (Int) -> Unit {
+  val findTopInset = with(LocalDensity.current) { FindPanelTopInset.toPx() }
+  return remember(findState, listState, findTopInset) {
+    { row ->
+      if (findState.isLive && row < state.value.rows.size) {
+        val index = layout.value.visibleIndexOf(display.value.displayOf(row))
+        val info = listState.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.index == index }
+        val fullyVisible = item != null && item.offset >= info.viewportStartOffset + findTopInset && item.offset + item.size <= info.viewportEndOffset
+        if (index >= 0 && !fullyVisible) {
+          listState.scrollToItem(index)
+          listState.scrollBy(-(info.viewportEndOffset - info.viewportStartOffset) / 3f)
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun FindMatchesEffect(
+  findState: FindState,
+  listState: LazyListState,
+  state: State<ViewerUiState>,
+  layout: State<DiffLayout>,
+  display: State<DisplayRows>,
+  findContext: CoroutineContext,
+  revealMatch: suspend (Int) -> Unit,
+) {
+  val currentFindContext by rememberUpdatedState(findContext)
+  val currentRevealMatch by rememberUpdatedState(revealMatch)
+  LaunchedEffect(findState) {
+    findMatchUpdates(snapshotFlow { findState.query }, snapshotFlow { findState.open }, snapshotFlow { state.value }) { previous, query, ui ->
+      withContext(currentFindContext) {
+        previous.updatedFor(ui.rows, FindKey(query, ui.loadId, ui.rowsGeneration, ui.collapsed, ui.expanded), skipFile = ui::isCollapsed)
+      }
+    }.collect { matches ->
+      val count = layout.value.visibleCount
+      val anchor = if (count == 0) 0 else display.value.unifiedOf(layout.value.rowIndexOf(listState.firstVisibleItemIndex.coerceIn(0, count - 1)))
+      findState.onMatches(matches, anchor)?.let { currentRevealMatch(it) }
+    }
+  }
+}
+
+@Composable
+private fun rememberFindStepper(findState: FindState, revealMatch: suspend (Int) -> Unit): (Boolean) -> Unit {
+  val scope = rememberCoroutineScope()
+  val currentRevealMatch by rememberUpdatedState(revealMatch)
+  return remember(findState, scope) { { forward -> scope.launch { findState.step(forward)?.let { currentRevealMatch(it) } } } }
+}
+
+@Composable
+private fun FindRequestsEffect(findRequests: FindRequests, findState: FindState, stepFind: (Boolean) -> Unit) {
+  val currentStepFind by rememberUpdatedState(stepFind)
+  LaunchedEffect(findRequests, findState) {
+    findRequests.requests.collect { command ->
+      when {
+        command == FindCommand.Show || !findState.open -> findState.show()
+        else -> currentStepFind(command == FindCommand.Next)
+      }
     }
   }
 }
@@ -555,7 +610,13 @@ private fun ViewerUiState.expansionErrorsByFile(): Map<Int, String> {
   val result = HashMap<Int, String>()
   files.forEachIndexed { index, file ->
     val fingerprint = fingerprints.getOrNull(index) ?: return@forEachIndexed
-    expansionErrors[CollapsedFile(file.displayPath, fingerprint)]?.let { result[index] = it }
+    expansionErrors[CollapsedFile(file.displayPath, fingerprint)]?.let { result[index] = it.expansionErrorText() }
   }
   return result
+}
+
+internal fun ExpansionError.expansionErrorText(): String = when (this) {
+  ExpansionError.Unreadable -> "Could not read this file"
+  ExpansionError.TooLarge -> "Too large to expand"
+  ExpansionError.Stale -> "The file no longer matches this diff — reload to expand"
 }

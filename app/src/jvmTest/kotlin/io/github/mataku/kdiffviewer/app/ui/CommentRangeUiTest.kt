@@ -114,7 +114,7 @@ class CommentRangeUiTest {
         LocalNativeContextMenu provides menu,
         LocalReviewActions provides review,
       ) {
-        Box(Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, mode = mode, rangeState = rangeState) }
+        Box(Modifier.size(1000.dp, 500.dp)) { ViewerScreen(ui, {}, review = snapshot, screenState = rememberViewerScreenState(mode = mode), rangeState = rangeState) }
       }
     }
   }

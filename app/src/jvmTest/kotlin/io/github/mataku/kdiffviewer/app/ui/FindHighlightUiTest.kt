@@ -17,7 +17,6 @@ import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.find.FindKey
 import io.github.mataku.kdiffviewer.app.find.FindMatches
-import io.github.mataku.kdiffviewer.app.find.FindState
 import io.github.mataku.kdiffviewer.app.flattenRows
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
@@ -47,18 +46,20 @@ class FindHighlightUiTest {
     return ViewerUiState(RepoPath("/repo"), LoadStatus.Done, listOf(file), rows, headers, loadId = 1)
   }
 
-  private fun findFor(ui: ViewerUiState, open: Boolean): FindState = FindState().apply {
-    if (open) show()
-    query = "foo"
-    val matches = FindMatches.Empty.updatedFor(ui.rows, FindKey("foo", ui.loadId, ui.rowsGeneration))
-    onMatches(matches, anchorRow = matches.rowAt(1))
+  private fun findFor(ui: ViewerUiState, open: Boolean): ViewerScreenState = ViewerScreenState().apply {
+    with(findState) {
+      if (open) show()
+      query = "foo"
+      val matches = FindMatches.Empty.updatedFor(ui.rows, FindKey("foo", ui.loadId, ui.rowsGeneration))
+      onMatches(matches, anchorRow = matches.rowAt(1))
+    }
   }
 
-  private fun ComposeUiTest.render(find: FindState): PixelMap {
+  private fun ComposeUiTest.render(screen: ViewerScreenState): PixelMap {
     val ui = stateOf()
     setContent {
       KdvTheme(colorTheme = ColorTheme.Light, tabWidth = 4) {
-        Box(Modifier.size(800.dp, 400.dp)) { ViewerScreen(ui, {}, findState = find) }
+        Box(Modifier.size(800.dp, 400.dp)) { ViewerScreen(ui, {}, screenState = screen) }
       }
     }
     waitForIdle()
