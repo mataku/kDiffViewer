@@ -7,6 +7,7 @@ plugins {
 }
 
 val ktlintOverrides = mapOf(
+  "ktlint_standard_no-unused-imports" to "enabled",
   "ktlint_standard_filename" to "disabled",
   "ktlint_function_naming_ignore_when_annotated_with" to "Composable",
 )

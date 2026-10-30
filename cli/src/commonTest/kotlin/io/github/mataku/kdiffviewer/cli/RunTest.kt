@@ -11,7 +11,6 @@ import io.github.mataku.kdiffviewer.protocol.ReviewDto
 import io.github.mataku.kdiffviewer.protocol.ReviewWaitResult
 import io.github.mataku.kdiffviewer.protocol.ThreadDto
 import io.github.mataku.kdiffviewer.protocol.ThreadListResult
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive

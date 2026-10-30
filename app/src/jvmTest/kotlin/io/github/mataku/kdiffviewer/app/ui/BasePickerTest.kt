@@ -25,7 +25,6 @@ import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import kotlinx.coroutines.CompletableDeferred
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
