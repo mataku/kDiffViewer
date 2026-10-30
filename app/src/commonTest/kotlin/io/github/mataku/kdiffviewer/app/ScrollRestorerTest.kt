@@ -12,7 +12,6 @@ import io.github.mataku.kdiffviewer.core.model.displayPath
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class ScrollRestorerTest {
   private val repo = RepoPath("/repo")

@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
@@ -71,12 +69,10 @@ import io.github.mataku.kdiffviewer.app.find.findMatchUpdates
 import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.isCollapsed
 import io.github.mataku.kdiffviewer.app.isLargeDiff
-import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.notesFiles
 import io.github.mataku.kdiffviewer.app.review.threadFiles
-import io.github.mataku.kdiffviewer.app.review.toSide
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.ui.mac.MacSegmented
@@ -102,7 +98,6 @@ import io.github.mataku.kdiffviewer.core.model.ExpandDirection
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.displayPath
-import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first

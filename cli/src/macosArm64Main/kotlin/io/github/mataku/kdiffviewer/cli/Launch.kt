@@ -10,7 +10,6 @@ import io.github.mataku.kdiffviewer.cli.spawn.posix_spawn_file_actions_init
 import io.github.mataku.kdiffviewer.cli.spawn.posix_spawn_file_actions_tVar
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.IntVar
-import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.cstr
