@@ -1,9 +1,16 @@
 package io.github.mataku.kdiffviewer.protocol
 
+enum class HostOs { MacOs, Linux }
+
 object RegistryPaths {
   private const val MAX_SOCKET_PATH_BYTES = 103
 
-  fun sessionsDir(home: String): String = "$home/Library/Application Support/kDiffViewer/sessions"
+  // Linux does not follow $XDG_STATE_HOME or $XDG_RUNTIME_DIR: the app and kdv can run with different environments
+  // (a desktop launch and an ssh shell), and both must resolve the same directory.
+  fun sessionsDir(home: String, os: HostOs): String = when (os) {
+    HostOs.MacOs -> "$home/Library/Application Support/kDiffViewer/sessions"
+    HostOs.Linux -> "$home/.local/state/kDiffViewer/sessions"
+  }
 
   fun socketPath(dir: String, pid: Long): String = "$dir/$pid.sock"
 

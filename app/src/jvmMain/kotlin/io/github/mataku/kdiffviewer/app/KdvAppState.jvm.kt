@@ -16,6 +16,7 @@ import io.github.mataku.kdiffviewer.core.git.GitLocation
 import io.github.mataku.kdiffviewer.core.git.GitLocator
 import io.github.mataku.kdiffviewer.core.git.locateOnHost
 import io.github.mataku.kdiffviewer.core.git.probeGit
+import io.github.mataku.kdiffviewer.protocol.HostOs
 import io.github.mataku.kdiffviewer.protocol.PROTOCOL_VERSION
 import io.github.mataku.kdiffviewer.protocol.RegistryPaths
 import io.github.mataku.kdiffviewer.protocol.WindowInfoResult
@@ -106,9 +107,11 @@ private fun createGitBackendController(
   onBackend = { viewer.setBackend(it?.source, it?.highlightPipeline, workingTree = it?.workingTree) },
 )
 
+private fun hostOs(): HostOs = if (System.getProperty("os.name").startsWith("Mac")) HostOs.MacOs else HostOs.Linux
+
 private fun createIntegration(viewer: DiffViewerState, review: ReviewState): ReviewIntegration {
   val registry = SessionRegistry(
-    Path.of(RegistryPaths.sessionsDir(System.getProperty("user.home"))),
+    Path.of(RegistryPaths.sessionsDir(System.getProperty("user.home"), hostOs())),
     ProcessHandle.current().pid(),
     java.time.Instant::now,
     ::processAlive,

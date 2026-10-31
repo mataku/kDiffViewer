@@ -2,6 +2,7 @@ package io.github.mataku.kdiffviewer.cli
 
 import io.github.mataku.kdiffviewer.protocol.Codec
 import io.github.mataku.kdiffviewer.protocol.CommentDto
+import io.github.mataku.kdiffviewer.protocol.HostOs
 import io.github.mataku.kdiffviewer.protocol.Methods
 import io.github.mataku.kdiffviewer.protocol.RegistryEntry
 import io.github.mataku.kdiffviewer.protocol.RegistryPaths
@@ -104,7 +105,7 @@ private fun open(command: Command.Open, platform: CliPlatform) {
   if (!platform.launchApp(app, path, command.base)) throw CliFailure("kDiffViewer not found at $app (set KDV_APP)")
 }
 
-private fun liveEntries(platform: CliPlatform): List<RegistryEntry> = platform.listRegistry(RegistryPaths.sessionsDir(platform.home())).filter { platform.isAlive(it.pid) }.sortedBy { it.pid }
+private fun liveEntries(platform: CliPlatform): List<RegistryEntry> = platform.listRegistry(RegistryPaths.sessionsDir(platform.home(), HostOs.MacOs)).filter { platform.isAlive(it.pid) }.sortedBy { it.pid }
 
 private fun resolve(platform: CliPlatform, target: TargetOptions): RegistryEntry {
   val cwd = platform.cwd()
