@@ -27,7 +27,7 @@ plugins/ kdv/ is the Claude Code / Codex / npx skills plugin with the kdv-review
 ## Commands
 
 ```sh
-./gradlew check                        # all tests plus spotlessCheck (CI runs this)
+./gradlew check                        # all tests plus spotlessCheck (CI runs this on macOS and Linux)
 ./gradlew spotlessApply                # format; run before committing
 ./gradlew :app:run --args=/abs/path    # run against a repository
 ./gradlew :app:createDistributable     # build app/build/compose/binaries/main/app/kDiffViewer.app (kDiffViewer/ on Linux)
@@ -67,7 +67,7 @@ Diffs can have thousands of files and hundreds of thousands of rows, so CPU and 
 
 ## Workflow
 
-- Branch from `develop` and open pull requests against `develop`. CI runs on pushes to `develop` and on pull requests, on the `xcode-27` runner (macOS 27, arm64) and in a separate `linux` job on `ubuntu-24.04`. The macOS jobs cover the macosArm64 targets of `cli` and `protocol`, which Linux cannot build; the `linux` job runs `check` (including the linuxX64 tests of `cli` and `protocol`), `:app:createDistributable`, and `:app:packageDeb`.
+- Branch from `develop` and open pull requests against `develop`. CI runs on pushes to `develop` and on pull requests in two workflows: `check` runs `./gradlew check` on the `xcode-27` runner (macOS 27, arm64) and on `ubuntu-24.04` (which covers the linuxX64 tests of `cli` and `protocol`), and `build` builds the app on macOS only; Linux packaging is not built in CI.
 - Follow `.github/PULL_REQUEST_TEMPLATE.md`; PRs that change the UI need screenshots.
 
 ## When unclear, ask
