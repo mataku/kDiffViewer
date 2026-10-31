@@ -14,6 +14,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.mataku.kdiffviewer.app.ui.mac.MacGroupedList
 
 @Composable
 fun KeyboardShortcutList(groups: List<ShortcutGroup>, modifier: Modifier = Modifier) {
@@ -23,7 +24,7 @@ fun KeyboardShortcutList(groups: List<ShortcutGroup>, modifier: Modifier = Modif
     groups.forEach { group ->
       Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         BasicText(text = group.title, style = styles.group)
-        group.entries.forEach { entry -> ShortcutRow(entry, styles) }
+        MacGroupedList(group.entries) { entry -> ShortcutRow(entry, styles) }
       }
     }
   }
@@ -37,7 +38,7 @@ private fun ShortcutRow(entry: ShortcutEntry, styles: ShortcutListStyles) {
     verticalAlignment = Alignment.CenterVertically,
   ) {
     BasicText(text = entry.action, style = styles.action, modifier = Modifier.weight(1f))
-    BasicText(text = entry.chords.joinToString("  ") { it.label }, style = styles.keys)
+    BasicText(text = entry.keysLabel, style = styles.keys)
   }
 }
 

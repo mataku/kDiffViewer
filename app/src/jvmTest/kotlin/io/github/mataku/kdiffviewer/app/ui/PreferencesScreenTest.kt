@@ -235,7 +235,7 @@ class PreferencesScreenTest {
     onNodeWithTag("keyboard-shortcuts").performScrollTo()
     AppShortcuts.Host.reference.flatMap { it.entries }.forEach { entry ->
       onNodeWithText(entry.action).assertExists()
-      onNodeWithText(entry.chords.joinToString("  ") { it.label }).assertExists()
+      onNodeWithText(entry.keysLabel).assertExists()
     }
   }
 

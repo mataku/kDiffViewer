@@ -107,7 +107,9 @@ class AppShortcuts(keymap: Keymap) {
 }
 
 @Immutable
-class ShortcutEntry(val action: String, val chords: List<Chord>)
+class ShortcutEntry(val action: String, val chords: List<Chord>) {
+  val keysLabel: String = chords.joinToString(" or ") { it.label }
+}
 
 @Immutable
 class ShortcutGroup(val title: String, val entries: List<ShortcutEntry>)
