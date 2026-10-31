@@ -2,17 +2,18 @@
 
 ## Overview
 
-kDiffViewer is a desktop git diff viewer built with Kotlin Multiplatform and Compose Desktop. It opens a local repository and shows everything that differs from a base commit (committed, staged, unstaged, and untracked changes) in a GitHub-like unified view. The base is the merge-base of `HEAD` and the `origin/HEAD` target (falling back to `HEAD`), or the merge-base with a ref given by `--base <ref>`. macOS is the primary target; Linux (x64 and aarch64) builds and runs without the `kdv` command, which is macOS-only for now. Part of the goal is to find out how far KMP can go for a desktop GUI app, so logic belongs in shared Kotlin, not in platform code.
+kDiffViewer is a desktop git diff viewer built with Kotlin Multiplatform and Compose Desktop. It opens a local repository and shows everything that differs from a base commit (committed, staged, unstaged, and untracked changes) in a GitHub-like unified view. The base is the merge-base of `HEAD` and the `origin/HEAD` target (falling back to `HEAD`), or the merge-base with a ref given by `--base <ref>`. macOS is the primary target; Linux (x64 and aarch64) is supported too, packaged as a .deb. Part of the goal is to find out how far KMP can go for a desktop GUI app, so logic belongs in shared Kotlin, not in platform code.
 
 ## Modules
 
 ```
 core/   KMP library (jvm target). Diff model, streaming unified diff parser, untracked-file synthesis, GitDiffSource.
         commonMain holds all logic; jvmMain holds only OS-specific implementations (process spawning, file reading, git lookup).
-protocol/ KMP library (jvm + macosArm64). Wire types shared by the app and the CLI, and the control-character marking both print.
-cli/    Kotlin/Native executable (macosArm64) producing `kdv`, which talks to running app windows over a Unix socket.
+protocol/ KMP library (jvm, macosArm64, linuxX64, linuxArm64). Wire types shared by the app and the CLI, and the control-character marking both print.
+cli/    Kotlin/Native executable (macosArm64, linuxX64, linuxArm64) producing `kdv`, which talks to running app windows over a Unix socket.
+        nativeMain holds the POSIX code shared by both OSes; macosMain and linuxMain hold the sockaddr_un layout, the default app location and how the app is launched.
 app/    Compose Desktop app (jvm target). commonMain holds state holders and Compose UI; jvmMain holds main(), the windows and menu bar (they need Compose Desktop's Window and MenuBar), the AWT and JBR integrations (Desktop handlers, title bar, clipboard, folder picker), the objects that need the JVM (the kdv socket, process handles), and packaging config.
-        Bundled images live only under commonMain/composeResources/ (density-qualified PNG); app/art/ holds the SVG originals they are exported from (including app_icon.svg) and is not packaged; app/art/kDiffViewer.icon is the Icon Composer original of the app icon; app/packaging/ holds what packaging uses: kDiffViewer.icns (fallback for macOS 15 and earlier, and the Dock icon for `:app:run`) app-content/Resources/Assets.car (compiled from the .icon, copied into the bundle's Contents/Resources), and kDiffViewer.png (the Linux icon, exported from app_icon.svg at 512 px). All are committed, so the build does not need Xcode.
+        Bundled images live only under commonMain/composeResources/ (density-qualified PNG); app/art/ holds the SVG originals they are exported from (including app_icon.svg) and is not packaged; app/art/kDiffViewer.icon is the Icon Composer original of the app icon; app/packaging/ holds what packaging uses: kDiffViewer.icns (fallback for macOS 15 and earlier, and the Dock icon for `:app:run`), app-content/Resources/Assets.car (compiled from the .icon, copied into the bundle's Contents/Resources), and kDiffViewer.png (the Linux icon, exported from app_icon.svg at 512 px). All are committed, so the build does not need Xcode.
 scripts/ large-diff generator for manual performance checks, and a small cat-themed diff generator for screenshots.
 plugins/ kdv/ is the Claude Code / Codex / npx skills plugin with the kdv-review agent skill; .claude-plugin/marketplace.json lists it.
 ```
@@ -30,6 +31,7 @@ plugins/ kdv/ is the Claude Code / Codex / npx skills plugin with the kdv-review
 ./gradlew spotlessApply                # format; run before committing
 ./gradlew :app:run --args=/abs/path    # run against a repository
 ./gradlew :app:createDistributable     # build app/build/compose/binaries/main/app/kDiffViewer.app (kDiffViewer/ on Linux)
+./gradlew :app:packageDeb              # build the Linux .deb (needs dpkg-deb and fakeroot); it is repacked to make kdv executable and link /usr/bin/kdv
 scripts/generate-large-diff.sh <dir> [ext]   # create a large repository for manual scrolling checks; ext defaults to txt, kt writes Kotlin sources
 scripts/generate-screenshot-diff.sh <dir>    # create a worktree of develop on feature/cat-facts with a small committed, staged, unstaged, and untracked diff for screenshots
 xcrun actool app/art/kDiffViewer.icon --compile <out> --app-icon kDiffViewer --platform macosx --target-device mac --minimum-deployment-target 26.0 --output-partial-info-plist <out>/partial.plist   # regenerate Assets.car after editing the icon
@@ -65,7 +67,7 @@ Diffs can have thousands of files and hundreds of thousands of rows, so CPU and 
 
 ## Workflow
 
-- Branch from `develop` and open pull requests against `develop`. CI runs on pushes to `develop` and on pull requests, on the `xcode-27` runner (macOS 27, arm64) and in a separate `linux` job on `ubuntu-24.04`. The macOS jobs also cover the `kdv` CLI and the native `protocol` target, which Linux cannot build; the `linux` job runs `check` and `:app:createDistributable` so Linux regressions in the app show up.
+- Branch from `develop` and open pull requests against `develop`. CI runs on pushes to `develop` and on pull requests, on the `xcode-27` runner (macOS 27, arm64) and in a separate `linux` job on `ubuntu-24.04`. The macOS jobs cover the macosArm64 targets of `cli` and `protocol`, which Linux cannot build; the `linux` job runs `check` (including the linuxX64 tests of `cli` and `protocol`), `:app:createDistributable`, and `:app:packageDeb`.
 - Follow `.github/PULL_REQUEST_TEMPLATE.md`; PRs that change the UI need screenshots.
 
 ## When unclear, ask
