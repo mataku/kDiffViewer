@@ -72,6 +72,7 @@ fun PreferencesScreen(
   onCommitGitPath: (String) -> Unit,
   onChooseGit: () -> Unit,
   titleBarInset: Dp = 0.dp,
+  shortcuts: List<ShortcutGroup> = AppShortcuts.Host.reference,
 ) {
   val colors = LocalDiffColors.current
   Column(
@@ -149,6 +150,9 @@ fun PreferencesScreen(
     }
     Section("Git") {
       GitSection(settings.gitPath, gitStatus, onCommitGitPath, onChooseGit)
+    }
+    Section("Keyboard Shortcuts") {
+      KeyboardShortcutList(shortcuts)
     }
     SettingsFileFooter(settingsFilePath, onRevealSettingsFile)
   }

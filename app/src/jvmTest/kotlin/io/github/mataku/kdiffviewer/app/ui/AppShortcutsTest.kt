@@ -45,7 +45,35 @@ class AppShortcutsTest {
   @Test
   fun noStandardShortcutUsesMeta() {
     with(standard) {
-      listOf(open, settings, copy, find, findNext, findPrevious, toggleSidebar, reload).forEach { assertFalse(it.meta, it.label) }
+      (listOf(open, settings, copy, find, findNext, findPrevious, toggleSidebar, reload, submitComment, addSingleComment, togglePreview) + scrollToTop + scrollToBottom)
+        .forEach { assertFalse(it.meta, it.label) }
+    }
+  }
+
+  @Test
+  fun macLabelsForViewerAndComposer() {
+    assertEquals(listOf("⌘↑", "⌃Home"), mac.scrollToTop.map { it.label })
+    assertEquals(listOf("⌘↓", "⌃End"), mac.scrollToBottom.map { it.label })
+    assertEquals("⌘↩", mac.submitComment.label)
+    assertEquals("⇧⌘↩", mac.addSingleComment.label)
+    assertEquals("⇧⌘P", mac.togglePreview.label)
+  }
+
+  @Test
+  fun standardLabelsForViewerAndComposer() {
+    assertEquals(listOf("Ctrl+Home"), standard.scrollToTop.map { it.label })
+    assertEquals(listOf("Ctrl+End"), standard.scrollToBottom.map { it.label })
+    assertEquals("Ctrl+Enter", standard.submitComment.label)
+    assertEquals("Ctrl+Shift+Enter", standard.addSingleComment.label)
+  }
+
+  @Test
+  fun referenceListsOnlyAppSpecificShortcuts() {
+    val listed = mac.reference.flatMap { group -> group.entries.flatMap { it.chords } }
+    with(mac) {
+      listOf(reload, toggleSidebar, submitComment, addSingleComment, togglePreview).forEach { assertTrue(it in listed, it.label) }
+      (scrollToTop + scrollToBottom).forEach { assertTrue(it in listed, it.label) }
+      listOf(open, settings, copy, find, findNext, findPrevious).forEach { assertFalse(it in listed, it.label) }
     }
   }
 }

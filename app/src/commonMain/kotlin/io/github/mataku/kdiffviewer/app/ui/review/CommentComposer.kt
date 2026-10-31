@@ -33,8 +33,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.mataku.kdiffviewer.app.ui.AppShortcuts
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
-import io.github.mataku.kdiffviewer.app.ui.isPrimaryModifierPressed
 import io.github.mataku.kdiffviewer.app.ui.keepScrollJumps
 import io.github.mataku.kdiffviewer.app.ui.mac.MacPushButton
 import io.github.mataku.kdiffviewer.app.ui.mac.MacTabbedPanel
@@ -66,6 +66,7 @@ fun CommentComposer(
   val latestActions by rememberUpdatedState(actions)
   val latestCancel by rememberUpdatedState(onCancel)
   val focusRequests = LocalDraftFocusRequests.current.value
+  val shortcuts = AppShortcuts.Host
   var mode by remember { mutableStateOf(ComposerMode.Write) }
   var writeHeightPx by remember { mutableIntStateOf(0) }
   LaunchedEffect(focusRequests, mode) {
@@ -83,7 +84,7 @@ fun CommentComposer(
             true
           }
 
-          event.isPrimaryModifierPressed() && (event.key == Key.Enter || event.key == Key.NumPadEnter) -> {
+          shortcuts.submitComment.matches(event) || shortcuts.addSingleComment.matches(event) -> {
             if (draftText.value.isNotBlank()) {
               when (val current = latestActions) {
                 is ComposerActions.Save -> current.onSave()
@@ -93,7 +94,7 @@ fun CommentComposer(
             true
           }
 
-          event.isPrimaryModifierPressed() && event.isShiftPressed && event.key == Key.P -> {
+          shortcuts.togglePreview.matches(event) -> {
             mode = if (mode == ComposerMode.Write) ComposerMode.Preview else ComposerMode.Write
             true
           }

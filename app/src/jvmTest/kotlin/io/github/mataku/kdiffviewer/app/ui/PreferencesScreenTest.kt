@@ -21,6 +21,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -229,6 +230,16 @@ class PreferencesScreenTest {
   }
 
   @Test
+  fun keyboardShortcutsSectionListsGivenShortcuts() = runComposeUiTest {
+    show(Harness())
+    onNodeWithTag("keyboard-shortcuts").performScrollTo()
+    AppShortcuts.Host.reference.flatMap { it.entries }.forEach { entry ->
+      onNodeWithText(entry.action).assertExists()
+      onNodeWithText(entry.chords.joinToString("  ") { it.label }).assertExists()
+    }
+  }
+
+  @Test
   fun copyOnSelectSwitchUpdatesSettings() = runComposeUiTest {
     val h = Harness()
     show(h)
@@ -423,7 +434,7 @@ class PreferencesScreenTest {
     val h = Harness()
     show(h, path = "~/Library/Application Support/kDiffViewer/settings.json")
     onNodeWithTag("settings-file-path").assertTextEquals("Settings are stored in ~/Library/Application Support/kDiffViewer/settings.json")
-    onNodeWithTag("settings-reveal").performClick()
+    onNodeWithTag("settings-reveal").performScrollTo().performClick()
     assertEquals(1, h.revealCount)
   }
 
