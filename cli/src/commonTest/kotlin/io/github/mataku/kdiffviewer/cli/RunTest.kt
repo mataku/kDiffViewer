@@ -4,6 +4,7 @@ import io.github.mataku.kdiffviewer.protocol.AuthorDto
 import io.github.mataku.kdiffviewer.protocol.Codec
 import io.github.mataku.kdiffviewer.protocol.CommentDto
 import io.github.mataku.kdiffviewer.protocol.ErrorCodes
+import io.github.mataku.kdiffviewer.protocol.HostOs
 import io.github.mataku.kdiffviewer.protocol.RegistryEntry
 import io.github.mataku.kdiffviewer.protocol.ReloadResult
 import io.github.mataku.kdiffviewer.protocol.RequestEnvelope
@@ -24,11 +25,15 @@ private class FakePlatform(
   val alive: Set<Long> = setOf(100, 101),
   val stdin: String = "",
   val appExists: Boolean = true,
+  override val os: HostOs = HostOs.MacOs,
   val respond: (String, String) -> String = { _, _ -> error("unexpected request") },
 ) : CliPlatform {
   val requests = mutableListOf<Pair<String, RequestEnvelope>>()
   var launched: Triple<String, String, String?>? = null
   val envVars = mutableMapOf<String, String>()
+  var listedDir: String? = null
+
+  override fun defaultApp() = "/Applications/kDiffViewer.app"
 
   override fun cwd() = cwd
 
@@ -42,7 +47,10 @@ private class FakePlatform(
     else -> "$cwd/${path.removePrefix("./")}"
   }
 
-  override fun listRegistry(dir: String): List<RegistryEntry> = entries
+  override fun listRegistry(dir: String): List<RegistryEntry> {
+    listedDir = dir
+    return entries
+  }
 
   override fun isAlive(pid: Long) = pid in alive
 
@@ -255,6 +263,16 @@ class RunTest {
     assertEquals(0, code)
     assertEquals("100  /work/repo\n101  (no repository)\n", out)
     assertTrue(p.requests.isEmpty())
+  }
+
+  @Test
+  fun windowsReadsTheHostSessionsDir() {
+    val mac = FakePlatform()
+    exec(mac, "windows")
+    assertEquals("/home/u/Library/Application Support/kDiffViewer/sessions", mac.listedDir)
+    val linux = FakePlatform(os = HostOs.Linux)
+    exec(linux, "windows")
+    assertEquals("/home/u/.local/state/kDiffViewer/sessions", linux.listedDir)
   }
 
   @Test

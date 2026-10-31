@@ -10,13 +10,21 @@ class RegistryTest {
   fun sessionsDirIsUnderApplicationSupport() {
     assertEquals(
       "/Users/a/Library/Application Support/kDiffViewer/sessions",
-      RegistryPaths.sessionsDir("/Users/a"),
+      RegistryPaths.sessionsDir("/Users/a", HostOs.MacOs),
+    )
+  }
+
+  @Test
+  fun linuxSessionsDirIsUnderLocalState() {
+    assertEquals(
+      "/home/a/.local/state/kDiffViewer/sessions",
+      RegistryPaths.sessionsDir("/home/a", HostOs.Linux),
     )
   }
 
   @Test
   fun socketAndEntryPathsUsePid() {
-    val dir = RegistryPaths.sessionsDir("/Users/a")
+    val dir = RegistryPaths.sessionsDir("/Users/a", HostOs.MacOs)
     assertTrue(RegistryPaths.socketPath(dir, 42).endsWith("/42.sock"))
     assertTrue(RegistryPaths.entryPath(dir, 42).endsWith("/42.json"))
   }

@@ -3,12 +3,12 @@ plugins {
 }
 
 kotlin {
-  macosArm64 {
-    binaries.executable {
+  listOf(macosArm64(), linuxX64(), linuxArm64()).forEach { target ->
+    target.binaries.executable {
       baseName = "kdv"
       entryPoint = "io.github.mataku.kdiffviewer.cli.main"
     }
-    compilations.getByName("main").cinterops.create("spawn") {
+    target.compilations.getByName("main").cinterops.create("spawn") {
       defFile(project.file("src/nativeInterop/cinterop/spawn.def"))
     }
   }

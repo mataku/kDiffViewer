@@ -23,7 +23,7 @@ import platform.posix.errno
 import platform.posix.pid_tVar
 import platform.posix.waitpid
 
-internal fun posixLaunchApp(app: String, path: String, base: String?): Boolean = memScoped {
+internal actual fun posixLaunchApp(app: String, path: String, base: String?): Boolean = memScoped {
   val arguments = listOf("open", "-n", "-a", app, "--args", path) + (base?.let { listOf("--base", it) } ?: emptyList())
   val argv = allocArray<kotlinx.cinterop.CPointerVar<kotlinx.cinterop.ByteVar>>(arguments.size + 1)
   arguments.forEachIndexed { index, value -> argv[index] = value.cstr.ptr }

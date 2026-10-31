@@ -2,7 +2,7 @@
 
 ![kDiffViewer in the Dim appearance, showing the file tree and a syntax-highlighted unified diff](./docs/images/dim-screen.png)
 
-kDiffViewer is a macOS desktop viewer for the git diff of a branch and its working tree, built with Kotlin Multiplatform and Compose Desktop. It shows everything since the branch point, including uncommitted work, in a GitHub-like view, and lets you leave review comments that a coding agent can read and answer from the terminal.
+kDiffViewer is a desktop viewer for macOS (and, experimentally, Linux) for the git diff of a branch and its working tree, built with Kotlin Multiplatform and Compose Desktop. It shows everything since the branch point, including uncommitted work, in a GitHub-like view, and lets you leave review comments that a coding agent can read and answer from the terminal.
 
 ## Features
 
@@ -16,28 +16,43 @@ kDiffViewer is a macOS desktop viewer for the git diff of a branch and its worki
 
 ## Requirements
 
-- macOS. The `kdv` command is built for Apple Silicon only
-- macOS 26 or later for syntax highlighting, because the bundled grammar libraries are built for it
+- macOS on Apple Silicon. Linux on x64 or arm64 is experimental (see [Linux](#linux))
+- On macOS, macOS 26 or later for syntax highlighting, because the bundled grammar libraries are built for it
 - git 2.36 or later at runtime (blobs are read through `git cat-file --batch-command`)
 - To build: JDK 25 to run Gradle. The build and the bundled runtime use the JetBrains Runtime 25 toolchain, which Gradle downloads automatically when it is not installed; the custom title bar needs JBR. Homebrew's OpenJDK is not suitable for packaging because it links font libraries from Homebrew into the bundled runtime ([Compose issue #3107](https://github.com/JetBrains/compose-multiplatform/issues/3107))
 
 ## Install
 
-There is no prebuilt release; build the app from source:
+There is no prebuilt release; build the app from source. The app bundles the `kdv` command.
+
+### macOS
 
 ```sh
 ./gradlew :app:createDistributable
 ```
 
-The app is created at `app/build/compose/binaries/main/app/kDiffViewer.app`. Copy it to `/Applications`.
-
-The app bundles the `kdv` command. Link it onto your `PATH`:
+The app is created at `app/build/compose/binaries/main/app/kDiffViewer.app`. Copy it to `/Applications`, then link `kdv` onto your `PATH`:
 
 ```sh
 ln -s /Applications/kDiffViewer.app/Contents/app/resources/kdv /usr/local/bin/kdv
 ```
 
 If `/usr/local/bin` is not writable by your user, run the command with `sudo`, or link `kdv` into another directory on your `PATH` (for example `~/.local/bin`).
+
+### Linux
+
+Linux support is experimental. It exists mainly so the project can be built and tested in Linux environments such as CI and cloud development sandboxes; I develop and use kDiffViewer on macOS. It is built and tested in CI on Ubuntu 26.04 (x64) only, may break without notice, and may be dropped in the future.
+
+Building the package needs `dpkg-deb` and `fakeroot`:
+
+```sh
+./gradlew :app:packageDeb
+sudo apt install ./app/build/compose/binaries/main/deb/kdiffviewer_1.0.0_amd64.deb
+```
+
+The package installs the app under `/opt/kdiffviewer`, adds it to the desktop menu, and links `/usr/bin/kdv`. Without the package, `./gradlew :app:createDistributable` creates `app/build/compose/binaries/main/app/kDiffViewer`; link its `lib/app/resources/kdv` onto your `PATH`.
+
+`kdv` finds the app next to itself. To start another copy, set `KDV_APP` to its launcher, for example `KDV_APP=/opt/kdiffviewer/bin/kDiffViewer`; on macOS, set it to the `.app` bundle.
 
 ## Usage
 
@@ -132,6 +147,8 @@ In the composer, Add single comment (<kbd>⌘</kbd><kbd>⇧</kbd><kbd>Return</kb
 A coding agent waits for your review with `kdv review wait`, which blocks until you send comments or approve. It reads threads with `kdv thread list`, answers one with `kdv thread reply`, and marks it done with `kdv thread resolve`; replies show up in the app. `kdv agent-guide` prints the full instructions for a coding agent; the `kdv-review` skill makes the agent read them.
 
 ## Keyboard shortcuts
+
+The shortcuts below are for macOS. On Linux, <kbd>Ctrl</kbd> takes the place of <kbd>⌘</kbd>, <kbd>F9</kbd> hides or shows the sidebar, and only <kbd>Ctrl</kbd><kbd>Home</kbd> and <kbd>Ctrl</kbd><kbd>End</kbd> scroll to the top and bottom.
 
 | Shortcut | Action |
 | --- | --- |

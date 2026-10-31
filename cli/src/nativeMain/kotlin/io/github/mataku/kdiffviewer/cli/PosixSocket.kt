@@ -7,33 +7,35 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.UByteVar
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.allocArray
-import kotlinx.cinterop.cValuesOf
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.get
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.set
-import kotlinx.cinterop.sizeOf
 import kotlinx.cinterop.toKString
 import kotlinx.cinterop.usePinned
 import platform.posix.AF_UNIX
 import platform.posix.EINTR
 import platform.posix.SOCK_STREAM
-import platform.posix.SOL_SOCKET
 import platform.posix.close
 import platform.posix.connect
 import platform.posix.errno
 import platform.posix.read
-import platform.posix.setsockopt
 import platform.posix.sockaddr
 import platform.posix.socket
 import platform.posix.strerror
 import platform.posix.write
 
-private const val SOCKADDR_UN_SIZE = 106
+// sockaddr_un differs per OS (macOS has sun_len and a 104-byte sun_path, Linux a 16-bit family and 108 bytes),
+// and platform.posix does not expose it on every target, so the address is written as raw bytes.
+internal expect val SOCKADDR_UN_SIZE: Int
+internal expect val SUN_PATH_CAPACITY: Int
+
+internal expect fun writeSockaddrHeader(raw: CPointer<UByteVar>)
+
+internal expect fun suppressSigpipe(fd: Int)
+
 private const val SUN_PATH_OFFSET = 2
-private const val SUN_PATH_CAPACITY = 104
-private const val SO_NOSIGPIPE_OPTION = 0x1022
 private const val READ_CHUNK = 65536
 
 internal fun <T> withUnixAddress(path: String, block: (CPointer<sockaddr>, UInt) -> T): T {
@@ -42,8 +44,7 @@ internal fun <T> withUnixAddress(path: String, block: (CPointer<sockaddr>, UInt)
   return memScoped {
     val raw = allocArray<UByteVar>(SOCKADDR_UN_SIZE)
     for (i in 0 until SOCKADDR_UN_SIZE) raw[i] = 0u
-    raw[0] = SOCKADDR_UN_SIZE.toUByte()
-    raw[1] = AF_UNIX.toUByte()
+    writeSockaddrHeader(raw)
     for (i in bytes.indices) raw[SUN_PATH_OFFSET + i] = bytes[i].toUByte()
     block(raw.reinterpret(), SOCKADDR_UN_SIZE.toUInt())
   }
@@ -55,9 +56,7 @@ internal fun unixRequest(socketPath: String, line: String): String {
   val fd = socket(AF_UNIX, SOCK_STREAM, 0)
   if (fd < 0) throw TransportException(errnoMessage("socket"))
   try {
-    memScoped {
-      setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE_OPTION, cValuesOf(1), sizeOf<kotlinx.cinterop.IntVar>().convert())
-    }
+    suppressSigpipe(fd)
     val connected = withUnixAddress(socketPath) { addr, size -> connect(fd, addr, size) }
     if (connected != 0) throw TransportException(errnoMessage("connect"))
     writeAll(fd, (line + "\n").encodeToByteArray())

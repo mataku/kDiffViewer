@@ -59,7 +59,7 @@ class PosixSocketTest {
     val fd = listenOn(path)
     val worker = serveOnce(fd, """{"ok":true,"result":{}}""")
     try {
-      assertEquals("""{"ok":true,"result":{}}""", MacPlatform.request(path, """{"v":1}"""))
+      assertEquals("""{"ok":true,"result":{}}""", PosixPlatform.request(path, """{"v":1}"""))
     } finally {
       worker.requestTermination().result
       close(fd)
@@ -73,7 +73,7 @@ class PosixSocketTest {
     val fd = listenOn(path)
     val worker = serveOnce(fd, null)
     try {
-      assertFailsWith<TransportException> { MacPlatform.request(path, """{"v":1}""") }
+      assertFailsWith<TransportException> { PosixPlatform.request(path, """{"v":1}""") }
     } finally {
       worker.requestTermination().result
       close(fd)
@@ -83,6 +83,6 @@ class PosixSocketTest {
 
   @Test
   fun connectingToAMissingSocketIsATransportException() {
-    assertFailsWith<TransportException> { MacPlatform.request(socketPath(), "{}") }
+    assertFailsWith<TransportException> { PosixPlatform.request(socketPath(), "{}") }
   }
 }

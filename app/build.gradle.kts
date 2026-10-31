@@ -73,14 +73,27 @@ compose.resources {
 }
 
 val isMacHost = System.getProperty("os.name").startsWith("Mac")
+val isArmHost = System.getProperty("os.arch").let { it == "aarch64" || it == "arm64" }
 
-// kdv is built for macosArm64 only, so other hosts package the app without it.
+// The packaged app bundles kdv for the host it is built on. Compose copies kdv-resources/<os>-<arch> into the app's
+// resources; Intel Macs are not supported.
+val kdvTarget = when {
+  isMacHost -> "macosArm64"
+  isArmHost -> "linuxArm64"
+  else -> "linuxX64"
+}
+val kdvResourceDir = when (kdvTarget) {
+  "macosArm64" -> "macos-arm64"
+  "linuxArm64" -> "linux-arm64"
+  else -> "linux-x64"
+}
+
 val prepareKdvResources by tasks.registering(Sync::class) {
-  dependsOn(":cli:linkReleaseExecutableMacosArm64")
-  from(rootProject.layout.projectDirectory.file("cli/build/bin/macosArm64/releaseExecutable/kdv.kexe")) {
+  dependsOn(":cli:linkReleaseExecutable${kdvTarget.replaceFirstChar { it.uppercase() }}")
+  from(rootProject.layout.projectDirectory.file("cli/build/bin/$kdvTarget/releaseExecutable/kdv.kexe")) {
     rename { "kdv" }
   }
-  into(layout.buildDirectory.dir("kdv-resources/macos-arm64"))
+  into(layout.buildDirectory.dir("kdv-resources/$kdvResourceDir"))
   filePermissions { unix("rwxr-xr-x") }
 }
 
@@ -109,9 +122,7 @@ compose.desktop {
       packageVersion = appVersion
       copyright = appCopyright
       modules("java.instrument", "jdk.unsupported")
-      if (isMacHost) {
-        appResourcesRootDir.set(layout.buildDirectory.dir("kdv-resources"))
-      }
+      appResourcesRootDir.set(layout.buildDirectory.dir("kdv-resources"))
 
       macOS {
         bundleID = "io.github.mataku.kdiffviewer"
@@ -217,16 +228,46 @@ if (isMacHost) {
   }
 }
 
-if (isMacHost) {
-  tasks.matching { it.name == "prepareAppResources" }.configureEach {
-    dependsOn(prepareKdvResources)
-  }
+tasks.matching { it.name == "prepareAppResources" }.configureEach {
+  dependsOn(prepareKdvResources)
+}
 
-  tasks.matching { it.name == "createDistributable" }.configureEach {
-    val kdvBinary = layout.buildDirectory.file("compose/binaries/main/app/kDiffViewer.app/Contents/app/resources/kdv")
-    doLast {
-      kdvBinary.get().asFile.setExecutable(true, false)
+tasks.matching { it.name == "createDistributable" }.configureEach {
+  val bundledKdv = if (isMacHost) "kDiffViewer.app/Contents/app/resources/kdv" else "kDiffViewer/lib/app/resources/kdv"
+  val kdvBinary = layout.buildDirectory.file("compose/binaries/main/app/$bundledKdv")
+  doLast {
+    kdvBinary.get().asFile.setExecutable(true, false)
+  }
+}
+
+// Compose copies app resources without their mode bits and always passes its own --resource-dir to jpackage, so the
+// .deb is repacked: kdv becomes executable again, and the maintainer scripts link /usr/bin/kdv to it on install and
+// remove the link on removal, leaving a /usr/bin/kdv that points elsewhere untouched.
+tasks.matching { it.name == "packageDeb" || it.name == "packageReleaseDeb" }.configureEach {
+  val outputDir = layout.buildDirectory.dir("compose/binaries/main${if (name == "packageReleaseDeb") "-release" else ""}/deb")
+  val workDir = layout.buildDirectory.dir("compose/tmp/$name-repack")
+  doLast {
+    val bundledKdv = "/opt/kdiffviewer/lib/app/resources/kdv"
+    fun exec(vararg command: String) {
+      val process = ProcessBuilder(*command).inheritIO().start()
+      check(process.waitFor() == 0) { "${command.joinToString(" ")} failed" }
     }
+    val deb = outputDir.get().asFile.listFiles { file -> file.extension == "deb" }!!.single()
+    val root = workDir.get().asFile
+    root.deleteRecursively()
+    exec("dpkg-deb", "-R", deb.absolutePath, root.absolutePath)
+    root.resolve(bundledKdv.removePrefix("/")).setExecutable(true, false)
+    fun insertAfter(script: String, anchor: String, line: String) {
+      val file = root.resolve("DEBIAN/$script")
+      val text = file.readText()
+      check(anchor in text) { "$script has no '${anchor.trim()}' case" }
+      file.writeText(text.replaceFirst(anchor, "$anchor$line\n"))
+    }
+    val ownsLink = "[ \"$(readlink /usr/bin/kdv)\" = $bundledKdv ]"
+    insertAfter("postinst", "    configure)\n", "if [ ! -e /usr/bin/kdv ] || $ownsLink; then ln -sf $bundledKdv /usr/bin/kdv; fi")
+    insertAfter("prerm", "    remove|upgrade|deconfigure)\n", "if $ownsLink; then rm -f /usr/bin/kdv; fi")
+    exec("dpkg-deb", "--root-owner-group", "--build", root.absolutePath, deb.absolutePath)
+    root.deleteRecursively()
   }
 }
 
