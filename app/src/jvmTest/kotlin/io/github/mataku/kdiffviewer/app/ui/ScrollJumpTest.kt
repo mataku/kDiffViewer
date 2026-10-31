@@ -39,6 +39,7 @@ import kotlin.test.assertTrue
 class ScrollJumpTest {
   private fun matches(keymap: Keymap = Keymap.Mac, input: KeyInjectionScope.() -> Unit): List<ScrollJump?> {
     val seen = mutableListOf<ScrollJump?>()
+    val shortcuts = AppShortcuts(keymap)
     runComposeUiTest {
       setContent {
         val focus = remember { FocusRequester() }
@@ -48,7 +49,7 @@ class ScrollJumpTest {
             .testTag("target")
             .focusRequester(focus)
             .onKeyEvent { event ->
-              scrollJumpOf(event, keymap)?.let(seen::add)
+              scrollJumpOf(event, shortcuts)?.let(seen::add)
               false
             }
             .focusable(),
