@@ -18,13 +18,14 @@ import kotlinx.coroutines.flow.asSharedFlow
 
 enum class ScrollJump { Top, Bottom }
 
-fun scrollJumpOf(event: KeyEvent): ScrollJump? {
+fun scrollJumpOf(event: KeyEvent, keymap: Keymap = HostKeymap): ScrollJump? {
   if (event.type != KeyEventType.KeyDown || event.isShiftPressed || event.isAltPressed) return null
   val meta = event.isMetaPressed
   val ctrl = event.isCtrlPressed
+  val mac = keymap == Keymap.Mac
   return when {
-    meta && !ctrl && event.key == Key.DirectionUp -> ScrollJump.Top
-    meta && !ctrl && event.key == Key.DirectionDown -> ScrollJump.Bottom
+    mac && meta && !ctrl && event.key == Key.DirectionUp -> ScrollJump.Top
+    mac && meta && !ctrl && event.key == Key.DirectionDown -> ScrollJump.Bottom
     ctrl && !meta && event.key == Key.MoveHome -> ScrollJump.Top
     ctrl && !meta && event.key == Key.MoveEnd -> ScrollJump.Bottom
     else -> null

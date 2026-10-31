@@ -803,7 +803,7 @@ class ViewerScreenTest {
   fun hoveringReloadShowsShortcutTooltip() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(emptyList()), {}) }
     onNodeWithTag("reload-button").performMouseInput { moveTo(center) }
-    waitUntil(timeoutMillis = 3_000) { onAllNodesWithText("Reload (⌘R)").fetchSemanticsNodes().isNotEmpty() }
+    waitUntil(timeoutMillis = 3_000) { onAllNodesWithText("Reload (${AppShortcuts.Host.reload.label})").fetchSemanticsNodes().isNotEmpty() }
   }
 
   @Test
@@ -1364,7 +1364,7 @@ class ViewerScreenTest {
     clickAddComment()
     waitForIdle()
     onNodeWithTag("comment-composer").performTextInput("looks wrong")
-    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(Key.MetaLeft) { pressKey(Key.Enter) } }
+    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(PrimaryModifierKey) { pressKey(Key.Enter) } }
     waitForIdle()
     onNodeWithTag("thread-t1").assertIsDisplayed()
     onNodeWithText("looks wrong").assertIsDisplayed()

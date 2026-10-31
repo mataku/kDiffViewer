@@ -23,7 +23,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -35,6 +34,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
+import io.github.mataku.kdiffviewer.app.ui.isPrimaryModifierPressed
 import io.github.mataku.kdiffviewer.app.ui.keepScrollJumps
 import io.github.mataku.kdiffviewer.app.ui.mac.MacPushButton
 import io.github.mataku.kdiffviewer.app.ui.mac.MacTabbedPanel
@@ -83,7 +83,7 @@ fun CommentComposer(
             true
           }
 
-          event.isMetaPressed && (event.key == Key.Enter || event.key == Key.NumPadEnter) -> {
+          event.isPrimaryModifierPressed() && (event.key == Key.Enter || event.key == Key.NumPadEnter) -> {
             if (draftText.value.isNotBlank()) {
               when (val current = latestActions) {
                 is ComposerActions.Save -> current.onSave()
@@ -93,7 +93,7 @@ fun CommentComposer(
             true
           }
 
-          event.isMetaPressed && event.isShiftPressed && event.key == Key.P -> {
+          event.isPrimaryModifierPressed() && event.isShiftPressed && event.key == Key.P -> {
             mode = if (mode == ComposerMode.Write) ComposerMode.Preview else ComposerMode.Write
             true
           }

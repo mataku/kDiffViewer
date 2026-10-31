@@ -37,7 +37,7 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class ScrollJumpTest {
-  private fun matches(input: KeyInjectionScope.() -> Unit): List<ScrollJump?> {
+  private fun matches(keymap: Keymap = Keymap.Mac, input: KeyInjectionScope.() -> Unit): List<ScrollJump?> {
     val seen = mutableListOf<ScrollJump?>()
     runComposeUiTest {
       setContent {
@@ -48,7 +48,7 @@ class ScrollJumpTest {
             .testTag("target")
             .focusRequester(focus)
             .onKeyEvent { event ->
-              scrollJumpOf(event)?.let(seen::add)
+              scrollJumpOf(event, keymap)?.let(seen::add)
               false
             }
             .focusable(),
@@ -92,7 +92,7 @@ class ScrollJumpTest {
   }
 
   @Test
-  fun focusedTextFieldKeepsCommandUp() = runComposeUiTest {
+  fun focusedTextFieldKeepsTopJump() = runComposeUiTest {
     val outer = mutableListOf<ScrollJump>()
     setContent {
       val focus = remember { FocusRequester() }
@@ -108,9 +108,21 @@ class ScrollJumpTest {
       LaunchedEffect(Unit) { focus.requestFocus() }
     }
     waitForIdle()
-    onNodeWithTag("field").performKeyInput { withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionUp) } }
+    onNodeWithTag("field").performKeyInput { hostTopJump() }
     waitForIdle()
     assertFalse(ScrollJump.Top in outer)
+  }
+
+  @Test
+  fun standardKeymapIgnoresCommandArrows() {
+    assertEquals(emptyList(), matches(Keymap.Standard) { withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionUp) } })
+    assertEquals(emptyList(), matches(Keymap.Standard) { withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionDown) } })
+  }
+
+  @Test
+  fun standardKeymapUsesControlHomeAndEnd() {
+    assertEquals(listOf<ScrollJump?>(ScrollJump.Top), matches(Keymap.Standard) { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveHome) } })
+    assertEquals(listOf<ScrollJump?>(ScrollJump.Bottom), matches(Keymap.Standard) { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveEnd) } })
   }
 
   @Test
@@ -120,12 +132,20 @@ class ScrollJumpTest {
     assertTrue(jumps.request(ScrollJump.Bottom))
   }
 
-  private val jumpKeys: List<KeyInjectionScope.() -> Unit> = listOf(
-    { withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionUp) } },
-    { withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionDown) } },
-    { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveHome) } },
-    { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveEnd) } },
-  )
+  private fun KeyInjectionScope.hostTopJump() = if (HostKeymap == Keymap.Mac) {
+    withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionUp) }
+  } else {
+    withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveHome) }
+  }
+
+  private val jumpKeys: List<KeyInjectionScope.() -> Unit> = buildList<KeyInjectionScope.() -> Unit> {
+    if (HostKeymap == Keymap.Mac) {
+      add { withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionUp) } }
+      add { withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionDown) } }
+    }
+    add { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveHome) } }
+    add { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveEnd) } }
+  }
 
   private fun leaksFrom(control: @Composable () -> Unit): List<ScrollJump> {
     val outer = mutableListOf<ScrollJump>()

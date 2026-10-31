@@ -1,12 +1,13 @@
 package io.github.mataku.kdiffviewer.app
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
 import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.MenuBar
 import io.github.mataku.kdiffviewer.app.find.FindCommand
 import io.github.mataku.kdiffviewer.app.selection.TextSelectionCoordinator
+import io.github.mataku.kdiffviewer.app.ui.AppShortcuts
+import io.github.mataku.kdiffviewer.app.ui.Chord
 
 @Composable
 fun FrameWindowScope.AppMenuBar(
@@ -17,21 +18,22 @@ fun FrameWindowScope.AppMenuBar(
 ) {
   val viewerAvailable = uiState.repo != null && uiState.status !is LoadStatus.Failed
   val screen = appState.screen
+  val shortcuts = AppShortcuts.Host
   MenuBar {
     Menu("File") {
-      Item("Open…", shortcut = KeyShortcut(Key.O, meta = true), onClick = appState::openFolder)
+      Item("Open…", shortcut = shortcuts.open.toKeyShortcut(), onClick = appState::openFolder)
       if (!nativePreferences) {
-        Item("Settings…", shortcut = KeyShortcut(Key.Comma, meta = true), onClick = appState::openSettings)
+        Item("Settings…", shortcut = shortcuts.settings.toKeyShortcut(), onClick = appState::openSettings)
       }
     }
     Menu("Edit") {
-      Item("Copy", shortcut = KeyShortcut(Key.C, meta = true), enabled = coordinator.hasSelection, onClick = { coordinator.copy() })
+      Item("Copy", shortcut = shortcuts.copy.toKeyShortcut(), enabled = coordinator.hasSelection, onClick = { coordinator.copy() })
       Separator()
       Menu("Find") {
         val requests = screen.findRequests
-        Item("Find…", shortcut = KeyShortcut(Key.F, meta = true), enabled = viewerAvailable, onClick = { requests.request(FindCommand.Show) })
-        Item("Find Next", shortcut = KeyShortcut(Key.G, meta = true), enabled = viewerAvailable, onClick = { requests.request(FindCommand.Next) })
-        Item("Find Previous", shortcut = KeyShortcut(Key.G, meta = true, shift = true), enabled = viewerAvailable, onClick = { requests.request(FindCommand.Previous) })
+        Item("Find…", shortcut = shortcuts.find.toKeyShortcut(), enabled = viewerAvailable, onClick = { requests.request(FindCommand.Show) })
+        Item("Find Next", shortcut = shortcuts.findNext.toKeyShortcut(), enabled = viewerAvailable, onClick = { requests.request(FindCommand.Next) })
+        Item("Find Previous", shortcut = shortcuts.findPrevious.toKeyShortcut(), enabled = viewerAvailable, onClick = { requests.request(FindCommand.Previous) })
       }
     }
     Menu("View") {
@@ -40,12 +42,14 @@ fun FrameWindowScope.AppMenuBar(
       Separator()
       Item(
         if (screen.sidebarVisible) "Hide Sidebar" else "Show Sidebar",
-        shortcut = KeyShortcut(Key.S, ctrl = true, meta = true),
+        shortcut = shortcuts.toggleSidebar.toKeyShortcut(),
         enabled = viewerAvailable,
         onClick = screen::toggleSidebar,
       )
       Separator()
-      Item("Reload", shortcut = KeyShortcut(Key.R, meta = true), onClick = appState.viewer::reload)
+      Item("Reload", shortcut = shortcuts.reload.toKeyShortcut(), onClick = appState.viewer::reload)
     }
   }
 }
+
+private fun Chord.toKeyShortcut(): KeyShortcut = KeyShortcut(key, ctrl = ctrl, meta = meta, shift = shift)
