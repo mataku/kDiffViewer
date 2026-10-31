@@ -2,7 +2,7 @@
 
 ![kDiffViewer in the Dim appearance, showing the file tree and a syntax-highlighted unified diff](./docs/images/dim-screen.png)
 
-kDiffViewer is a desktop viewer for macOS and Linux for the git diff of a branch and its working tree, built with Kotlin Multiplatform and Compose Desktop. It shows everything since the branch point, including uncommitted work, in a GitHub-like view, and lets you leave review comments that a coding agent can read and answer from the terminal.
+kDiffViewer is a desktop viewer for macOS (and, experimentally, Linux) for the git diff of a branch and its working tree, built with Kotlin Multiplatform and Compose Desktop. It shows everything since the branch point, including uncommitted work, in a GitHub-like view, and lets you leave review comments that a coding agent can read and answer from the terminal.
 
 ## Features
 
@@ -16,7 +16,7 @@ kDiffViewer is a desktop viewer for macOS and Linux for the git diff of a branch
 
 ## Requirements
 
-- macOS on Apple Silicon, or Linux on x64 or arm64
+- macOS on Apple Silicon. Linux on x64 or arm64 is experimental (see [Linux](#linux))
 - On macOS, macOS 26 or later for syntax highlighting, because the bundled grammar libraries are built for it
 - git 2.36 or later at runtime (blobs are read through `git cat-file --batch-command`)
 - To build: JDK 25 to run Gradle. The build and the bundled runtime use the JetBrains Runtime 25 toolchain, which Gradle downloads automatically when it is not installed; the custom title bar needs JBR. Homebrew's OpenJDK is not suitable for packaging because it links font libraries from Homebrew into the bundled runtime ([Compose issue #3107](https://github.com/JetBrains/compose-multiplatform/issues/3107))
@@ -40,6 +40,8 @@ ln -s /Applications/kDiffViewer.app/Contents/app/resources/kdv /usr/local/bin/kd
 If `/usr/local/bin` is not writable by your user, run the command with `sudo`, or link `kdv` into another directory on your `PATH` (for example `~/.local/bin`).
 
 ### Linux
+
+Linux support is experimental. It exists mainly so the project can be built and tested in Linux environments such as CI and cloud development sandboxes; I develop and use kDiffViewer on macOS. It is built and tested in CI on Ubuntu 24.04 (x64) only, may break without notice, and may be dropped in the future.
 
 Building the package needs `dpkg-deb` and `fakeroot`:
 
