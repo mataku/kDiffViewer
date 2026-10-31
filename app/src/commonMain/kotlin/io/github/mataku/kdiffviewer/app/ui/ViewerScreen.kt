@@ -466,7 +466,7 @@ private fun RepoHeader(
       MacToolbarButton(
         icon = sidebarButtonIcon(sidebarVisible),
         contentDescription = if (sidebarVisible) "Hide Sidebar" else "Show Sidebar",
-        tooltip = if (sidebarVisible) "Hide Sidebar (${AppShortcuts.Host.toggleSidebar.label})" else "Show Sidebar (${AppShortcuts.Host.toggleSidebar.label})",
+        tooltip = if (sidebarVisible) "Hide Sidebar (${LocalAppShortcuts.current.toggleSidebar.label})" else "Show Sidebar (${LocalAppShortcuts.current.toggleSidebar.label})",
         onClick = onToggleSidebar,
         modifier = Modifier
           .testTag("sidebar-control")
@@ -541,7 +541,7 @@ private fun RepoHeader(
         GlassIconButton(
           icon = KdvIcons.Reload,
           contentDescription = "Reload",
-          tooltip = "Reload (${AppShortcuts.Host.reload.label})",
+          tooltip = "Reload (${LocalAppShortcuts.current.reload.label})",
           onClick = onReload,
           modifier = Modifier
             .testTag("reload-button")

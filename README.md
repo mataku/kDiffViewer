@@ -157,8 +157,8 @@ The shortcuts below are for macOS. On Linux, <kbd>Ctrl</kbd> takes the place of 
 | <kbd>⌘</kbd><kbd>,</kbd> | Open Settings |
 | <kbd>⌃</kbd><kbd>⌘</kbd><kbd>S</kbd> | Hide or show the sidebar |
 | <kbd>⌘</kbd><kbd>C</kbd> | Copy the selected code or comment text |
-| <kbd>⌘</kbd><kbd>↑</kbd> or <kbd>⌃</kbd><kbd>Home</kbd> | Scroll to the top of the diff |
-| <kbd>⌘</kbd><kbd>↓</kbd> or <kbd>⌃</kbd><kbd>End</kbd> | Scroll to the bottom of the diff |
+| <kbd>⌘</kbd><kbd>↑</kbd> | Scroll to the top of the diff |
+| <kbd>⌘</kbd><kbd>↓</kbd> | Scroll to the bottom of the diff |
 | <kbd>⌘</kbd><kbd>Return</kbd> | In the composer: start a review, or save an edited comment |
 | <kbd>⌘</kbd><kbd>⇧</kbd><kbd>Return</kbd> | In the composer: add a single comment |
 | <kbd>⌘</kbd><kbd>⇧</kbd><kbd>P</kbd> | In the composer: switch between Write and Preview |
@@ -167,6 +167,8 @@ The shortcuts below are for macOS. On Linux, <kbd>Ctrl</kbd> takes the place of 
 | <kbd>Return</kbd> or <kbd>Esc</kbd> | In the quit confirmation: cancel and keep the app open |
 
 The scroll shortcuts do not apply while a text field or the comment preview has focus; there they keep their usual meaning.
+
+Reload, the sidebar, scroll, and composer shortcuts can be changed under Settings ▸ Keyboard Shortcuts: click a shortcut and press the new combination, or press <kbd>Esc</kbd> to cancel. A shortcut must include <kbd>⌘</kbd> or <kbd>⌃</kbd> (a function key alone is fine), and combinations another shortcut, a menu item, or macOS already uses are refused. Restore Defaults goes back to the defaults above.
 
 ## Settings
 
@@ -177,8 +179,18 @@ Settings… in the application menu (<kbd>⌘</kbd><kbd>,</kbd>) changes these, 
 - File tree font size
 - Copy on select (off by default)
 - The git executable, when the one on `PATH` is not the one you want
+- Keyboard shortcuts
 
-Settings are stored in `~/Library/Application\ Support/kDiffViewer/settings.json`. The main window's size and the file tree's width are saved on quit to `~/Library/Application\ Support/kDiffViewer/window-state.json`; delete it to go back to the defaults.
+Settings are stored in `~/Library/Application\ Support/kDiffViewer/settings.json`. Changed shortcuts are kept per platform, so one file can be shared between macOS and Linux:
+
+```json
+"shortcuts": {
+  "macos": { "reload": "shift+cmd+r", "toggleSidebar": "ctrl+cmd+b" },
+  "linux": { "reload": "ctrl+shift+r" }
+}
+```
+
+Each entry is checked on its own; one that cannot be read, is refused, or collides with another falls back to its default, and Settings shows why on that shortcut's row. The main window's size and the file tree's width are saved on quit to `~/Library/Application\ Support/kDiffViewer/window-state.json`; delete it to go back to the defaults.
 
 ## Known limitations
 

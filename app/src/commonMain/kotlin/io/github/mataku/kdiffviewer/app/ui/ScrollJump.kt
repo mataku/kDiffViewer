@@ -11,8 +11,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 enum class ScrollJump { Top, Bottom }
 
 fun scrollJumpOf(event: KeyEvent, shortcuts: AppShortcuts = AppShortcuts.Host): ScrollJump? = when {
-  shortcuts.scrollToTop.any { it.matches(event) } -> ScrollJump.Top
-  shortcuts.scrollToBottom.any { it.matches(event) } -> ScrollJump.Bottom
+  shortcuts.scrollToTop.matches(event) -> ScrollJump.Top
+  shortcuts.scrollToBottom.matches(event) -> ScrollJump.Bottom
   else -> null
 }
 
@@ -23,4 +23,4 @@ class ScrollJumps {
   fun request(jump: ScrollJump): Boolean = flow.tryEmit(jump)
 }
 
-fun Modifier.keepScrollJumps(): Modifier = onKeyEvent { event -> scrollJumpOf(event) != null }
+fun Modifier.keepScrollJumps(shortcuts: AppShortcuts): Modifier = onKeyEvent { event -> scrollJumpOf(event, shortcuts) != null }

@@ -33,7 +33,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.mataku.kdiffviewer.app.ui.AppShortcuts
+import io.github.mataku.kdiffviewer.app.ui.LocalAppShortcuts
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
 import io.github.mataku.kdiffviewer.app.ui.keepScrollJumps
 import io.github.mataku.kdiffviewer.app.ui.mac.MacPushButton
@@ -66,7 +66,7 @@ fun CommentComposer(
   val latestActions by rememberUpdatedState(actions)
   val latestCancel by rememberUpdatedState(onCancel)
   val focusRequests = LocalDraftFocusRequests.current.value
-  val shortcuts = AppShortcuts.Host
+  val shortcuts = LocalAppShortcuts.current
   var mode by remember { mutableStateOf(ComposerMode.Write) }
   var writeHeightPx by remember { mutableIntStateOf(0) }
   LaunchedEffect(focusRequests, mode) {
@@ -167,7 +167,7 @@ private fun PreviewPane(
       .fillMaxWidth()
       .heightIn(min = minHeight)
       .padding(horizontal = 8.dp, vertical = PreviewPadding)
-      .keepScrollJumps()
+      .keepScrollJumps(LocalAppShortcuts.current)
       .focusable(),
   ) {
     if (text.isBlank()) {

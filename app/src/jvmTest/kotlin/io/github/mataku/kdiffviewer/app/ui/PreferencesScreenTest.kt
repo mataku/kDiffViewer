@@ -28,6 +28,8 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.up
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.test.withKeyDown
+import androidx.compose.ui.test.withKeysDown
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.mataku.kdiffviewer.app.settings.Appearance
@@ -35,6 +37,8 @@ import io.github.mataku.kdiffviewer.app.settings.GitStatus
 import io.github.mataku.kdiffviewer.app.settings.Settings
 import io.github.mataku.kdiffviewer.app.settings.SettingsLoad
 import io.github.mataku.kdiffviewer.core.git.GitInfo
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -229,14 +233,82 @@ class PreferencesScreenTest {
     assertEquals(4, h.last().tabWidth)
   }
 
+  private val hostShortcuts = AppShortcuts.Host
+  private val primary = if (HostKeymap == Keymap.Mac) Key.MetaLeft else Key.CtrlLeft
+
+  private fun ComposeUiTest.startRecording(id: ShortcutId) {
+    onNodeWithTag("shortcut-${id.settingsKey}").performScrollTo().performClick()
+    waitForIdle()
+  }
+
   @Test
-  fun keyboardShortcutsSectionListsGivenShortcuts() = runComposeUiTest {
+  fun keyboardShortcutsSectionListsShortcuts() = runComposeUiTest {
     show(Harness())
     onNodeWithTag("keyboard-shortcuts").performScrollTo()
-    AppShortcuts.Host.reference.flatMap { it.entries }.forEach { entry ->
-      onNodeWithText(entry.action).assertExists()
-      onNodeWithText(entry.keysLabel).assertExists()
+    ShortcutId.entries.forEach { id ->
+      onNodeWithText(id.title).assertExists()
+      onNodeWithTag("shortcut-${id.settingsKey}").assertTextEquals(hostShortcuts[id].label)
     }
+  }
+
+  @Test
+  fun recordingAShortcutSavesItForTheHostPlatform() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    startRecording(ShortcutId.Reload)
+    onNodeWithTag("shortcut-reload").assertTextEquals("Type Shortcut")
+    onNodeWithTag("shortcut-reload").performKeyInput { withKeysDown(listOf(primary, Key.ShiftLeft)) { pressKey(Key.K) } }
+    val expected = HostKeymap.chord(Key.K, ctrl = HostKeymap != Keymap.Mac, meta = HostKeymap == Keymap.Mac, shift = true)
+    assertEquals(expected, h.last().resolveShortcuts(HostKeymap).shortcuts.reload)
+  }
+
+  @Test
+  fun reservedChordIsRejectedInline() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    startRecording(ShortcutId.Reload)
+    onNodeWithTag("shortcut-reload").performKeyInput { withKeyDown(primary) { pressKey(Key.Q) } }
+    onNodeWithTag("shortcut-problem-reload").assertTextEquals("Reserved by the system or a menu item")
+    onNodeWithTag("shortcut-reload").assertTextEquals("Type Shortcut")
+    assertTrue(h.transforms.isEmpty())
+  }
+
+  @Test
+  fun chordUsedByAnotherShortcutIsRejectedInline() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    startRecording(ShortcutId.Reload)
+    onNodeWithTag("shortcut-reload").performKeyInput { withKeysDown(listOf(primary, Key.ShiftLeft)) { pressKey(Key.P) } }
+    onNodeWithTag("shortcut-problem-reload").assertTextEquals("Used by Switch Write and Preview")
+    assertTrue(h.transforms.isEmpty())
+  }
+
+  @Test
+  fun escapeCancelsRecording() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    startRecording(ShortcutId.Reload)
+    onNodeWithTag("shortcut-reload").performKeyInput { pressKey(Key.Escape) }
+    waitForIdle()
+    onNodeWithTag("shortcut-reload").assertTextEquals(hostShortcuts.reload.label)
+    assertTrue(h.transforms.isEmpty())
+  }
+
+  @Test
+  fun invalidSettingsEntryIsShownOnItsRow() = runComposeUiTest {
+    val stored = JsonObject(mapOf(HostKeymap.settingsKey to JsonObject(mapOf("reload" to JsonPrimitive("comd+r")))))
+    show(Harness(), Settings(shortcuts = stored))
+    onNodeWithTag("shortcut-problem-reload").performScrollTo().assertTextEquals("settings.json: Not a valid shortcut: \"comd+r\"")
+    onNodeWithTag("shortcut-reload").assertTextEquals(hostShortcuts.reload.label)
+  }
+
+  @Test
+  fun restoreDefaultsClearsTheHostBlock() = runComposeUiTest {
+    val h = Harness()
+    val stored = JsonObject(mapOf(HostKeymap.settingsKey to JsonObject(mapOf("reload" to JsonPrimitive("comd+r")))))
+    show(h, Settings(shortcuts = stored))
+    onNodeWithTag("shortcuts-restore-defaults").performScrollTo().performClick()
+    assertNull(h.last(Settings(shortcuts = stored)).shortcutBlock(HostKeymap))
   }
 
   @Test

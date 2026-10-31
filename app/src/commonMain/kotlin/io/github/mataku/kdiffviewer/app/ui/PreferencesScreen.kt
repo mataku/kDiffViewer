@@ -72,8 +72,10 @@ fun PreferencesScreen(
   onCommitGitPath: (String) -> Unit,
   onChooseGit: () -> Unit,
   titleBarInset: Dp = 0.dp,
-  shortcuts: List<ShortcutGroup> = AppShortcuts.Host.reference,
+  keymap: Keymap = HostKeymap,
 ) {
+  val resolvedShortcuts = remember(settings.shortcuts, keymap) { settings.resolveShortcuts(keymap) }
+  val shortcutsState = rememberKeyboardShortcutsState(keymap)
   val colors = LocalDiffColors.current
   Column(
     modifier = Modifier
@@ -152,7 +154,12 @@ fun PreferencesScreen(
       GitSection(settings.gitPath, gitStatus, onCommitGitPath, onChooseGit)
     }
     Section("Keyboard Shortcuts") {
-      KeyboardShortcutList(shortcuts)
+      KeyboardShortcutList(
+        resolved = resolvedShortcuts,
+        state = shortcutsState,
+        onCommit = { id, chord -> onUpdate { it.withShortcut(keymap, id, chord) } },
+        onRestoreDefaults = { onUpdate { it.withDefaultShortcuts(keymap) } },
+      )
     }
     SettingsFileFooter(settingsFilePath, onRevealSettingsFile)
   }

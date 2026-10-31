@@ -8,6 +8,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.LocalUriHandler
@@ -20,8 +21,10 @@ import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.selection.TextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.settings.Settings
 import io.github.mataku.kdiffviewer.app.settings.SettingsRepository
+import io.github.mataku.kdiffviewer.app.ui.AppShortcuts
 import io.github.mataku.kdiffviewer.app.ui.ErrorScreen
 import io.github.mataku.kdiffviewer.app.ui.KdvTheme
+import io.github.mataku.kdiffviewer.app.ui.LocalAppShortcuts
 import io.github.mataku.kdiffviewer.app.ui.LocalTitleBarRegions
 import io.github.mataku.kdiffviewer.app.ui.OpenRepositoryScreen
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
@@ -41,6 +44,7 @@ fun MainWindow(
   appState: KdvAppState,
   repository: SettingsRepository,
   settings: Settings,
+  shortcuts: AppShortcuts,
   factory: GitBackendFactory,
   windowState: ComposeWindowState,
   nativePreferences: Boolean,
@@ -48,11 +52,12 @@ fun MainWindow(
   val viewer = appState.viewer
   val uiState by viewer.uiState.collectAsState()
   val reviewSnapshot by appState.review.snapshot.collectAsState()
+  val currentShortcuts by rememberUpdatedState(shortcuts)
   Window(
     onCloseRequest = appState::requestQuit,
     title = "kDiffViewer",
     state = windowState,
-    onKeyEvent = { event -> appState.quitWarning == null && (scrollJumpOf(event)?.let(appState.screen.scrollJumps::request) ?: false) },
+    onKeyEvent = { event -> appState.quitWarning == null && (scrollJumpOf(event, currentShortcuts)?.let(appState.screen.scrollJumps::request) ?: false) },
   ) {
     LaunchedEffect(settings.appearance) { window.applyAppearance(settings.appearance) }
     LaunchedEffect(appState.quitPrompts) {
@@ -67,7 +72,7 @@ fun MainWindow(
     }
     val coordinator = remember { TextSelectionCoordinator(AwtClipboardWriter) { repository.settings.value.copyOnSelect } }
     val nativeMenu = remember(window) { AwtNativeContextMenu(window) }
-    AppMenuBar(appState, uiState, coordinator, nativePreferences)
+    AppMenuBar(appState, uiState, coordinator, nativePreferences, shortcuts)
     val fontFamily = remember(settings.fontFamily) { resolveFontFamily(settings.fontFamily) }
     val platformUriHandler = LocalUriHandler.current
     val safeUriHandler = remember(platformUriHandler) { SafeUriHandler(platformUriHandler) }
@@ -78,6 +83,7 @@ fun MainWindow(
       LocalUriHandler provides safeUriHandler,
       LocalTextSelectionCoordinator provides coordinator,
       LocalNativeContextMenu provides nativeMenu,
+      LocalAppShortcuts provides shortcuts,
     ) {
       KdvTheme(
         colorTheme = settings.appearance.colorTheme(),

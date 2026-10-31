@@ -15,10 +15,10 @@ fun FrameWindowScope.AppMenuBar(
   uiState: ViewerUiState,
   coordinator: TextSelectionCoordinator,
   nativePreferences: Boolean,
+  shortcuts: AppShortcuts,
 ) {
   val viewerAvailable = uiState.repo != null && uiState.status !is LoadStatus.Failed
   val screen = appState.screen
-  val shortcuts = AppShortcuts.Host
   MenuBar {
     Menu("File") {
       Item("Open…", shortcut = shortcuts.open.toKeyShortcut(), onClick = appState::openFolder)
@@ -52,4 +52,4 @@ fun FrameWindowScope.AppMenuBar(
   }
 }
 
-private fun Chord.toKeyShortcut(): KeyShortcut = KeyShortcut(key, ctrl = ctrl, meta = meta, shift = shift)
+private fun Chord.toKeyShortcut(): KeyShortcut = KeyShortcut(key, ctrl = ctrl, meta = meta, alt = alt, shift = shift)

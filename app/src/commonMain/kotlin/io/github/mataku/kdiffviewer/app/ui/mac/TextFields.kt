@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.ui.DiffColors
 import io.github.mataku.kdiffviewer.app.ui.KdvIcons
+import io.github.mataku.kdiffviewer.app.ui.LocalAppShortcuts
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
 import io.github.mataku.kdiffviewer.app.ui.keepScrollJumps
 
@@ -70,7 +71,7 @@ fun MacTextField(
       singleLine = true,
       textStyle = TextStyle(color = colors.text, fontSize = 13.sp),
       cursorBrush = SolidColor(colors.text),
-      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.keepScrollJumps(),
+      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.keepScrollJumps(LocalAppShortcuts.current),
       decorationBox = { innerTextField ->
         Box(contentAlignment = Alignment.CenterStart) {
           if (value.isEmpty() && placeholder != null) {
@@ -166,7 +167,7 @@ private fun SearchFieldFrame(
         }
         .then(modifier)
         .onFocusChanged { focused = it.isFocused }
-        .keepScrollJumps(),
+        .keepScrollJumps(LocalAppShortcuts.current),
       textStyle,
     ) { innerTextField ->
       Box(contentAlignment = Alignment.CenterStart) {
@@ -214,7 +215,7 @@ fun MacTextArea(
       minLines = minLines,
       textStyle = textStyle,
       cursorBrush = SolidColor(colors.text),
-      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.keepScrollJumps(),
+      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.keepScrollJumps(LocalAppShortcuts.current),
     )
   }
 }
@@ -247,7 +248,7 @@ fun MacInlineError(
 
 private val CapsuleShape = RoundedCornerShape(50)
 
-private fun Modifier.fieldChrome(colors: DiffColors, focused: Boolean, capsule: Boolean): Modifier {
+internal fun Modifier.fieldChrome(colors: DiffColors, focused: Boolean, capsule: Boolean): Modifier {
   val shape = if (capsule) CapsuleShape else ControlShape
   val ringColor = colors.accent.copy(alpha = 0.5f)
   return drawBehind {

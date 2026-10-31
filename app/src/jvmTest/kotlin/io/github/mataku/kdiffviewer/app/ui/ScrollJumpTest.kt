@@ -73,13 +73,33 @@ class ScrollJumpTest {
   }
 
   @Test
-  fun controlHomeJumpsToTop() {
-    assertEquals(listOf<ScrollJump?>(ScrollJump.Top), matches { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveHome) } })
+  fun macIgnoresControlHomeAndEnd() {
+    assertEquals(emptyList(), matches { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveHome) } })
+    assertEquals(emptyList(), matches { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveEnd) } })
   }
 
   @Test
-  fun controlEndJumpsToBottom() {
-    assertEquals(listOf<ScrollJump?>(ScrollJump.Bottom), matches { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveEnd) } })
+  fun overriddenChordJumps() {
+    val seen = mutableListOf<ScrollJump?>()
+    val shortcuts = AppShortcuts(Keymap.Mac, mapOf(ShortcutId.ScrollToTop to Keymap.Mac.chord(Key.T, meta = true, shift = true)))
+    runComposeUiTest {
+      setContent {
+        val focus = remember { FocusRequester() }
+        Box(
+          Modifier.size(10.dp).testTag("target").focusRequester(focus).onKeyEvent { event ->
+            scrollJumpOf(event, shortcuts)?.let(seen::add)
+            false
+          }.focusable(),
+        )
+        LaunchedEffect(Unit) { focus.requestFocus() }
+      }
+      waitForIdle()
+      onNodeWithTag("target").performKeyInput {
+        withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionUp) }
+        withKeysDown(listOf(Key.ShiftLeft, Key.MetaLeft)) { pressKey(Key.T) }
+      }
+    }
+    assertEquals(listOf<ScrollJump?>(ScrollJump.Top), seen)
   }
 
   @Test
@@ -143,9 +163,10 @@ class ScrollJumpTest {
     if (HostKeymap == Keymap.Mac) {
       add { withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionUp) } }
       add { withKeyDown(Key.MetaLeft) { pressKey(Key.DirectionDown) } }
+    } else {
+      add { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveHome) } }
+      add { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveEnd) } }
     }
-    add { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveHome) } }
-    add { withKeyDown(Key.CtrlLeft) { pressKey(Key.MoveEnd) } }
   }
 
   private fun leaksFrom(control: @Composable () -> Unit): List<ScrollJump> {
@@ -196,7 +217,7 @@ class ScrollJumpTest {
           false
         },
       ) {
-        Box(Modifier.size(10.dp).testTag("pane").focusRequester(focus).keepScrollJumps().focusable())
+        Box(Modifier.size(10.dp).testTag("pane").focusRequester(focus).keepScrollJumps(AppShortcuts.Host).focusable())
       }
       LaunchedEffect(Unit) { focus.requestFocus() }
     }

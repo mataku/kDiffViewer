@@ -44,16 +44,13 @@ class AppShortcutsTest {
 
   @Test
   fun noStandardShortcutUsesMeta() {
-    with(standard) {
-      (listOf(open, settings, copy, find, findNext, findPrevious, toggleSidebar, reload, submitComment, addSingleComment, togglePreview) + scrollToTop + scrollToBottom)
-        .forEach { assertFalse(it.meta, it.label) }
-    }
+    (standard.fixed + standard.bindings.values).forEach { assertFalse(it.meta, it.label) }
   }
 
   @Test
   fun macLabelsForViewerAndComposer() {
-    assertEquals(listOf("⌘↑", "⌃Home"), mac.scrollToTop.map { it.label })
-    assertEquals(listOf("⌘↓", "⌃End"), mac.scrollToBottom.map { it.label })
+    assertEquals("⌘↑", mac.scrollToTop.label)
+    assertEquals("⌘↓", mac.scrollToBottom.label)
     assertEquals("⌘↩", mac.submitComment.label)
     assertEquals("⇧⌘↩", mac.addSingleComment.label)
     assertEquals("⇧⌘P", mac.togglePreview.label)
@@ -61,19 +58,29 @@ class AppShortcutsTest {
 
   @Test
   fun standardLabelsForViewerAndComposer() {
-    assertEquals(listOf("Ctrl+Home"), standard.scrollToTop.map { it.label })
-    assertEquals(listOf("Ctrl+End"), standard.scrollToBottom.map { it.label })
+    assertEquals("Ctrl+Home", standard.scrollToTop.label)
+    assertEquals("Ctrl+End", standard.scrollToBottom.label)
     assertEquals("Ctrl+Enter", standard.submitComment.label)
     assertEquals("Ctrl+Shift+Enter", standard.addSingleComment.label)
   }
 
   @Test
-  fun referenceListsOnlyAppSpecificShortcuts() {
-    val listed = mac.reference.flatMap { group -> group.entries.flatMap { it.chords } }
-    with(mac) {
-      listOf(reload, toggleSidebar, submitComment, addSingleComment, togglePreview).forEach { assertTrue(it in listed, it.label) }
-      (scrollToTop + scrollToBottom).forEach { assertTrue(it in listed, it.label) }
-      listOf(open, settings, copy, find, findNext, findPrevious).forEach { assertFalse(it in listed, it.label) }
-    }
+  fun overridesReplaceOnlyTheirBinding() {
+    val custom = Keymap.Mac.chord(Key.R, meta = true, shift = true)
+    val shortcuts = AppShortcuts(Keymap.Mac, mapOf(ShortcutId.Reload to custom))
+    assertEquals(custom, shortcuts.reload)
+    assertEquals(mac.toggleSidebar, shortcuts.toggleSidebar)
+  }
+
+  @Test
+  fun macLabelOrdersModifiersLikeMenus() {
+    assertEquals("⌃⌥⇧⌘K", Keymap.Mac.chord(Key.K, ctrl = true, alt = true, shift = true, meta = true).label)
+    assertEquals("Ctrl+Alt+Shift+K", Keymap.Standard.chord(Key.K, ctrl = true, alt = true, shift = true).label)
+  }
+
+  @Test
+  fun chordEqualityIgnoresLabel() {
+    assertEquals(Chord(Key.R, "x", meta = true), Chord(Key.R, "y", meta = true))
+    assertTrue(Chord(Key.R, "x", meta = true) != Chord(Key.R, "x", meta = true, shift = true))
   }
 }
