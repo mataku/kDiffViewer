@@ -41,7 +41,7 @@ If `/usr/local/bin` is not writable by your user, run the command with `sudo`, o
 
 ### Linux
 
-Linux support is experimental. It exists mainly so the project can be built and tested in Linux environments such as CI and cloud development sandboxes; I develop and use kDiffViewer on macOS. It is built and tested in CI on Ubuntu 24.04 (x64) only, may break without notice, and may be dropped in the future.
+Linux support is experimental. It exists mainly so the project can be built and tested in Linux environments such as CI and cloud development sandboxes; I develop and use kDiffViewer on macOS. It is built and tested in CI on Ubuntu 26.04 (x64) only, may break without notice, and may be dropped in the future.
 
 Building the package needs `dpkg-deb` and `fakeroot`:
 
