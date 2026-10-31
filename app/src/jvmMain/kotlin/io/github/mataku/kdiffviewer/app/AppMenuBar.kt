@@ -6,8 +6,8 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.MenuBar
 import io.github.mataku.kdiffviewer.app.find.FindCommand
 import io.github.mataku.kdiffviewer.app.selection.TextSelectionCoordinator
-import io.github.mataku.kdiffviewer.app.ui.AppShortcuts
 import io.github.mataku.kdiffviewer.app.ui.Chord
+import io.github.mataku.kdiffviewer.app.ui.KeyboardShortcuts
 
 @Composable
 fun FrameWindowScope.AppMenuBar(
@@ -15,10 +15,10 @@ fun FrameWindowScope.AppMenuBar(
   uiState: ViewerUiState,
   coordinator: TextSelectionCoordinator,
   nativePreferences: Boolean,
+  shortcuts: KeyboardShortcuts,
 ) {
   val viewerAvailable = uiState.repo != null && uiState.status !is LoadStatus.Failed
   val screen = appState.screen
-  val shortcuts = AppShortcuts.Host
   MenuBar {
     Menu("File") {
       Item("Open…", shortcut = shortcuts.open.toKeyShortcut(), onClick = appState::openFolder)
@@ -52,4 +52,4 @@ fun FrameWindowScope.AppMenuBar(
   }
 }
 
-private fun Chord.toKeyShortcut(): KeyShortcut = KeyShortcut(key, ctrl = ctrl, meta = meta, shift = shift)
+private fun Chord?.toKeyShortcut(): KeyShortcut? = this?.let { KeyShortcut(it.key, ctrl = it.ctrl, meta = it.meta, alt = it.alt, shift = it.shift) }

@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -11,10 +12,12 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 
-enum class Keymap { Mac, Standard }
+/** [settingsKey] names the per-platform block in settings.json. */
+enum class Keymap(val settingsKey: String) { Mac("macos"), Standard("linux") }
 
 expect val HostKeymap: Keymap
 
+/** A key plus exact modifiers. Equality ignores [label], which only depends on the keymap. */
 @Immutable
 class Chord(
   val key: Key,
@@ -22,94 +25,123 @@ class Chord(
   val ctrl: Boolean = false,
   val meta: Boolean = false,
   val shift: Boolean = false,
+  val alt: Boolean = false,
 ) {
   fun matches(event: KeyEvent): Boolean = event.type == KeyEventType.KeyDown &&
     event.key.withoutNumPad() == key &&
     event.isCtrlPressed == ctrl &&
     event.isMetaPressed == meta &&
     event.isShiftPressed == shift &&
-    !event.isAltPressed
+    event.isAltPressed == alt
 
-  private fun Key.withoutNumPad(): Key = if (this == Key.NumPadEnter) Key.Enter else this
+  override fun equals(other: Any?): Boolean = other is Chord &&
+    key == other.key &&
+    ctrl == other.ctrl &&
+    meta == other.meta &&
+    shift == other.shift &&
+    alt == other.alt
+
+  override fun hashCode(): Int = listOf(key, ctrl, meta, shift, alt).hashCode()
+
+  override fun toString(): String = label
 }
 
-class AppShortcuts(keymap: Keymap) {
-  private val mac = keymap == Keymap.Mac
+fun Chord?.matches(event: KeyEvent): Boolean = this != null && matches(event)
 
-  val open = primary(Key.O, "O")
-  val settings = primary(Key.Comma, ",")
-  val copy = primary(Key.C, "C")
-  val find = primary(Key.F, "F")
-  val findNext = primary(Key.G, "G")
-  val findPrevious = primary(Key.G, "G", shift = true)
+internal fun Key.withoutNumPad(): Key = if (this == Key.NumPadEnter) Key.Enter else this
 
-  // ⌃⌘S has no Ctrl-based equivalent once Ctrl is the primary modifier; F9 is the GNOME Files sidebar key.
-  val toggleSidebar = if (mac) chord(Key.S, "S", ctrl = true, meta = true) else chord(Key.F9, "F9")
-  val reload = primary(Key.R, "R")
-
-  // ⌘↑/⌘↓ is the macOS idiom; Ctrl+Home/End also works there for keyboards that have those keys.
-  val scrollToTop: List<Chord> = listOfNotNull(
-    chord(Key.DirectionUp, "↑", meta = true).takeIf { mac },
-    chord(Key.MoveHome, "Home", ctrl = true),
-  )
-  val scrollToBottom: List<Chord> = listOfNotNull(
-    chord(Key.DirectionDown, "↓", meta = true).takeIf { mac },
-    chord(Key.MoveEnd, "End", ctrl = true),
-  )
-
-  private val enterLabel = if (mac) "↩" else "Enter"
-  val submitComment = primary(Key.Enter, enterLabel)
-  val addSingleComment = primary(Key.Enter, enterLabel, shift = true)
-  val togglePreview = primary(Key.P, "P", shift = true)
-
-  /** App-specific shortcuts for the Settings list; OS-standard ones (⌘C, ⌘F, Esc…) are left out. */
-  val reference: List<ShortcutGroup> by lazy {
-    listOf(
-      ShortcutGroup(
-        "Viewer",
-        listOf(
-          ShortcutEntry("Reload", listOf(reload)),
-          ShortcutEntry("Show or Hide Sidebar", listOf(toggleSidebar)),
-          ShortcutEntry("Scroll to Top", scrollToTop),
-          ShortcutEntry("Scroll to Bottom", scrollToBottom),
-        ),
-      ),
-      ShortcutGroup(
-        "Comments",
-        listOf(
-          ShortcutEntry("Add Review Comment or Save", listOf(submitComment)),
-          ShortcutEntry("Add Single Comment", listOf(addSingleComment)),
-          ShortcutEntry("Switch Write and Preview", listOf(togglePreview)),
-        ),
-      ),
-    )
-  }
-
-  private fun primary(key: Key, keyLabel: String, shift: Boolean = false): Chord = chord(key, keyLabel, ctrl = !mac, meta = mac, shift = shift)
-
-  private fun chord(key: Key, keyLabel: String, ctrl: Boolean = false, meta: Boolean = false, shift: Boolean = false): Chord {
-    val label = if (mac) {
-      buildString {
-        if (ctrl) append('⌃')
-        if (shift) append('⇧')
-        if (meta) append('⌘')
-        append(keyLabel)
-      }
-    } else {
-      listOfNotNull("Ctrl".takeIf { ctrl }, "Shift".takeIf { shift }, keyLabel).joinToString("+")
+fun Keymap.chord(key: Key, ctrl: Boolean = false, meta: Boolean = false, shift: Boolean = false, alt: Boolean = false): Chord {
+  val keyLabel = KeyNames.label(key, this)
+  val label = when (this) {
+    Keymap.Mac -> buildString {
+      if (ctrl) append('⌃')
+      if (alt) append('⌥')
+      if (shift) append('⇧')
+      if (meta) append('⌘')
+      append(keyLabel)
     }
-    return Chord(key, label, ctrl = ctrl, meta = meta, shift = shift)
+
+    Keymap.Standard -> listOfNotNull("Ctrl".takeIf { ctrl }, "Alt".takeIf { alt }, "Shift".takeIf { shift }, "Meta".takeIf { meta }, keyLabel).joinToString("+")
   }
+  return Chord(key, label, ctrl = ctrl, meta = meta, shift = shift, alt = alt)
+}
+
+/** Builds the chord an event represents, or null when its key has no name in [KeyNames]. */
+fun Keymap.chordOf(event: KeyEvent): Chord? {
+  val key = event.key.withoutNumPad()
+  if (!KeyNames.supports(key)) return null
+  return chord(key, ctrl = event.isCtrlPressed, meta = event.isMetaPressed, shift = event.isShiftPressed, alt = event.isAltPressed)
+}
+
+enum class ShortcutCategory(val title: String) { Viewer("Viewer"), Comments("Comments") }
+
+/** Customizable shortcuts. [settingsKey] is the name used in settings.json and must stay stable. */
+enum class ShortcutId(val settingsKey: String, val title: String, val category: ShortcutCategory) {
+  Reload("reload", "Reload", ShortcutCategory.Viewer),
+  ToggleSidebar("toggleSidebar", "Show or Hide Sidebar", ShortcutCategory.Viewer),
+  ScrollToTop("scrollToTop", "Scroll to Top", ShortcutCategory.Viewer),
+  ScrollToBottom("scrollToBottom", "Scroll to Bottom", ShortcutCategory.Viewer),
+  SubmitComment("submitComment", "Add Review Comment or Save", ShortcutCategory.Comments),
+  AddSingleComment("addSingleComment", "Add Single Comment", ShortcutCategory.Comments),
+  TogglePreview("togglePreview", "Switch Write and Preview", ShortcutCategory.Comments),
+  ;
 
   companion object {
-    val Host = AppShortcuts(HostKeymap)
+    private val bySettingsKey = entries.associateBy { it.settingsKey }
+    fun fromSettingsKey(key: String): ShortcutId? = bySettingsKey[key]
   }
 }
 
+/** Overrides map an id to its new chord, or to null when the user removed the shortcut. */
 @Immutable
-class ShortcutEntry(val action: String, val chords: List<Chord>) {
-  val keysLabel: String = chords.joinToString(" or ") { it.label }
+class KeyboardShortcuts(val keymap: Keymap, overrides: Map<ShortcutId, Chord?> = emptyMap()) {
+  private val mac = keymap == Keymap.Mac
+
+  val open = primary(Key.O)
+  val settings = primary(Key.Comma)
+  val copy = primary(Key.C)
+  val find = primary(Key.F)
+  val findNext = primary(Key.G)
+  val findPrevious = primary(Key.G, shift = true)
+
+  /** Menu shortcuts that follow OS conventions and cannot be changed. */
+  val fixed: List<Chord> = listOf(open, settings, copy, find, findNext, findPrevious)
+
+  val defaults: Map<ShortcutId, Chord> = ShortcutId.entries.associateWith(::defaultChord)
+  val bindings: Map<ShortcutId, Chord?> = defaults + overrides
+
+  operator fun get(id: ShortcutId): Chord? = bindings[id]
+
+  val toggleSidebar: Chord? get() = this[ShortcutId.ToggleSidebar]
+  val reload: Chord? get() = this[ShortcutId.Reload]
+  val scrollToTop: Chord? get() = this[ShortcutId.ScrollToTop]
+  val scrollToBottom: Chord? get() = this[ShortcutId.ScrollToBottom]
+  val submitComment: Chord? get() = this[ShortcutId.SubmitComment]
+  val addSingleComment: Chord? get() = this[ShortcutId.AddSingleComment]
+  val togglePreview: Chord? get() = this[ShortcutId.TogglePreview]
+
+  private fun defaultChord(id: ShortcutId): Chord = when (id) {
+    ShortcutId.Reload -> primary(Key.R)
+
+    // ⌃⌘S has no Ctrl-based equivalent once Ctrl is the primary modifier; F9 is the GNOME Files sidebar key.
+    ShortcutId.ToggleSidebar -> if (mac) keymap.chord(Key.S, ctrl = true, meta = true) else keymap.chord(Key.F9)
+
+    ShortcutId.ScrollToTop -> if (mac) keymap.chord(Key.DirectionUp, meta = true) else keymap.chord(Key.MoveHome, ctrl = true)
+
+    ShortcutId.ScrollToBottom -> if (mac) keymap.chord(Key.DirectionDown, meta = true) else keymap.chord(Key.MoveEnd, ctrl = true)
+
+    ShortcutId.SubmitComment -> primary(Key.Enter)
+
+    ShortcutId.AddSingleComment -> primary(Key.Enter, shift = true)
+
+    ShortcutId.TogglePreview -> primary(Key.P, shift = true)
+  }
+
+  private fun primary(key: Key, shift: Boolean = false): Chord = keymap.chord(key, ctrl = !mac, meta = mac, shift = shift)
+
+  companion object {
+    val Host = KeyboardShortcuts(HostKeymap)
+  }
 }
 
-@Immutable
-class ShortcutGroup(val title: String, val entries: List<ShortcutEntry>)
+val LocalKeyboardShortcuts = staticCompositionLocalOf { KeyboardShortcuts.Host }

@@ -19,6 +19,8 @@ data class Settings(
   val appearance: Appearance = Appearance.System,
   val treeFontSize: Int = 13,
   val copyOnSelect: Boolean = false,
+  /** Per-platform blocks (`macos`, `linux`) of shortcut overrides; entries are validated one by one when resolved. */
+  val shortcuts: JsonObject = JsonObject(emptyMap()),
 )
 
 fun Settings.normalized(): Settings = copy(
