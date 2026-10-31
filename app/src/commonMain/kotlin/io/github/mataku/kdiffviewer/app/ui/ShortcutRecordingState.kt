@@ -18,7 +18,7 @@ import androidx.compose.ui.input.key.type
 
 /** Which shortcut row is recording, and why the last key pressed there was rejected. */
 @Stable
-class KeyboardShortcutsState(private val keymap: Keymap) {
+class ShortcutRecordingState(private val keymap: Keymap) {
   var recording: ShortcutId? by mutableStateOf(null)
     private set
 
@@ -35,12 +35,20 @@ class KeyboardShortcutsState(private val keymap: Keymap) {
     rejection = null
   }
 
-  /** Handles a key while a row is recording. Rejected chords keep recording so another one can be tried. */
-  fun onKey(event: KeyEvent, shortcuts: AppShortcuts, onCommit: (ShortcutId, Chord) -> Unit): Boolean {
+  /**
+   * Handles a key while a row is recording: a chord replaces the shortcut, plain Delete or Backspace removes it, and Esc
+   * cancels. Rejected chords keep recording so another one can be tried.
+   */
+  fun onKey(event: KeyEvent, shortcuts: KeyboardShortcuts, onCommit: (ShortcutId, Chord?) -> Unit): Boolean {
     val id = recording ?: return false
     if (event.type != KeyEventType.KeyDown) return true
     when {
       event.key == Key.Escape && !event.hasModifiers() -> cancel()
+
+      event.key in ClearKeys && !event.hasModifiers() -> {
+        cancel()
+        onCommit(id, null)
+      }
 
       event.key in ModifierKeys -> Unit
 
@@ -61,6 +69,7 @@ class KeyboardShortcutsState(private val keymap: Keymap) {
   private fun KeyEvent.hasModifiers(): Boolean = isCtrlPressed || isMetaPressed || isShiftPressed || isAltPressed
 
   private companion object {
+    val ClearKeys = setOf(Key.Backspace, Key.Delete)
     val ModifierKeys = setOf(
       Key.MetaLeft, Key.MetaRight, Key.CtrlLeft, Key.CtrlRight, Key.ShiftLeft, Key.ShiftRight, Key.AltLeft, Key.AltRight,
       Key.CapsLock, Key.Function,
@@ -69,4 +78,4 @@ class KeyboardShortcutsState(private val keymap: Keymap) {
 }
 
 @Composable
-fun rememberKeyboardShortcutsState(keymap: Keymap = HostKeymap): KeyboardShortcutsState = remember(keymap) { KeyboardShortcutsState(keymap) }
+fun rememberShortcutRecordingState(keymap: Keymap = HostKeymap): ShortcutRecordingState = remember(keymap) { ShortcutRecordingState(keymap) }

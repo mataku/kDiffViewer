@@ -46,6 +46,8 @@ class Chord(
   override fun toString(): String = label
 }
 
+fun Chord?.matches(event: KeyEvent): Boolean = this != null && matches(event)
+
 internal fun Key.withoutNumPad(): Key = if (this == Key.NumPadEnter) Key.Enter else this
 
 fun Keymap.chord(key: Key, ctrl: Boolean = false, meta: Boolean = false, shift: Boolean = false, alt: Boolean = false): Chord {
@@ -90,8 +92,9 @@ enum class ShortcutId(val settingsKey: String, val title: String, val category: 
   }
 }
 
+/** Overrides map an id to its new chord, or to null when the user removed the shortcut. */
 @Immutable
-class AppShortcuts(val keymap: Keymap, overrides: Map<ShortcutId, Chord> = emptyMap()) {
+class KeyboardShortcuts(val keymap: Keymap, overrides: Map<ShortcutId, Chord?> = emptyMap()) {
   private val mac = keymap == Keymap.Mac
 
   val open = primary(Key.O)
@@ -105,17 +108,17 @@ class AppShortcuts(val keymap: Keymap, overrides: Map<ShortcutId, Chord> = empty
   val fixed: List<Chord> = listOf(open, settings, copy, find, findNext, findPrevious)
 
   val defaults: Map<ShortcutId, Chord> = ShortcutId.entries.associateWith(::defaultChord)
-  val bindings: Map<ShortcutId, Chord> = defaults + overrides
+  val bindings: Map<ShortcutId, Chord?> = defaults + overrides
 
-  operator fun get(id: ShortcutId): Chord = bindings.getValue(id)
+  operator fun get(id: ShortcutId): Chord? = bindings[id]
 
-  val toggleSidebar: Chord get() = this[ShortcutId.ToggleSidebar]
-  val reload: Chord get() = this[ShortcutId.Reload]
-  val scrollToTop: Chord get() = this[ShortcutId.ScrollToTop]
-  val scrollToBottom: Chord get() = this[ShortcutId.ScrollToBottom]
-  val submitComment: Chord get() = this[ShortcutId.SubmitComment]
-  val addSingleComment: Chord get() = this[ShortcutId.AddSingleComment]
-  val togglePreview: Chord get() = this[ShortcutId.TogglePreview]
+  val toggleSidebar: Chord? get() = this[ShortcutId.ToggleSidebar]
+  val reload: Chord? get() = this[ShortcutId.Reload]
+  val scrollToTop: Chord? get() = this[ShortcutId.ScrollToTop]
+  val scrollToBottom: Chord? get() = this[ShortcutId.ScrollToBottom]
+  val submitComment: Chord? get() = this[ShortcutId.SubmitComment]
+  val addSingleComment: Chord? get() = this[ShortcutId.AddSingleComment]
+  val togglePreview: Chord? get() = this[ShortcutId.TogglePreview]
 
   private fun defaultChord(id: ShortcutId): Chord = when (id) {
     ShortcutId.Reload -> primary(Key.R)
@@ -137,8 +140,8 @@ class AppShortcuts(val keymap: Keymap, overrides: Map<ShortcutId, Chord> = empty
   private fun primary(key: Key, shift: Boolean = false): Chord = keymap.chord(key, ctrl = !mac, meta = mac, shift = shift)
 
   companion object {
-    val Host = AppShortcuts(HostKeymap)
+    val Host = KeyboardShortcuts(HostKeymap)
   }
 }
 
-val LocalAppShortcuts = staticCompositionLocalOf { AppShortcuts.Host }
+val LocalKeyboardShortcuts = staticCompositionLocalOf { KeyboardShortcuts.Host }

@@ -33,13 +33,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.mataku.kdiffviewer.app.ui.LocalAppShortcuts
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
+import io.github.mataku.kdiffviewer.app.ui.LocalKeyboardShortcuts
 import io.github.mataku.kdiffviewer.app.ui.keepScrollJumps
 import io.github.mataku.kdiffviewer.app.ui.mac.MacPushButton
 import io.github.mataku.kdiffviewer.app.ui.mac.MacTabbedPanel
 import io.github.mataku.kdiffviewer.app.ui.mac.MacTextArea
 import io.github.mataku.kdiffviewer.app.ui.markdown.MarkdownBody
+import io.github.mataku.kdiffviewer.app.ui.matches
 
 private enum class ComposerMode(val label: String, val tag: String) {
   Write("Write", "composer-mode-write"),
@@ -66,7 +67,7 @@ fun CommentComposer(
   val latestActions by rememberUpdatedState(actions)
   val latestCancel by rememberUpdatedState(onCancel)
   val focusRequests = LocalDraftFocusRequests.current.value
-  val shortcuts = LocalAppShortcuts.current
+  val shortcuts = LocalKeyboardShortcuts.current
   var mode by remember { mutableStateOf(ComposerMode.Write) }
   var writeHeightPx by remember { mutableIntStateOf(0) }
   LaunchedEffect(focusRequests, mode) {
@@ -167,7 +168,7 @@ private fun PreviewPane(
       .fillMaxWidth()
       .heightIn(min = minHeight)
       .padding(horizontal = 8.dp, vertical = PreviewPadding)
-      .keepScrollJumps(LocalAppShortcuts.current)
+      .keepScrollJumps(LocalKeyboardShortcuts.current)
       .focusable(),
   ) {
     if (text.isBlank()) {

@@ -2,10 +2,11 @@ package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.runtime.Immutable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-/** Reads and writes chords as `ctrl+alt+shift+cmd+key`; `cmd` exists only on macOS. */
+/** Reads and writes chords as `ctrl+alt+shift+cmd+key`; `cmd` exists only on macOS. An empty string means no shortcut. */
 object ChordSyntax {
   private const val CTRL = "ctrl"
   private const val ALT = "alt"
@@ -70,42 +71,47 @@ private val reserved: Map<Keymap, Set<Chord>> = reservedSyntax.mapValues { (keym
 }
 
 /** Problems that do not depend on the other bindings. */
-private fun AppShortcuts.standaloneProblem(chord: Chord): ShortcutProblem? = when {
+private fun KeyboardShortcuts.standaloneProblem(chord: Chord): ShortcutProblem? = when {
   !chord.ctrl && !chord.meta && chord.key !in KeyNames.functionKeySet -> ShortcutProblem.NoModifier
   chord in reserved.getValue(keymap) || chord in fixed -> ShortcutProblem.Reserved
   else -> null
 }
 
 /** Why [chord] cannot be bound to [id], or null when it can. */
-fun AppShortcuts.problemFor(id: ShortcutId, chord: Chord): ShortcutProblem? = standaloneProblem(chord)
+fun KeyboardShortcuts.problemFor(id: ShortcutId, chord: Chord): ShortcutProblem? = standaloneProblem(chord)
   ?: bindings.entries.firstOrNull { (other, bound) -> other != id && bound == chord }?.let { ShortcutProblem.UsedBy(it.key) }
 
 @Immutable
-class ResolvedShortcuts(val shortcuts: AppShortcuts, val problems: Map<ShortcutId, ShortcutProblem>)
+class ResolvedKeyboardShortcuts(val shortcuts: KeyboardShortcuts, val problems: Map<ShortcutId, ShortcutProblem>)
 
 /**
  * Builds the shortcuts for [keymap] from its settings.json block. Each entry is checked on its own; a bad entry falls back
- * to its default and is reported in [ResolvedShortcuts.problems] instead of discarding the others.
+ * to its default and is reported in [ResolvedKeyboardShortcuts.problems] instead of discarding the others.
  */
-fun resolveShortcuts(keymap: Keymap, stored: JsonObject?): ResolvedShortcuts {
+fun resolveShortcuts(keymap: Keymap, stored: JsonObject?): ResolvedKeyboardShortcuts {
   val problems = LinkedHashMap<ShortcutId, ShortcutProblem>()
-  val base = AppShortcuts(keymap)
-  val overrides = LinkedHashMap<ShortcutId, Chord>()
+  val base = KeyboardShortcuts(keymap)
+  val overrides = LinkedHashMap<ShortcutId, Chord?>()
   stored?.forEach { (name, value) ->
     val id = ShortcutId.fromSettingsKey(name) ?: return@forEach
-    val chord = value.chordText()?.let { ChordSyntax.parse(it, keymap) }
+    val text = value.chordText()
+    if (value is JsonNull || text?.isBlank() == true) {
+      overrides[id] = null
+      return@forEach
+    }
+    val chord = text?.let { ChordSyntax.parse(it, keymap) }
     when {
-      chord == null -> problems[id] = ShortcutProblem.Unreadable(value.chordText() ?: value.toString())
+      chord == null -> problems[id] = ShortcutProblem.Unreadable(text ?: value.toString())
       else -> base.standaloneProblem(chord)?.let { problems[id] = it } ?: overrides.put(id, chord)
     }
   }
   // Swaps are fine because only the final bindings are compared. Every override in a collision is dropped since none is
   // more intended than another; restoring a default can collide again, so repeat until stable (overrides only shrink).
   while (true) {
-    val shortcuts = AppShortcuts(keymap, overrides)
-    val collisions = shortcuts.bindings.entries.groupBy({ it.value }, { it.key }).values.filter { it.size > 1 }
+    val shortcuts = KeyboardShortcuts(keymap, overrides)
+    val collisions = shortcuts.bindings.entries.filter { it.value != null }.groupBy({ it.value }, { it.key }).values.filter { it.size > 1 }
     val dropped = collisions.flatMap { ids -> ids.filter { it in overrides }.map { it to ids.first { other -> other != it } } }
-    if (dropped.isEmpty()) return ResolvedShortcuts(shortcuts, problems)
+    if (dropped.isEmpty()) return ResolvedKeyboardShortcuts(shortcuts, problems)
     dropped.forEach { (id, other) ->
       overrides.remove(id)
       problems[id] = ShortcutProblem.UsedBy(other)

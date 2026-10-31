@@ -168,7 +168,7 @@ The shortcuts below are for macOS. On Linux, <kbd>Ctrl</kbd> takes the place of 
 
 The scroll shortcuts do not apply while a text field or the comment preview has focus; there they keep their usual meaning.
 
-Reload, the sidebar, scroll, and composer shortcuts can be changed under Settings ▸ Keyboard Shortcuts: click a shortcut and press the new combination, or press <kbd>Esc</kbd> to cancel. A shortcut must include <kbd>⌘</kbd> or <kbd>⌃</kbd> (a function key alone is fine), and combinations another shortcut, a menu item, or macOS already uses are refused. Restore Defaults goes back to the defaults above.
+Reload, the sidebar, scroll, and composer shortcuts can be changed under Settings ▸ Keyboard Shortcuts: click a shortcut and press the new combination, press <kbd>Delete</kbd> to remove it, or press <kbd>Esc</kbd> to cancel. A shortcut must include <kbd>⌘</kbd> or <kbd>⌃</kbd> (a function key alone is fine), and combinations another shortcut, a menu item, or macOS already uses are refused. Restore Defaults goes back to the defaults above.
 
 ## Settings
 
@@ -190,7 +190,7 @@ Settings are stored in `~/Library/Application\ Support/kDiffViewer/settings.json
 }
 ```
 
-Each entry is checked on its own; one that cannot be read, is refused, or collides with another falls back to its default, and Settings shows why on that shortcut's row. The main window's size and the file tree's width are saved on quit to `~/Library/Application\ Support/kDiffViewer/window-state.json`; delete it to go back to the defaults.
+An empty string removes a shortcut. Each entry is checked on its own; one that cannot be read, is refused, or collides with another falls back to its default, and Settings shows why on that shortcut's row. The main window's size and the file tree's width are saved on quit to `~/Library/Application\ Support/kDiffViewer/window-state.json`; delete it to go back to the defaults.
 
 ## Known limitations
 

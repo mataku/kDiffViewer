@@ -39,7 +39,7 @@ import kotlin.test.assertTrue
 class ScrollJumpTest {
   private fun matches(keymap: Keymap = Keymap.Mac, input: KeyInjectionScope.() -> Unit): List<ScrollJump?> {
     val seen = mutableListOf<ScrollJump?>()
-    val shortcuts = AppShortcuts(keymap)
+    val shortcuts = KeyboardShortcuts(keymap)
     runComposeUiTest {
       setContent {
         val focus = remember { FocusRequester() }
@@ -81,7 +81,7 @@ class ScrollJumpTest {
   @Test
   fun overriddenChordJumps() {
     val seen = mutableListOf<ScrollJump?>()
-    val shortcuts = AppShortcuts(Keymap.Mac, mapOf(ShortcutId.ScrollToTop to Keymap.Mac.chord(Key.T, meta = true, shift = true)))
+    val shortcuts = KeyboardShortcuts(Keymap.Mac, mapOf(ShortcutId.ScrollToTop to Keymap.Mac.chord(Key.T, meta = true, shift = true)))
     runComposeUiTest {
       setContent {
         val focus = remember { FocusRequester() }
@@ -217,7 +217,7 @@ class ScrollJumpTest {
           false
         },
       ) {
-        Box(Modifier.size(10.dp).testTag("pane").focusRequester(focus).keepScrollJumps(AppShortcuts.Host).focusable())
+        Box(Modifier.size(10.dp).testTag("pane").focusRequester(focus).keepScrollJumps(KeyboardShortcuts.Host).focusable())
       }
       LaunchedEffect(Unit) { focus.requestFocus() }
     }

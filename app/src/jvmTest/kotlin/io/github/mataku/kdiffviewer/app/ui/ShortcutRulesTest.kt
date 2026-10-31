@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.ui.input.key.Key
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -11,8 +12,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ShortcutRulesTest {
-  private val mac = AppShortcuts(Keymap.Mac)
-  private val standard = AppShortcuts(Keymap.Standard)
+  private val mac = KeyboardShortcuts(Keymap.Mac)
+  private val standard = KeyboardShortcuts(Keymap.Standard)
 
   private fun macChord(text: String) = requireNotNull(ChordSyntax.parse(text, Keymap.Mac)) { text }
 
@@ -58,8 +59,8 @@ class ShortcutRulesTest {
 
   @Test
   fun rejectsAChordAnotherShortcutUses() {
-    assertEquals(ShortcutProblem.UsedBy(ShortcutId.ToggleSidebar), mac.problemFor(ShortcutId.Reload, mac.toggleSidebar))
-    assertNull(mac.problemFor(ShortcutId.Reload, mac.reload))
+    assertEquals(ShortcutProblem.UsedBy(ShortcutId.ToggleSidebar), mac.problemFor(ShortcutId.Reload, mac.toggleSidebar!!))
+    assertNull(mac.problemFor(ShortcutId.Reload, mac.reload!!))
   }
 
   @Test
@@ -114,5 +115,32 @@ class ShortcutRulesTest {
     val resolved = resolveShortcuts(Keymap.Mac, block("toggleSidebar" to "cmd+k", "scrollToTop" to "cmd+k", "reload" to "ctrl+cmd+s"))
     assertEquals(mac.bindings, resolved.shortcuts.bindings)
     assertEquals(setOf(ShortcutId.ToggleSidebar, ShortcutId.ScrollToTop, ShortcutId.Reload), resolved.problems.keys)
+  }
+
+  @Test
+  fun emptyOrNullRemovesTheShortcut() {
+    val resolved = resolveShortcuts(
+      Keymap.Mac,
+      buildJsonObject {
+        put("reload", "")
+        put("toggleSidebar", JsonNull)
+      },
+    )
+    assertTrue(resolved.problems.isEmpty())
+    assertNull(resolved.shortcuts.reload)
+    assertNull(resolved.shortcuts.toggleSidebar)
+  }
+
+  @Test
+  fun removedShortcutFreesItsChordForAnother() {
+    val resolved = resolveShortcuts(Keymap.Mac, block("toggleSidebar" to "", "reload" to "ctrl+cmd+s"))
+    assertTrue(resolved.problems.isEmpty())
+    assertEquals(mac.toggleSidebar, resolved.shortcuts.reload)
+  }
+
+  @Test
+  fun severalRemovedShortcutsDoNotCollide() {
+    val resolved = resolveShortcuts(Keymap.Mac, block("reload" to "", "togglePreview" to ""))
+    assertTrue(resolved.problems.isEmpty())
   }
 }

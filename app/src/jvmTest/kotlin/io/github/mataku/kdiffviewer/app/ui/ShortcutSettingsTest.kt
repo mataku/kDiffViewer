@@ -26,7 +26,7 @@ class ShortcutSettingsTest {
   @Test
   fun bindingTheDefaultRemovesTheEntry() {
     val custom = base.withShortcut(Keymap.Mac, ShortcutId.Reload, Keymap.Mac.chord(Key.K, meta = true))
-    val back = custom.withShortcut(Keymap.Mac, ShortcutId.Reload, AppShortcuts(Keymap.Mac).reload)
+    val back = custom.withShortcut(Keymap.Mac, ShortcutId.Reload, KeyboardShortcuts(Keymap.Mac).reload)
     assertNull(back.shortcutBlock(Keymap.Mac))
     assertEquals(base, back)
   }
@@ -60,5 +60,12 @@ class ShortcutSettingsTest {
     assertTrue(decoded.partial)
     assertEquals(14, decoded.settings.fontSize)
     assertEquals(JsonObject(emptyMap()), decoded.settings.shortcuts)
+  }
+
+  @Test
+  fun removingAShortcutStoresAnEmptyString() {
+    val updated = base.withShortcut(Keymap.Mac, ShortcutId.Reload, null)
+    assertEquals(JsonPrimitive(""), updated.shortcutBlock(Keymap.Mac)?.get("reload"))
+    assertNull(updated.resolveShortcuts(Keymap.Mac).shortcuts.reload)
   }
 }

@@ -22,14 +22,13 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
 
 /**
- * The shortcut cell of System Settings' Keyboard Shortcuts list: plain text until clicked, then a focused field that
- * records the next key combination. Losing focus cancels.
+ * The shortcut cell of System Settings' Keyboard Shortcuts list: plain text until clicked, then a focused field showing
+ * the current shortcut that records the next key combination. Losing focus cancels. An empty [label] means no shortcut.
  */
 @Composable
 fun MacShortcutRecorder(
@@ -48,7 +47,7 @@ fun MacShortcutRecorder(
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     Box(
       modifier = modifier
-        .widthIn(min = 120.dp)
+        .widthIn(min = 80.dp)
         .fieldChrome(colors, focused = true, capsule = false)
         .focusRequester(focusRequester)
         .onFocusChanged {
@@ -64,11 +63,12 @@ fun MacShortcutRecorder(
         .padding(horizontal = 8.dp, vertical = 3.dp),
       contentAlignment = Alignment.Center,
     ) {
-      BasicText("Type Shortcut", style = TextStyle(color = colors.mutedText, fontSize = 13.sp, textAlign = TextAlign.Center))
+      BasicText(label, style = TextStyle(color = colors.text, fontSize = 13.sp))
     }
   } else {
     Box(
       modifier = modifier
+        .widthIn(min = 80.dp)
         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onStartRecording)
         .padding(horizontal = 8.dp, vertical = 3.dp),
       contentAlignment = Alignment.CenterEnd,

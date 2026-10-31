@@ -803,7 +803,7 @@ class ViewerScreenTest {
   fun hoveringReloadShowsShortcutTooltip() = runComposeUiTest {
     setContent { ViewerScreen(stateOf(emptyList()), {}) }
     onNodeWithTag("reload-button").performMouseInput { moveTo(center) }
-    waitUntil(timeoutMillis = 3_000) { onAllNodesWithText("Reload (${AppShortcuts.Host.reload.label})").fetchSemanticsNodes().isNotEmpty() }
+    waitUntil(timeoutMillis = 3_000) { onAllNodesWithText("Reload (${KeyboardShortcuts.Host.reload!!.label})").fetchSemanticsNodes().isNotEmpty() }
   }
 
   @Test

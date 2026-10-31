@@ -25,9 +25,9 @@ private val ShortcutsByCategory: List<Pair<ShortcutCategory, List<ShortcutId>>> 
 
 @Composable
 fun KeyboardShortcutList(
-  resolved: ResolvedShortcuts,
-  state: KeyboardShortcutsState,
-  onCommit: (ShortcutId, Chord) -> Unit,
+  resolved: ResolvedKeyboardShortcuts,
+  state: ShortcutRecordingState,
+  onCommit: (ShortcutId, Chord?) -> Unit,
   onRestoreDefaults: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
@@ -55,7 +55,7 @@ fun KeyboardShortcutList(
   }
 }
 
-private fun problemLine(id: ShortcutId, resolved: ResolvedShortcuts, state: KeyboardShortcutsState): String? {
+private fun problemLine(id: ShortcutId, resolved: ResolvedKeyboardShortcuts, state: ShortcutRecordingState): String? {
   val keymap = resolved.shortcuts.keymap
   if (state.recording == id) return state.rejection?.message(keymap)
   return resolved.problems[id]?.let { "settings.json: ${it.message(keymap)}" }
@@ -64,7 +64,7 @@ private fun problemLine(id: ShortcutId, resolved: ResolvedShortcuts, state: Keyb
 @Composable
 private fun ShortcutRow(
   id: ShortcutId,
-  chord: Chord,
+  chord: Chord?,
   problem: String?,
   recording: Boolean,
   styles: ShortcutListStyles,
@@ -82,7 +82,7 @@ private fun ShortcutRow(
       if (problem != null) MacInlineError(problem, Modifier.testTag("shortcut-problem-${id.settingsKey}"))
     }
     MacShortcutRecorder(
-      label = chord.label,
+      label = chord?.label.orEmpty(),
       recording = recording,
       onStartRecording = onStartRecording,
       onKey = onKey,

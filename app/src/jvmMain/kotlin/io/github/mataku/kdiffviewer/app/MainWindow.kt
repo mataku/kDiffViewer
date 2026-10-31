@@ -21,10 +21,10 @@ import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.selection.TextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.settings.Settings
 import io.github.mataku.kdiffviewer.app.settings.SettingsRepository
-import io.github.mataku.kdiffviewer.app.ui.AppShortcuts
 import io.github.mataku.kdiffviewer.app.ui.ErrorScreen
 import io.github.mataku.kdiffviewer.app.ui.KdvTheme
-import io.github.mataku.kdiffviewer.app.ui.LocalAppShortcuts
+import io.github.mataku.kdiffviewer.app.ui.KeyboardShortcuts
+import io.github.mataku.kdiffviewer.app.ui.LocalKeyboardShortcuts
 import io.github.mataku.kdiffviewer.app.ui.LocalTitleBarRegions
 import io.github.mataku.kdiffviewer.app.ui.OpenRepositoryScreen
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreen
@@ -44,7 +44,7 @@ fun MainWindow(
   appState: KdvAppState,
   repository: SettingsRepository,
   settings: Settings,
-  shortcuts: AppShortcuts,
+  shortcuts: KeyboardShortcuts,
   factory: GitBackendFactory,
   windowState: ComposeWindowState,
   nativePreferences: Boolean,
@@ -83,7 +83,7 @@ fun MainWindow(
       LocalUriHandler provides safeUriHandler,
       LocalTextSelectionCoordinator provides coordinator,
       LocalNativeContextMenu provides nativeMenu,
-      LocalAppShortcuts provides shortcuts,
+      LocalKeyboardShortcuts provides shortcuts,
     ) {
       KdvTheme(
         colorTheme = settings.appearance.colorTheme(),

@@ -75,7 +75,7 @@ fun PreferencesScreen(
   keymap: Keymap = HostKeymap,
 ) {
   val resolvedShortcuts = remember(settings.shortcuts, keymap) { settings.resolveShortcuts(keymap) }
-  val shortcutsState = rememberKeyboardShortcutsState(keymap)
+  val recordingState = rememberShortcutRecordingState(keymap)
   val colors = LocalDiffColors.current
   Column(
     modifier = Modifier
@@ -156,7 +156,7 @@ fun PreferencesScreen(
     Section("Keyboard Shortcuts") {
       KeyboardShortcutList(
         resolved = resolvedShortcuts,
-        state = shortcutsState,
+        state = recordingState,
         onCommit = { id, chord -> onUpdate { it.withShortcut(keymap, id, chord) } },
         onRestoreDefaults = { onUpdate { it.withDefaultShortcuts(keymap) } },
       )

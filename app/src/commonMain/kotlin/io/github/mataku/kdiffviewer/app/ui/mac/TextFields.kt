@@ -45,8 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.ui.DiffColors
 import io.github.mataku.kdiffviewer.app.ui.KdvIcons
-import io.github.mataku.kdiffviewer.app.ui.LocalAppShortcuts
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
+import io.github.mataku.kdiffviewer.app.ui.LocalKeyboardShortcuts
 import io.github.mataku.kdiffviewer.app.ui.keepScrollJumps
 
 @Composable
@@ -71,7 +71,7 @@ fun MacTextField(
       singleLine = true,
       textStyle = TextStyle(color = colors.text, fontSize = 13.sp),
       cursorBrush = SolidColor(colors.text),
-      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.keepScrollJumps(LocalAppShortcuts.current),
+      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.keepScrollJumps(LocalKeyboardShortcuts.current),
       decorationBox = { innerTextField ->
         Box(contentAlignment = Alignment.CenterStart) {
           if (value.isEmpty() && placeholder != null) {
@@ -167,7 +167,7 @@ private fun SearchFieldFrame(
         }
         .then(modifier)
         .onFocusChanged { focused = it.isFocused }
-        .keepScrollJumps(LocalAppShortcuts.current),
+        .keepScrollJumps(LocalKeyboardShortcuts.current),
       textStyle,
     ) { innerTextField ->
       Box(contentAlignment = Alignment.CenterStart) {
@@ -215,7 +215,7 @@ fun MacTextArea(
       minLines = minLines,
       textStyle = textStyle,
       cursorBrush = SolidColor(colors.text),
-      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.keepScrollJumps(LocalAppShortcuts.current),
+      modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.keepScrollJumps(LocalKeyboardShortcuts.current),
     )
   }
 }
