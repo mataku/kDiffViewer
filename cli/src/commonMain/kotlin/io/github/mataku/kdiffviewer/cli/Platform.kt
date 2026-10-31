@@ -1,8 +1,11 @@
 package io.github.mataku.kdiffviewer.cli
 
+import io.github.mataku.kdiffviewer.protocol.HostOs
 import io.github.mataku.kdiffviewer.protocol.RegistryEntry
 
 interface CliPlatform {
+  val os: HostOs
+
   fun cwd(): String
 
   fun home(): String
@@ -18,6 +21,8 @@ interface CliPlatform {
   fun request(socket: String, line: String): String
 
   fun readStdin(): String
+
+  fun defaultApp(): String
 
   fun launchApp(app: String, path: String, base: String?): Boolean
 }

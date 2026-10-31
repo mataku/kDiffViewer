@@ -2,7 +2,6 @@ package io.github.mataku.kdiffviewer.cli
 
 import io.github.mataku.kdiffviewer.protocol.Codec
 import io.github.mataku.kdiffviewer.protocol.CommentDto
-import io.github.mataku.kdiffviewer.protocol.HostOs
 import io.github.mataku.kdiffviewer.protocol.Methods
 import io.github.mataku.kdiffviewer.protocol.RegistryEntry
 import io.github.mataku.kdiffviewer.protocol.RegistryPaths
@@ -17,8 +16,6 @@ import io.github.mataku.kdiffviewer.protocol.ThreadResolveParams
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-
-private const val DEFAULT_APP = "/Applications/kDiffViewer.app"
 
 private class CliFailure(message: String) : Exception(message)
 
@@ -101,11 +98,11 @@ private fun reviewWait(command: Command.ReviewWait, platform: CliPlatform, out: 
 private fun open(command: Command.Open, platform: CliPlatform) {
   val requested = command.path ?: platform.cwd()
   val path = platform.realpath(requested) ?: throw CliFailure("no such directory: $requested")
-  val app = platform.env("KDV_APP") ?: DEFAULT_APP
+  val app = platform.env("KDV_APP") ?: platform.defaultApp()
   if (!platform.launchApp(app, path, command.base)) throw CliFailure("kDiffViewer not found at $app (set KDV_APP)")
 }
 
-private fun liveEntries(platform: CliPlatform): List<RegistryEntry> = platform.listRegistry(RegistryPaths.sessionsDir(platform.home(), HostOs.MacOs)).filter { platform.isAlive(it.pid) }.sortedBy { it.pid }
+private fun liveEntries(platform: CliPlatform): List<RegistryEntry> = platform.listRegistry(RegistryPaths.sessionsDir(platform.home(), platform.os)).filter { platform.isAlive(it.pid) }.sortedBy { it.pid }
 
 private fun resolve(platform: CliPlatform, target: TargetOptions): RegistryEntry {
   val cwd = platform.cwd()
