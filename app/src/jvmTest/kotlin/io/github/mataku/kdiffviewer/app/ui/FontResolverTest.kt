@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.ui.text.font.FontFamily
+import org.jetbrains.skia.FontMgr
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -18,6 +19,7 @@ class FontResolverTest {
 
   @Test
   fun installedFamilyResolves() {
-    assertNotEquals(FontFamily.Monospace, resolveFontFamily("Menlo"))
+    val installed = FontMgr.default.getFamilyName(0)
+    assertNotEquals(FontFamily.Monospace, resolveFontFamily(installed))
   }
 }

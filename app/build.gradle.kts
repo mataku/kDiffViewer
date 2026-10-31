@@ -72,6 +72,9 @@ compose.resources {
   packageOfResClass = "io.github.mataku.kdiffviewer.app.generated.resources"
 }
 
+val isMacHost = System.getProperty("os.name").startsWith("Mac")
+
+// kdv is built for macosArm64 only, so other hosts package the app without it.
 val prepareKdvResources by tasks.registering(Sync::class) {
   dependsOn(":cli:linkReleaseExecutableMacosArm64")
   from(rootProject.layout.projectDirectory.file("cli/build/bin/macosArm64/releaseExecutable/kdv.kexe")) {
@@ -96,17 +99,19 @@ compose.desktop {
     javaHome = jbrHome
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 
-    if (System.getProperty("os.name").startsWith("Mac")) {
+    if (isMacHost) {
       jvmArgs("-Xdock:name=kDiffViewer")
     }
 
     nativeDistributions {
-      targetFormats(TargetFormat.Dmg)
+      targetFormats(TargetFormat.Dmg, TargetFormat.Deb)
       packageName = "kDiffViewer"
       packageVersion = appVersion
       copyright = appCopyright
       modules("java.instrument", "jdk.unsupported")
-      appResourcesRootDir.set(layout.buildDirectory.dir("kdv-resources"))
+      if (isMacHost) {
+        appResourcesRootDir.set(layout.buildDirectory.dir("kdv-resources"))
+      }
 
       macOS {
         bundleID = "io.github.mataku.kdiffviewer"
@@ -119,6 +124,14 @@ compose.desktop {
           """.trimMargin()
         }
       }
+
+      linux {
+        packageName = "kdiffviewer"
+        iconFile.set(project.file("packaging/kDiffViewer.png"))
+        appCategory = "Development"
+        menuGroup = "Development"
+        shortcut = true
+      }
     }
   }
 }
@@ -129,7 +142,7 @@ tasks.withType<Test>().configureEach {
 
 val macAppContentResources = layout.projectDirectory.dir("packaging/app-content/Resources")
 
-if (System.getProperty("os.name").startsWith("Mac")) {
+if (isMacHost) {
   tasks.withType<AbstractJPackageTask>().configureEach {
     inputs.dir(macAppContentResources)
     freeArgs.addAll("--app-content", macAppContentResources.asFile.absolutePath)
@@ -204,14 +217,16 @@ if (System.getProperty("os.name").startsWith("Mac")) {
   }
 }
 
-tasks.matching { it.name == "prepareAppResources" }.configureEach {
-  dependsOn(prepareKdvResources)
-}
+if (isMacHost) {
+  tasks.matching { it.name == "prepareAppResources" }.configureEach {
+    dependsOn(prepareKdvResources)
+  }
 
-tasks.matching { it.name == "createDistributable" }.configureEach {
-  val kdvBinary = layout.buildDirectory.file("compose/binaries/main/app/kDiffViewer.app/Contents/app/resources/kdv")
-  doLast {
-    kdvBinary.get().asFile.setExecutable(true, false)
+  tasks.matching { it.name == "createDistributable" }.configureEach {
+    val kdvBinary = layout.buildDirectory.file("compose/binaries/main/app/kDiffViewer.app/Contents/app/resources/kdv")
+    doLast {
+      kdvBinary.get().asFile.setExecutable(true, false)
+    }
   }
 }
 

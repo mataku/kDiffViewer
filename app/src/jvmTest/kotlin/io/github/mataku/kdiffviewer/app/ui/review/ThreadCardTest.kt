@@ -42,6 +42,7 @@ import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.selection.NativeContextMenu
 import io.github.mataku.kdiffviewer.app.selection.SelectionSource
 import io.github.mataku.kdiffviewer.app.selection.TextSelectionCoordinator
+import io.github.mataku.kdiffviewer.app.ui.PrimaryModifierKey
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.core.review.Comment
@@ -463,7 +464,7 @@ class ThreadCardTest {
       Composer("hello", onTextChange = {}, onSubmit = { submits++ }, onCancel = { cancels++ })
     }
     onNodeWithTag("comment-composer").performKeyInput {
-      withKeyDown(Key.MetaLeft) { pressKey(Key.Enter) }
+      withKeyDown(PrimaryModifierKey) { pressKey(Key.Enter) }
     }
     assertEquals(1, submits)
     onNodeWithTag("comment-composer").performKeyInput { pressKey(Key.Escape) }
@@ -515,7 +516,7 @@ class ThreadCardTest {
     onNodeWithText("agent body").assertIsDisplayed()
     onNodeWithText("Save").assertIsEnabled()
     onNodeWithTag("comment-composer").performKeyInput {
-      withKeyDown(Key.MetaLeft) { pressKey(Key.Enter) }
+      withKeyDown(PrimaryModifierKey) { pressKey(Key.Enter) }
     }
     assertEquals(listOf("submit"), actions.calls)
   }

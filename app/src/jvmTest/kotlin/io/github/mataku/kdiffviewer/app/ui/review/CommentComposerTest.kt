@@ -21,6 +21,7 @@ import androidx.compose.ui.test.withKeyDown
 import androidx.compose.ui.unit.height
 import io.github.mataku.kdiffviewer.app.review.DraftMode
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
+import io.github.mataku.kdiffviewer.app.ui.PrimaryModifierKey
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -80,9 +81,9 @@ class CommentComposerTest {
   @Test
   fun cmdShiftPToggles() = runComposeUiTest {
     show("x")
-    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(Key.MetaLeft) { withKeyDown(Key.ShiftLeft) { pressKey(Key.P) } } }
+    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(PrimaryModifierKey) { withKeyDown(Key.ShiftLeft) { pressKey(Key.P) } } }
     onNodeWithTag("composer-preview").assertIsDisplayed()
-    onNodeWithTag("composer-preview").performKeyInput { withKeyDown(Key.MetaLeft) { withKeyDown(Key.ShiftLeft) { pressKey(Key.P) } } }
+    onNodeWithTag("composer-preview").performKeyInput { withKeyDown(PrimaryModifierKey) { withKeyDown(Key.ShiftLeft) { pressKey(Key.P) } } }
     onNodeWithTag("comment-composer").assertIsFocused()
   }
 
@@ -116,7 +117,7 @@ class CommentComposerTest {
     val actions = FakeActions()
     show("x", actions)
     onNodeWithTag("composer-mode-preview").performClick()
-    onNodeWithTag("composer-preview").performKeyInput { withKeyDown(Key.MetaLeft) { pressKey(Key.Enter) } }
+    onNodeWithTag("composer-preview").performKeyInput { withKeyDown(PrimaryModifierKey) { pressKey(Key.Enter) } }
     assertEquals(listOf("submit"), actions.calls)
   }
 
@@ -125,7 +126,7 @@ class CommentComposerTest {
     val actions = FakeActions()
     show(" ", actions)
     onNodeWithTag("composer-mode-preview").performClick()
-    onNodeWithTag("composer-preview").performKeyInput { withKeyDown(Key.MetaLeft) { pressKey(Key.Enter) } }
+    onNodeWithTag("composer-preview").performKeyInput { withKeyDown(PrimaryModifierKey) { pressKey(Key.Enter) } }
     assertEquals(emptyList(), actions.calls)
   }
 
@@ -193,8 +194,8 @@ class CommentComposerTest {
   fun cmdEnterStartsReviewAndCmdShiftEnterSendsSingle() = runComposeUiTest {
     val actions = FakeActions()
     showPost("x", actions)
-    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(Key.MetaLeft) { pressKey(Key.Enter) } }
-    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(Key.MetaLeft) { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } } }
+    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(PrimaryModifierKey) { pressKey(Key.Enter) } }
+    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(PrimaryModifierKey) { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } } }
     assertEquals(listOf("review", "submit"), actions.calls)
   }
 
@@ -203,7 +204,7 @@ class CommentComposerTest {
     val actions = FakeActions()
     showPost("x", actions, inProgress = true, single = false)
     onNodeWithText("Add single comment").assertDoesNotExist()
-    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(Key.MetaLeft) { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } } }
+    onNodeWithTag("comment-composer").performKeyInput { withKeyDown(PrimaryModifierKey) { withKeyDown(Key.ShiftLeft) { pressKey(Key.Enter) } } }
     assertEquals(emptyList(), actions.calls)
   }
 
