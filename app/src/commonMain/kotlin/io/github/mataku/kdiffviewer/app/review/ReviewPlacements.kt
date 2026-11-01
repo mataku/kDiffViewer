@@ -16,6 +16,7 @@ class ReviewPlacements(
   val byLine: Map<Long, List<ReviewThread>>,
   val byFile: Map<Int, List<ReviewThread>>,
   val orphans: List<ReviewThread>,
+  val branch: List<ReviewThread> = emptyList(),
 ) {
   companion object {
     val Empty = ReviewPlacements(0L, emptyMap(), emptyMap(), emptyList())
@@ -50,6 +51,7 @@ internal fun buildPlacements(loadId: Long, threads: List<ReviewThread>, placemen
   val byLine = LinkedHashMap<Long, MutableList<ReviewThread>>()
   val byFile = LinkedHashMap<Int, MutableList<ReviewThread>>()
   val orphans = ArrayList<ReviewThread>()
+  val branch = ArrayList<ReviewThread>()
   for (thread in threads) {
     when (val placement = placementById[thread.id]) {
       is Placement.OnLine -> {
@@ -63,8 +65,10 @@ internal fun buildPlacements(loadId: Long, threads: List<ReviewThread>, placemen
 
       is Placement.OnFile -> byFile.getOrPut(placement.fileIndex) { ArrayList() }.add(thread)
 
+      Placement.Branch -> branch.add(thread)
+
       Placement.Orphan, null -> orphans.add(thread)
     }
   }
-  return ReviewPlacements(loadId, byLine, byFile, orphans)
+  return ReviewPlacements(loadId, byLine, byFile, orphans, branch)
 }

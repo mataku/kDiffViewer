@@ -37,7 +37,7 @@ internal fun draftPlacement(target: DraftTarget, threads: List<ReviewThread>, pl
 internal fun Placement.fileIndexOrNull(): Int? = when (this) {
   is Placement.OnLine -> location.fileIndex
   is Placement.OnFile -> fileIndex
-  Placement.Orphan -> null
+  Placement.Branch, Placement.Orphan -> null
 }
 
 internal fun draftAnchor(target: DraftTarget, threads: List<ReviewThread>): Anchor? = when (target) {

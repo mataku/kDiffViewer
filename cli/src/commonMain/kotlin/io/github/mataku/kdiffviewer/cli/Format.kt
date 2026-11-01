@@ -21,12 +21,16 @@ fun formatReviews(result: ReviewWaitResult): String {
 
 private fun formatThread(thread: ThreadDto): String {
   val lines = mutableListOf<String>()
-  val path = markControls(thread.path)
-  val location = thread.startLine?.let { start ->
-    val end = thread.endLine
-    val range = if (end != null && end != start) "$start-$end" else "$start"
-    "$path:$range (${thread.side ?: "new"})"
-  } ?: "$path (file)"
+  val path = thread.path?.let(::markControls)
+  val location = if (path == null) {
+    "(branch)"
+  } else {
+    thread.startLine?.let { start ->
+      val end = thread.endLine
+      val range = if (end != null && end != start) "$start-$end" else "$start"
+      "$path:$range (${thread.side ?: "new"})"
+    } ?: "$path (file)"
+  }
   val markers = (if (thread.resolved) " [resolved]" else "") + (if (thread.outdated) " [outdated]" else "")
   lines += "${thread.id}  $location$markers"
   thread.snapshot.forEach { lines += "    │ ${markControls(it)}" }

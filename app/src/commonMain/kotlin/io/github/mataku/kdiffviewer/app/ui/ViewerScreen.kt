@@ -141,10 +141,11 @@ fun ViewerScreen(
   val draftText = rememberUpdatedState(review.draft?.text.orEmpty())
   val reviewInProgress = rememberUpdatedState(review.pendingCount > 0)
   val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(draftTarget) else emptySet() }
-  val hasOrphans = shown && (review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
+  val conversationCount = if (shown) review.placements.branch.size else 0
+  val hasTop = shown && (conversationCount > 0 || review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
   val hasEnd = state.status == LoadStatus.Done && state.files.isNotEmpty()
-  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasOrphans, hasEnd, mode, state.split) {
-    diffLayoutOf(state, mode, notesFiles, hasOrphans, hasEnd)
+  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasTop, hasEnd, mode, state.split) {
+    diffLayoutOf(state, mode, notesFiles, hasTop, hasEnd)
   }
   val currentLayout = rememberUpdatedState(layout)
   val display = remember(state.rows, state.split, mode) { state.displayRows(mode) }
@@ -239,6 +240,8 @@ fun ViewerScreen(
             listState.requestScrollToItem(layout.headerVisibleIndex(fileIndex))
           },
           onDirectoryToggle = tree::toggleDirectory,
+          conversationCount = conversationCount,
+          onConversationClick = { listState.requestScrollToItem(0) },
           statsOf = statsOf,
           statusOf = statusOf,
           width = { screenState.treeWidth },
@@ -257,7 +260,7 @@ fun ViewerScreen(
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
           }
           Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            if (state.status == LoadStatus.Done && state.files.isEmpty() && !hasOrphans) {
+            if (state.status == LoadStatus.Done && state.files.isEmpty() && !hasTop) {
               BasicText(
                 text = "No changes",
                 modifier = Modifier.align(Alignment.Center),

@@ -56,6 +56,19 @@ class FileTreePanelTest {
   }
 
   @Test
+  fun conversationRowShowsOnlyWithThreadsAndForwardsClicks() = runComposeUiTest {
+    var count by mutableStateOf(0)
+    var clicks = 0
+    setContent { FileTreePanel(entries, {}, {}, conversationCount = count, onConversationClick = { clicks++ }) }
+    onNodeWithTag("tree-conversation").assertDoesNotExist()
+    count = 2
+    waitForIdle()
+    onNodeWithTag("tree-conversation-count", useUnmergedTree = true).assertTextEquals("2")
+    onNodeWithTag("tree-conversation").performClick()
+    assertEquals(1, clicks)
+  }
+
+  @Test
   fun bothCountsSeparatedBySingleSpace() = runComposeUiTest {
     val stats = listOf(DiffStats(12, 3))
     setContent { FileTreePanel(entries, {}, {}, statsOf = { stats[0] }, width = { 280.dp }) }

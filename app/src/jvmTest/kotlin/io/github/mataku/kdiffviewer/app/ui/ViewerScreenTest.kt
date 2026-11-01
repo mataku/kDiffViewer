@@ -1426,6 +1426,27 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun branchThreadRendersUnderConversationAndInSidebar() = runComposeUiTest {
+    val thread = staticThread().copy(anchor = Anchor.Branch)
+    setContent { ViewerScreen(reviewUi, {}, review = snapshotOf(1, 1, listOf(thread), Placement.Branch)) }
+    onAllNodesWithText("Conversation", useUnmergedTree = true).assertCountEquals(2)
+    onNodeWithText("Comments on files no longer in the diff").assertDoesNotExist()
+    val top = onNodeWithTag("thread-t1").fetchSemanticsNode().boundsInRoot
+    val header = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot
+    assertTrue(top.bottom <= header.top + 1f, "thread=$top header=$header")
+    onNodeWithTag("tree-conversation-count", useUnmergedTree = true).assertTextEquals("1")
+  }
+
+  @Test
+  fun branchThreadShowsEvenWhenDiffIsEmpty() = runComposeUiTest {
+    val ui = stateOf(emptyList()).copy(loadId = 1)
+    val thread = staticThread().copy(anchor = Anchor.Branch)
+    setContent { ViewerScreen(ui, {}, review = snapshotOf(1, 1, listOf(thread), Placement.Branch)) }
+    onNodeWithText("No changes").assertDoesNotExist()
+    onNodeWithTag("thread-t1").assertIsDisplayed()
+  }
+
+  @Test
   fun threadsAreHiddenWhilePlacementsAreStale() = runComposeUiTest {
     val ui = reviewUi
     setContent { ViewerScreen(ui, {}, review = snapshotOf(1, 0, listOf(staticThread()), null)) }

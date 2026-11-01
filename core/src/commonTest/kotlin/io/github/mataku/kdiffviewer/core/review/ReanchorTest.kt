@@ -107,6 +107,15 @@ class ReanchorTest {
   }
 
   @Test
+  fun branchThreadStaysOnBranch() {
+    val files = listOf(modified("b.kt", hunk(ctx("a", 1, 1))))
+    val (result, placement) = reanchor(thread(Anchor.Branch, outdated = true), files)
+    assertEquals(Placement.Branch, placement)
+    assertEquals(false, result.outdated)
+    assertEquals(Placement.Branch, reanchor(thread(Anchor.Branch), emptyList()).second)
+  }
+
+  @Test
   fun oldSideAnchorMatchesRemovedLines() {
     val files = listOf(modified("a.kt", hunk(ctx("a", 1, 1), removed("x", 2), added("y", 2))))
     val (result, placement) = reanchor(linesAnchor("a.kt", Side.Old, 2, 2, "x"), files)

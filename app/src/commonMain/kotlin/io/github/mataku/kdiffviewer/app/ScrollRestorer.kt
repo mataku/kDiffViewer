@@ -5,7 +5,7 @@ import io.github.mataku.kdiffviewer.core.model.RepoPath
 import io.github.mataku.kdiffviewer.core.model.Side
 import io.github.mataku.kdiffviewer.core.model.displayPath
 
-enum class AnchorEdge { None, Orphans, End }
+enum class AnchorEdge { None, Top, End }
 
 data class ScrollAnchor(val displayPath: String, val rowOffset: Int, val edge: AnchorEdge = AnchorEdge.None)
 
@@ -14,7 +14,7 @@ fun scrollAnchorOf(state: ViewerUiState, layout: DiffLayout, display: DisplayRow
   val visibleIndex = firstVisibleIndex.coerceIn(0, layout.visibleCount - 1)
   val fileIndex = layout.fileIndexOfVisible(visibleIndex)
   val path = state.files[fileIndex].displayPath
-  if (layout.hasOrphanItem && visibleIndex == 0) return ScrollAnchor(path, 0, AnchorEdge.Orphans)
+  if (layout.hasTopItem && visibleIndex == 0) return ScrollAnchor(path, 0, AnchorEdge.Top)
   if (layout.hasEndItem && visibleIndex == layout.visibleCount - 1) return ScrollAnchor(path, 0, AnchorEdge.End)
   val displayRow = layout.rowIndexOf(visibleIndex)
   val unifiedRow = display.unifiedOf(displayRow, Side.Old).takeIf { it >= 0 } ?: display.unifiedOf(displayRow, Side.New)
@@ -23,7 +23,7 @@ fun scrollAnchorOf(state: ViewerUiState, layout: DiffLayout, display: DisplayRow
 
 fun restoreTargetOf(anchor: ScrollAnchor, state: ViewerUiState, layout: DiffLayout, display: DisplayRows): Int? {
   when (anchor.edge) {
-    AnchorEdge.Orphans -> return if (layout.hasOrphanItem) 0 else null
+    AnchorEdge.Top -> return if (layout.hasTopItem) 0 else null
     AnchorEdge.End -> return if (layout.hasEndItem) layout.visibleCount - 1 else null
     AnchorEdge.None -> Unit
   }

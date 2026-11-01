@@ -82,6 +82,14 @@ class CodecTest {
   }
 
   @Test
+  fun branchThreadOmitsPath() {
+    val branch = thread.copy(path = null, side = null, startLine = null, endLine = null, snapshot = emptyList())
+    val encoded = Codec.json.encodeToString(ThreadDto.serializer(), branch)
+    assertFalse("\"path\"" in encoded)
+    assertEquals(branch, resultRoundTrip(branch))
+  }
+
+  @Test
   fun failureDecodes() {
     val response = Codec.decodeResponse(Codec.failure(ErrorCodes.THREAD_NOT_FOUND, "No thread t9"))
     assertFalse(response.ok)

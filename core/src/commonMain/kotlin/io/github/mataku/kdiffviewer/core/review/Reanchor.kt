@@ -111,18 +111,19 @@ private class SideLine(val lineNo: Int, val text: String, val hunkIndex: Int, va
 
 private class Run(val fileIndex: Int, val first: Int, val last: SideLine)
 
-private fun resolve(anchor: Anchor, files: List<FileDiff>): Resolution {
-  val firstFile = files.indexOfFirst { it.anchorPath == anchor.path }
-  return when (anchor) {
-    is Anchor.File ->
-      if (firstFile >= 0) {
-        Resolution(anchor, Placement.OnFile(firstFile), outdated = false)
-      } else {
-        Resolution(anchor, Placement.Orphan, outdated = true)
-      }
+private fun resolve(anchor: Anchor, files: List<FileDiff>): Resolution = when (anchor) {
+  Anchor.Branch -> Resolution(anchor, Placement.Branch, outdated = false)
 
-    is Anchor.Lines -> resolveLines(anchor, files, firstFile)
+  is Anchor.File -> {
+    val firstFile = files.indexOfFirst { it.anchorPath == anchor.path }
+    if (firstFile >= 0) {
+      Resolution(anchor, Placement.OnFile(firstFile), outdated = false)
+    } else {
+      Resolution(anchor, Placement.Orphan, outdated = true)
+    }
   }
+
+  is Anchor.Lines -> resolveLines(anchor, files, files.indexOfFirst { it.anchorPath == anchor.path })
 }
 
 private fun resolveLines(anchor: Anchor.Lines, files: List<FileDiff>, firstFile: Int): Resolution {

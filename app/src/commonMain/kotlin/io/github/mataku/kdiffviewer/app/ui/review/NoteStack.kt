@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,11 +43,17 @@ fun NoteStack(threads: List<ReviewThread>, draftTarget: DraftTarget?, composeNew
 }
 
 @Composable
-fun OrphanSection(threads: List<ReviewThread>, draftTarget: DraftTarget?, composeNew: Boolean, modifier: Modifier = Modifier) {
+fun TopSection(branch: List<ReviewThread>, orphans: List<ReviewThread>, draftTarget: DraftTarget?, composeOrphan: Boolean, modifier: Modifier = Modifier) {
   val colors = LocalDiffColors.current
   val style = remember(colors) { TextStyle(color = colors.mutedText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
-  Column(modifier = modifier.fillMaxWidth().padding(top = 12.dp)) {
-    BasicText(text = "Comments on files no longer in the diff", style = style)
-    NoteStack(threads, draftTarget, composeNew)
+  Column(modifier = modifier.fillMaxWidth().testTag("top-section")) {
+    if (branch.isNotEmpty()) {
+      BasicText(text = "Conversation", modifier = Modifier.padding(top = 12.dp), style = style)
+      NoteStack(branch, draftTarget, composeNew = false)
+    }
+    if (orphans.isNotEmpty() || composeOrphan) {
+      BasicText(text = "Comments on files no longer in the diff", modifier = Modifier.padding(top = 12.dp), style = style)
+      NoteStack(orphans, draftTarget, composeOrphan)
+    }
   }
 }

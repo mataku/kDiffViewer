@@ -54,6 +54,12 @@ class FormatTest {
   }
 
   @Test
+  fun branchThread() {
+    val thread = ThreadDto("t6", null, null, null, null, emptyList(), false, false, listOf(comment("c1", AuthorDto("user"), "what is this?")))
+    assertEquals("t6  (branch)\n  You: what is this?", formatThreads(listOf(thread), all = false))
+  }
+
+  @Test
   fun resolvedAndOutdatedMarkers() {
     val thread = ThreadDto("t4", "C.kt", "new", 1, 1, listOf("l"), true, true, listOf(comment("c1", AuthorDto("agent", null), "ok")))
     assertEquals("t4  C.kt:1 (new) [resolved] [outdated]\n    │ l\n  agent: ok", formatThreads(listOf(thread), all = true))
