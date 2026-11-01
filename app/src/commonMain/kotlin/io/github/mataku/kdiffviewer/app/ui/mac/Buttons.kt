@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.PlainTooltip
@@ -305,5 +306,35 @@ fun MacIconButton(
       modifier = Modifier.size(12.dp).rotate(iconRotation),
       colorFilter = ColorFilter.tint(colors.text),
     )
+  }
+}
+
+@Composable
+fun MacToggleButton(
+  icon: ImageVector,
+  text: String,
+  selected: Boolean,
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  badge: Boolean = false,
+) {
+  val colors = LocalDiffColors.current
+  val interactionSource = remember { MutableInteractionSource() }
+  val pressed by interactionSource.collectIsPressedAsState()
+  val tint = if (selected) colors.accent else colors.text
+  Row(
+    modifier = modifier
+      .height(22.dp)
+      .focusProperties { canFocus = false }
+      .background(if (pressed) colors.trackFill(pressed = true) else Color.Transparent, ControlShape)
+      .semantics { this.selected = selected }
+      .clickable(interactionSource = interactionSource, indication = null, role = Role.Checkbox, onClick = onClick)
+      .padding(horizontal = 6.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(5.dp),
+  ) {
+    Image(imageVector = icon, contentDescription = null, modifier = Modifier.size(14.dp), colorFilter = ColorFilter.tint(tint))
+    BasicText(text = text, style = TextStyle(color = tint, fontSize = 12.sp), maxLines = 1)
+    if (badge) Box(Modifier.testTag("toggle-badge").size(6.dp).clip(CircleShape).background(colors.accent))
   }
 }

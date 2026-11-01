@@ -80,6 +80,7 @@ import io.github.mataku.kdiffviewer.app.ui.mac.MacToolbarButton
 import io.github.mataku.kdiffviewer.app.ui.mac.TAG_FILL_ALPHA
 import io.github.mataku.kdiffviewer.app.ui.mac.TagPadding
 import io.github.mataku.kdiffviewer.app.ui.mac.TagShape
+import io.github.mataku.kdiffviewer.app.ui.review.ConversationPanel
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftFocusRequests
 import io.github.mataku.kdiffviewer.app.ui.review.LocalDraftText
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
@@ -98,6 +99,7 @@ import io.github.mataku.kdiffviewer.core.model.ExpandDirection
 import io.github.mataku.kdiffviewer.core.model.HeadRef
 import io.github.mataku.kdiffviewer.core.model.ResolvedBase
 import io.github.mataku.kdiffviewer.core.model.displayPath
+import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.core.review.Placement
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -141,11 +143,10 @@ fun ViewerScreen(
   val draftText = rememberUpdatedState(review.draft?.text.orEmpty())
   val reviewInProgress = rememberUpdatedState(review.pendingCount > 0)
   val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(draftTarget) else emptySet() }
-  val conversationCount = if (shown) review.placements.branch.size else 0
-  val hasTop = shown && (conversationCount > 0 || review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
+  val hasOrphans = shown && (review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
   val hasEnd = state.status == LoadStatus.Done && state.files.isNotEmpty()
-  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasTop, hasEnd, mode, state.split) {
-    diffLayoutOf(state, mode, notesFiles, hasTop, hasEnd)
+  val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasOrphans, hasEnd, mode, state.split) {
+    diffLayoutOf(state, mode, notesFiles, hasOrphans, hasEnd)
   }
   val currentLayout = rememberUpdatedState(layout)
   val display = remember(state.rows, state.split, mode) { state.displayRows(mode) }
@@ -168,7 +169,13 @@ fun ViewerScreen(
   var revealRequests by remember { mutableIntStateOf(0) }
   val baseActions = LocalReviewActions.current
   var reviewSummary by remember(state.repo) { mutableStateOf("") }
+  var conversationOpen by remember(state.repo) { mutableStateOf(false) }
+  var seenAgentReplies by remember(state.repo) { mutableIntStateOf(0) }
+  val conversation = review.placements.branch
+  val agentReplies = remember(conversation) { conversation.sumOf { thread -> thread.comments.count { it.author is Author.Agent } } }
+  if (conversationOpen && seenAgentReplies != agentReplies) SideEffect { seenAgentReplies = agentReplies }
   val sendReview: (Boolean) -> Unit = { approve ->
+    if (reviewSummary.isNotBlank()) conversationOpen = true
     baseActions?.submitReview(reviewSummary, approve)
     reviewSummary = ""
   }
@@ -181,7 +188,7 @@ fun ViewerScreen(
       if (fileIndex < currentLayout.value.fileCount && currentLayout.value.isCollapsed(fileIndex) && currentState.value.isLargeDiff(fileIndex)) currentOnExpandFile.value(fileIndex)
     }
   }
-  DraftRevealEffect(revealRequests, listState, currentReview, currentState, currentLayout, currentDisplay, currentOnExpandFile) { focusRequests.intValue++ }
+  DraftRevealEffect(revealRequests, listState, currentReview, currentState, currentLayout, currentDisplay, currentOnExpandFile, onRevealConversation = { conversationOpen = true }) { focusRequests.intValue++ }
   ScrollRestoreEffect(listState, currentState, currentLayout, currentDisplay)
   val revealMatch = rememberFindReveal(findState, listState, currentState, currentLayout, currentDisplay)
   FindMatchesEffect(findState, listState, currentState, currentLayout, currentDisplay, findContext, revealMatch)
@@ -240,8 +247,6 @@ fun ViewerScreen(
             listState.requestScrollToItem(layout.headerVisibleIndex(fileIndex))
           },
           onDirectoryToggle = tree::toggleDirectory,
-          conversationCount = conversationCount,
-          onConversationClick = { listState.requestScrollToItem(0) },
           statsOf = statsOf,
           statusOf = statusOf,
           width = { screenState.treeWidth },
@@ -260,7 +265,7 @@ fun ViewerScreen(
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
           }
           Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            if (state.status == LoadStatus.Done && state.files.isEmpty() && !hasTop) {
+            if (state.status == LoadStatus.Done && state.files.isEmpty() && !hasOrphans) {
               BasicText(
                 text = "No changes",
                 modifier = Modifier.align(Alignment.Center),
@@ -309,6 +314,17 @@ fun ViewerScreen(
       },
     )
     if (review.reviewStarted) {
+      if (conversationOpen && conversation.isNotEmpty()) {
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+        CompositionLocalProvider(
+          LocalDraftText provides draftText,
+          LocalReviewInProgress provides reviewInProgress,
+          LocalDraftFocusRequests provides focusRequests,
+          LocalReviewActions provides actions,
+        ) {
+          ConversationPanel(conversation, draftTarget)
+        }
+      }
       Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
       ReviewBar(
         pendingCount = review.pendingCount,
@@ -316,6 +332,10 @@ fun ViewerScreen(
         summary = reviewSummary,
         onSummaryChange = { reviewSummary = it },
         onSend = sendReview,
+        conversationCount = conversation.size,
+        conversationOpen = conversationOpen,
+        conversationUnread = !conversationOpen && agentReplies > seenAgentReplies,
+        onToggleConversation = { conversationOpen = !conversationOpen },
       )
     }
   }
@@ -340,6 +360,7 @@ private fun DraftRevealEffect(
   layout: State<DiffLayout>,
   display: State<DisplayRows>,
   onExpandFile: State<(Int) -> Unit>,
+  onRevealConversation: () -> Unit,
   onRevealed: () -> Unit,
 ) {
   LaunchedEffect(revealRequests) {
@@ -347,6 +368,11 @@ private fun DraftRevealEffect(
     val snapshot = review.value
     val target = snapshot.draft?.target ?: return@LaunchedEffect
     val placement = draftPlacement(target, snapshot.threads, snapshot.core.placementById) ?: return@LaunchedEffect
+    if (placement == Placement.Branch) {
+      onRevealConversation()
+      onRevealed()
+      return@LaunchedEffect
+    }
     val fileIndex = placement.fileIndexOrNull()?.takeIf { it < layout.value.fileCount }
     if (fileIndex != null && layout.value.isCollapsed(fileIndex)) {
       onExpandFile.value(fileIndex)

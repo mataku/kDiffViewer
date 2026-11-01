@@ -53,8 +53,6 @@ fun FileTreePanel(
   onFileClick: (Int) -> Unit,
   onDirectoryToggle: (String) -> Unit,
   modifier: Modifier = Modifier,
-  conversationCount: Int = 0,
-  onConversationClick: () -> Unit = {},
   topInset: Dp = 0.dp,
   statsOf: (Int) -> DiffStats? = { null },
   statusOf: (Int) -> GitFileStatus? = { null },
@@ -95,25 +93,6 @@ fun FileTreePanel(
         .padding(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = 8.dp),
       placeholder = "Filter",
     )
-    if (conversationCount > 0) {
-      Row(
-        Modifier
-          .testTag("tree-conversation")
-          .clickable(onClick = onConversationClick)
-          .fillMaxWidth()
-          .padding(start = ContentHorizontalMargin + typography.chevronSize + 2.dp, end = ContentHorizontalMargin, top = 3.dp, bottom = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Image(
-          imageVector = KdvIcons.Comment,
-          contentDescription = null,
-          modifier = Modifier.padding(end = 6.dp).size(typography.iconSize),
-          colorFilter = iconTint,
-        )
-        BasicText(text = "Conversation", modifier = Modifier.weight(1f), style = typography.name, maxLines = 1)
-        BasicText(text = conversationCount.toString(), modifier = Modifier.testTag("tree-conversation-count"), style = emptyStyle)
-      }
-    }
     if (filtering && entries.isEmpty()) {
       BasicText(
         text = "No matching files",

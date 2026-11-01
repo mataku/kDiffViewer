@@ -45,7 +45,7 @@ fun fileFrames(layout: DiffLayout, items: List<LazyListItemInfo>, headerInset: F
   for (item in items) {
     val index = item.index
     if (index < 0 || index >= layout.visibleCount) continue
-    if (layout.hasTopItem && index == 0) continue
+    if (layout.hasOrphanItem && index == 0) continue
     if (layout.hasEndItem && index == layout.visibleCount - 1) continue
     val itemFile = layout.fileIndexOfVisible(index)
     if (itemFile != file) {

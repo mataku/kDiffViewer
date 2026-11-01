@@ -118,9 +118,9 @@ class DiffLayoutTest {
   @Test
   fun orphanItemShiftsEveryIndexByOne() {
     val plain = diffLayoutOf(state(listOf(a, b)))
-    val layout = diffLayoutOf(state(listOf(a, b)), hasTop = true)
-    assertEquals(true, layout.hasTopItem)
-    assertEquals(false, plain.hasTopItem)
+    val layout = diffLayoutOf(state(listOf(a, b)), hasOrphans = true)
+    assertEquals(true, layout.hasOrphanItem)
+    assertEquals(false, plain.hasOrphanItem)
     assertEquals(plain.visibleCount + 1, layout.visibleCount)
     for (fileIndex in 0 until 2) {
       assertEquals(plain.headerVisibleIndex(fileIndex) + 1, layout.headerVisibleIndex(fileIndex))
@@ -133,7 +133,7 @@ class DiffLayoutTest {
   @Test
   fun lineRowsRoundTripWithNotesAndOrphans() {
     val ui = state(listOf(a, b, c), setOf(2))
-    val layout = diffLayoutOf(ui, notesFiles = setOf(0, 1, 2), hasTop = true)
+    val layout = diffLayoutOf(ui, notesFiles = setOf(0, 1, 2), hasOrphans = true)
     for (row in ui.rows.indices) {
       val file = layout.fileIndexOfVisible(layout.visibleIndexOf(row))
       if (layout.isCollapsed(file) && row != layout.headerRowIndex(file)) continue
@@ -144,17 +144,17 @@ class DiffLayoutTest {
   @Test
   fun scrollAnchorSurvivesNotesAndOrphans() {
     val ui = state(listOf(a, b))
-    val layout = diffLayoutOf(ui, notesFiles = setOf(0, 1), hasTop = true)
+    val layout = diffLayoutOf(ui, notesFiles = setOf(0, 1), hasOrphans = true)
     val visible = layout.visibleIndexOf(layout.headerRowIndex(1) + 3)
     assertEquals(ScrollAnchor("b.kt", 3), scrollAnchorOf(ui, layout, ui.displayRows(DiffMode.Unified), visible))
     assertEquals(visible, restoreTargetOf(ScrollAnchor("b.kt", 3), ui, layout, ui.displayRows(DiffMode.Unified)))
-    assertEquals(ScrollAnchor("a.kt", 0, AnchorEdge.Top), scrollAnchorOf(ui, layout, ui.displayRows(DiffMode.Unified), 0))
+    assertEquals(ScrollAnchor("a.kt", 0, AnchorEdge.Orphans), scrollAnchorOf(ui, layout, ui.displayRows(DiffMode.Unified), 0))
   }
 
   @Test
   fun zeroFilesWithOrphansNeverThrows() {
     val ui = ViewerUiState()
-    val layout = diffLayoutOf(ui, hasTop = true)
+    val layout = diffLayoutOf(ui, hasOrphans = true)
     assertEquals(1, layout.visibleCount)
     assertEquals(-1, layout.fileIndexOfVisible(0))
     assertEquals(-1, layout.rowIndexOf(0))
@@ -165,7 +165,7 @@ class DiffLayoutTest {
 
   @Test
   fun orphansWithFirstFileCollapsed() {
-    val layout = diffLayoutOf(state(listOf(a, b), setOf(0)), notesFiles = setOf(0), hasTop = true)
+    val layout = diffLayoutOf(state(listOf(a, b), setOf(0)), notesFiles = setOf(0), hasOrphans = true)
     assertEquals(1, layout.headerVisibleIndex(0))
     assertEquals(2, layout.headerVisibleIndex(1))
     assertEquals(false, layout.hasNotes(0))
@@ -226,7 +226,7 @@ class DiffLayoutTest {
 
   @Test
   fun endItemWithOrphansAndNotes() {
-    val layout = diffLayoutOf(state(listOf(a, b)), notesFiles = setOf(1), hasTop = true, hasEnd = true)
+    val layout = diffLayoutOf(state(listOf(a, b)), notesFiles = setOf(1), hasOrphans = true, hasEnd = true)
     assertEquals(state(listOf(a, b)).rows.size, layout.rowIndexOf(layout.visibleCount - 1))
     assertEquals(layout.visibleCount - 2, layout.visibleIndexOf(state(listOf(a, b)).rows.size - 1))
   }
@@ -287,7 +287,7 @@ class DiffLayoutTest {
   fun splitLayoutWithNotesAndOrphans() {
     val ui = state(listOf(replaced, plain))
     val plainLayout = diffLayoutOf(ui, DiffMode.Split)
-    val layout = diffLayoutOf(ui, DiffMode.Split, notesFiles = setOf(0, 1), hasTop = true, hasEnd = true)
+    val layout = diffLayoutOf(ui, DiffMode.Split, notesFiles = setOf(0, 1), hasOrphans = true, hasEnd = true)
     assertEquals(plainLayout.visibleCount + 4, layout.visibleCount)
     assertEquals(plainLayout.headerVisibleIndex(1) + 2, layout.headerVisibleIndex(1))
     assertEquals(ui.split.size, layout.rowIndexOf(layout.visibleCount - 1))

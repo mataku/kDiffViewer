@@ -1220,6 +1220,47 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun sendingMessageOpensConversationPanel() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    review.submitReview("first", approve = false)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithText("Conversation 1", useUnmergedTree = true).assertIsDisplayed()
+    onNodeWithTag("conversation-panel").assertDoesNotExist()
+    onNodeWithTag("review-summary").performTextInput("what does this branch do?")
+    onNodeWithText("Send to Agent").performClick()
+    waitForIdle()
+    onNodeWithTag("conversation-panel").assertIsDisplayed()
+    onNodeWithText("Conversation 2", useUnmergedTree = true).assertIsDisplayed()
+    onNodeWithText("what does this branch do?", substring = true).assertExists()
+    onNodeWithTag("conversation-toggle").performClick()
+    waitForIdle()
+    onNodeWithTag("conversation-panel").assertDoesNotExist()
+  }
+
+  @Test
+  fun agentReplyWhileClosedMarksToggleUntilOpened() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    review.submitReview("why?", approve = false)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithTag("toggle-badge", useUnmergedTree = true).assertDoesNotExist()
+    review.reply("t1", Author.Agent("agent"), "because")
+    waitForIdle()
+    onNodeWithTag("toggle-badge", useUnmergedTree = true).assertExists()
+    onNodeWithTag("conversation-toggle").performClick()
+    waitForIdle()
+    onNodeWithText("because", substring = true).assertExists()
+    onNodeWithTag("toggle-badge", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
   fun addCommentButtonSitsOnMarkerColumn() = runComposeUiTest {
     val ui = reviewUi
     val review = reviewState(ui)
@@ -1421,27 +1462,6 @@ class ViewerScreenTest {
   fun orphanThreadsShowEvenWhenDiffIsEmpty() = runComposeUiTest {
     val ui = stateOf(emptyList()).copy(loadId = 1)
     setContent { ViewerScreen(ui, {}, review = snapshotOf(1, 1, listOf(staticThread()), null)) }
-    onNodeWithText("No changes").assertDoesNotExist()
-    onNodeWithTag("thread-t1").assertIsDisplayed()
-  }
-
-  @Test
-  fun branchThreadRendersUnderConversationAndInSidebar() = runComposeUiTest {
-    val thread = staticThread().copy(anchor = Anchor.Branch)
-    setContent { ViewerScreen(reviewUi, {}, review = snapshotOf(1, 1, listOf(thread), Placement.Branch)) }
-    onAllNodesWithText("Conversation", useUnmergedTree = true).assertCountEquals(2)
-    onNodeWithText("Comments on files no longer in the diff").assertDoesNotExist()
-    val top = onNodeWithTag("thread-t1").fetchSemanticsNode().boundsInRoot
-    val header = onNodeWithTag("file-header-0").fetchSemanticsNode().boundsInRoot
-    assertTrue(top.bottom <= header.top + 1f, "thread=$top header=$header")
-    onNodeWithTag("tree-conversation-count", useUnmergedTree = true).assertTextEquals("1")
-  }
-
-  @Test
-  fun branchThreadShowsEvenWhenDiffIsEmpty() = runComposeUiTest {
-    val ui = stateOf(emptyList()).copy(loadId = 1)
-    val thread = staticThread().copy(anchor = Anchor.Branch)
-    setContent { ViewerScreen(ui, {}, review = snapshotOf(1, 1, listOf(thread), Placement.Branch)) }
     onNodeWithText("No changes").assertDoesNotExist()
     onNodeWithTag("thread-t1").assertIsDisplayed()
   }

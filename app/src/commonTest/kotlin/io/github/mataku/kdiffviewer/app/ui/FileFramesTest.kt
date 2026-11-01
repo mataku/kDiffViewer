@@ -80,7 +80,7 @@ class FileFramesTest {
 
   @Test
   fun orphanAndEndItemsAreNotFramed() {
-    val withExtras = diffLayoutOf(state(listOf(a, b)), hasTop = true, hasEnd = true)
+    val withExtras = diffLayoutOf(state(listOf(a, b)), hasOrphans = true, hasEnd = true)
     val frames = fileFrames(withExtras, items(0, withExtras.visibleCount - 1), 2f, 1000f, 7f)
     assertEquals(2, frames.size)
     assertEquals(FileFrame(12f, 60f, true, true), frames[0])

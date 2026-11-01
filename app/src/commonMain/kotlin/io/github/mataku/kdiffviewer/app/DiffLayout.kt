@@ -7,7 +7,7 @@ class DiffLayout internal constructor(
   private val notes: BooleanArray,
   private val rowCount: Int,
   val visibleCount: Int,
-  val hasTopItem: Boolean = false,
+  val hasOrphanItem: Boolean = false,
   val hasEndItem: Boolean = false,
 ) {
   val fileCount: Int get() = headerRows.size
@@ -31,7 +31,7 @@ class DiffLayout internal constructor(
 
   fun rowIndexOf(visibleIndex: Int): Int {
     if (headerRows.isEmpty()) return -1
-    if (hasTopItem && visibleIndex == 0) return headerRows[0]
+    if (hasOrphanItem && visibleIndex == 0) return headerRows[0]
     if (hasEndItem && visibleIndex == visibleCount - 1) return rowCount
     val fileIndex = fileIndexOfVisible(visibleIndex)
     val offset = visibleIndex - headerVisible[fileIndex]
@@ -53,7 +53,7 @@ class DiffLayout internal constructor(
   }
 }
 
-fun diffLayoutOf(state: ViewerUiState, mode: DiffMode = DiffMode.Unified, notesFiles: Set<Int> = emptySet(), hasTop: Boolean = false, hasEnd: Boolean = false): DiffLayout {
+fun diffLayoutOf(state: ViewerUiState, mode: DiffMode = DiffMode.Unified, notesFiles: Set<Int> = emptySet(), hasOrphans: Boolean = false, hasEnd: Boolean = false): DiffLayout {
   val unifiedHeaders = state.fileHeaderRowIndex
   val fileCount = unifiedHeaders.size
   val split = state.split
@@ -62,7 +62,7 @@ fun diffLayoutOf(state: ViewerUiState, mode: DiffMode = DiffMode.Unified, notesF
   val headerVisible = IntArray(fileCount)
   val collapsed = BooleanArray(fileCount)
   val notes = BooleanArray(fileCount)
-  var visible = if (hasTop) 1 else 0
+  var visible = if (hasOrphans) 1 else 0
   for (fileIndex in 0 until fileCount) {
     val header = if (mode == DiffMode.Split) split.splitIndexOf(unifiedHeaders[fileIndex]) else unifiedHeaders[fileIndex]
     val end = if (fileIndex + 1 < fileCount) (if (mode == DiffMode.Split) split.splitIndexOf(unifiedHeaders[fileIndex + 1]) else unifiedHeaders[fileIndex + 1]) else rowCount
@@ -73,5 +73,5 @@ fun diffLayoutOf(state: ViewerUiState, mode: DiffMode = DiffMode.Unified, notesF
     visible += if (collapsed[fileIndex]) 1 else end - header + if (notes[fileIndex]) 1 else 0
   }
   if (hasEnd) visible++
-  return DiffLayout(headerRowArray, headerVisible, collapsed, notes, rowCount, visible, hasTop, hasEnd)
+  return DiffLayout(headerRowArray, headerVisible, collapsed, notes, rowCount, visible, hasOrphans, hasEnd)
 }

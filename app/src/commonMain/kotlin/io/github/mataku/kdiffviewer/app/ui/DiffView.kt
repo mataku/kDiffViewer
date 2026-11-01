@@ -72,7 +72,7 @@ import io.github.mataku.kdiffviewer.app.ui.mac.MacInlineError
 import io.github.mataku.kdiffviewer.app.ui.mac.MacOverlayScrollbar
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.NoteStack
-import io.github.mataku.kdiffviewer.app.ui.review.TopSection
+import io.github.mataku.kdiffviewer.app.ui.review.OrphanSection
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.ExpandDirection
 import io.github.mataku.kdiffviewer.core.model.FileDiff
@@ -99,8 +99,8 @@ private const val HUNK_HEADER_CONTENT_TYPE = 1
 private const val LINE_CONTENT_TYPE = 2
 private const val PLACEHOLDER_CONTENT_TYPE = 3
 private const val NOTES_CONTENT_TYPE = 4
-private const val TOP_CONTENT_TYPE = 5
-private const val TOP_KEY = "top"
+private const val ORPHANS_CONTENT_TYPE = 5
+private const val ORPHANS_KEY = "orphans"
 private const val END_CONTENT_TYPE = 6
 private const val END_KEY = "end"
 private const val SPLIT_LINE_CONTENT_TYPE = 7
@@ -213,9 +213,9 @@ fun DiffView(
         .fileFrames(listState, layout, framePainter, colors.border, colors.background, frameInset, frameMargin),
       contentPadding = PaddingValues(start = ContentHorizontalMargin, end = ContentHorizontalMargin, bottom = FileHeaderTopMargin),
     ) {
-      if (layout.hasTopItem) {
-        item(key = TOP_KEY, contentType = TOP_CONTENT_TYPE) {
-          TopSection(placements.branch, placements.orphans, draft, composeOrphan = draft.isOrphanThread())
+      if (layout.hasOrphanItem) {
+        item(key = ORPHANS_KEY, contentType = ORPHANS_CONTENT_TYPE) {
+          OrphanSection(placements.orphans, draft, composeNew = draft.isOrphanThread())
         }
       }
       for (fileIndex in 0 until layout.fileCount) {
