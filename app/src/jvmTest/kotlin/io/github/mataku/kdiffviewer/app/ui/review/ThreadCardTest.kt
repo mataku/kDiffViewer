@@ -97,8 +97,9 @@ class ThreadCardTest {
 
   private fun pendingReplyThread() = thread(
     comments = listOf(
-      Comment("c1", Author.User, "user body", at, pending = true),
+      Comment("c1", Author.User, "user body", at),
       Comment("c2", Author.Agent("claude"), "agent body", at),
+      Comment("c3", Author.User, "pending reply", at, pending = true),
     ),
   )
 
@@ -170,7 +171,7 @@ class ThreadCardTest {
     val actions = FakeActions()
     setCard(pendingReplyThread(), actions)
     onNodeWithContentDescription("Edit").performClick()
-    assertEquals(listOf("start:Edit(commentId=c1)"), actions.calls)
+    assertEquals(listOf("start:Edit(commentId=c3)"), actions.calls)
   }
 
   @Test
@@ -196,7 +197,7 @@ class ThreadCardTest {
     dragAcrossBody()
     waitForIdle()
     assertEquals(1, clipboard.writes.size)
-    onNodeWithContentDescription("Resolve").performClick()
+    onNodeWithText("Resolve").performClick()
     waitForIdle()
     assertEquals(1, clipboard.writes.size)
   }
@@ -390,7 +391,7 @@ class ThreadCardTest {
   fun resolveCallsActions() = runComposeUiTest {
     val actions = FakeActions()
     setContent { CompositionLocalProvider(LocalReviewActions provides actions) { ThreadCard(thread(), null) } }
-    onNodeWithContentDescription("Resolve").performClick()
+    onNodeWithText("Resolve").performClick()
     assertEquals(listOf("resolved:t1:true"), actions.calls)
   }
 
@@ -422,7 +423,7 @@ class ThreadCardTest {
     onAllNodesWithText("agent body").assertCountEquals(0)
     onNodeWithTag("thread-t1-collapsed").performClick()
     onNodeWithText("agent body").assertIsDisplayed()
-    onNodeWithContentDescription("Unresolve").assertIsDisplayed()
+    onNodeWithText("Unresolve").assertIsDisplayed()
   }
 
   @Test
@@ -432,7 +433,7 @@ class ThreadCardTest {
     onAllNodesWithContentDescription("Edit").assertCountEquals(1)
     onAllNodesWithContentDescription("Delete").assertCountEquals(1)
     onNodeWithContentDescription("Edit").performClick()
-    assertEquals(listOf("start:Edit(commentId=c1)"), actions.calls)
+    assertEquals(listOf("start:Edit(commentId=c3)"), actions.calls)
   }
 
   @Test
@@ -452,7 +453,7 @@ class ThreadCardTest {
     onAllNodesWithContentDescription("Edit").assertCountEquals(0)
     assertEquals(emptyList(), actions.calls)
     onNodeWithText("Delete").performClick()
-    assertEquals(listOf("delete:c1"), actions.calls)
+    assertEquals(listOf("delete:c3"), actions.calls)
   }
 
   @Test
@@ -516,7 +517,7 @@ class ThreadCardTest {
     val actions = FakeActions()
     setContent { CompositionLocalProvider(LocalReviewActions provides actions) { ThreadCard(thread(resolved = true), null) } }
     onNodeWithTag("thread-t1-collapsed").performClick()
-    onNodeWithContentDescription("Unresolve").performClick()
+    onNodeWithText("Unresolve").performClick()
     assertEquals(listOf("resolved:t1:false"), actions.calls)
   }
 
@@ -565,7 +566,7 @@ class ThreadCardTest {
     }
     onNodeWithText("Add review comment").assertExists()
     onNodeWithText("Add single comment").assertDoesNotExist()
-    onNodeWithContentDescription("Resolve").assertDoesNotExist()
+    onNodeWithText("Resolve").assertDoesNotExist()
   }
 
   @Test

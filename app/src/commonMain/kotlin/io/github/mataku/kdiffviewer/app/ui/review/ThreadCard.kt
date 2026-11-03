@@ -5,10 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -50,6 +52,7 @@ import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffTypography
 import io.github.mataku.kdiffviewer.app.ui.mac.MacIconButton
 import io.github.mataku.kdiffviewer.app.ui.mac.MacPlaceholderField
+import io.github.mataku.kdiffviewer.app.ui.mac.MacPushButton
 import io.github.mataku.kdiffviewer.app.ui.markdown.MarkdownBody
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Author
@@ -137,55 +140,55 @@ fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
         }
         .padding(12.dp),
     ) {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (thread.outdated) {
-          Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            DisableSelection { Badge("Outdated", colors.outdatedBadge, styles.outdatedBadge) }
-            val snapshot = (thread.anchor as? Anchor.Lines)?.snapshot.orEmpty()
-            val code = LocalDiffTypography.current.code
-            snapshot.forEach { line -> BasicText(text = markControls(line), style = code) }
+      Box {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          if (thread.outdated) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+              DisableSelection { Badge("Outdated", colors.outdatedBadge, styles.outdatedBadge) }
+              val snapshot = (thread.anchor as? Anchor.Lines)?.snapshot.orEmpty()
+              val code = LocalDiffTypography.current.code
+              snapshot.forEach { line -> BasicText(text = markControls(line), style = code) }
+            }
           }
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-          thread.comments.forEach { comment ->
-            val editing = draftTarget is DraftTarget.Edit && draftTarget.commentId == comment.id
-            CommentView(comment, editing, actions, styles, colors)
+          Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            thread.comments.forEach { comment ->
+              val editing = draftTarget is DraftTarget.Edit && draftTarget.commentId == comment.id
+              CommentView(comment, editing, actions, styles, colors)
+            }
           }
-        }
-        DisableSelection {
-          val replying = draftTarget is DraftTarget.Reply && draftTarget.threadId == thread.id
-          if (replying && actions != null) {
-            CommentComposer(
-              actions = ComposerActions.Post(
-                onReview = { actions.submitDraft(DraftMode.Review) },
-                onSingle = if (thread.isPending) null else ({ actions.submitDraft(DraftMode.Single) }),
-              ),
-              onTextChange = actions::updateDraft,
-              onCancel = actions::cancelDraft,
-            )
-          }
-          if (!replying) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+          DisableSelection {
+            val replying = draftTarget is DraftTarget.Reply && draftTarget.threadId == thread.id
+            if (replying && actions != null) {
+              CommentComposer(
+                actions = ComposerActions.Post(
+                  onReview = { actions.submitDraft(DraftMode.Review) },
+                  onSingle = if (thread.isPending) null else ({ actions.submitDraft(DraftMode.Single) }),
+                ),
+                onTextChange = actions::updateDraft,
+                onCancel = actions::cancelDraft,
+              )
+            }
+            if (!replying) {
               MacPlaceholderField(
                 placeholder = "Reply…",
                 onClick = { actions?.startDraft(DraftTarget.Reply(thread.id)) },
-                modifier = Modifier.weight(1f).testTag("thread-${thread.id}-reply"),
+                modifier = Modifier.fillMaxWidth().testTag("thread-${thread.id}-reply"),
               )
-              if (!thread.isPending) ResolveButton(thread, actions, colors)
             }
+          }
+        }
+        if (!thread.isPending) {
+          // Pinned to the card's corner rather than placed in the first header row, so that row keeps its text height.
+          DisableSelection {
+            MacPushButton(
+              text = if (thread.resolved) "Unresolve" else "Resolve",
+              onClick = { actions?.setResolved(thread.id, !thread.resolved) },
+              modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp),
+            )
           }
         }
       }
     }
-  }
-}
-
-@Composable
-private fun ResolveButton(thread: ReviewThread, actions: ReviewActions?, colors: DiffColors) {
-  if (thread.resolved) {
-    MacIconButton(KdvIcons.CheckCircle, "Unresolve", { actions?.setResolved(thread.id, false) }, tint = colors.accent, tooltip = "Unresolve")
-  } else {
-    MacIconButton(KdvIcons.CheckCircle, "Resolve", { actions?.setResolved(thread.id, true) }, tint = colors.mutedText, tooltip = "Resolve")
   }
 }
 
