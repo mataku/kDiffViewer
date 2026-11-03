@@ -192,10 +192,6 @@ Settings are stored in `~/Library/Application\ Support/kDiffViewer/settings.json
 
 An empty string removes a shortcut. Each entry is checked on its own; one that cannot be read, is refused, or collides with another falls back to its default, and Settings shows why on that shortcut's row. The main window's size and the file tree's width are saved on quit to `~/Library/Application\ Support/kDiffViewer/window-state.json`; delete it to go back to the defaults.
 
-## Known limitations
-
-Files that contain multibyte text (for example Japanese) are not syntax-highlighted until a fix in kotlin-tree-sitter ([tree-sitter/kotlin-tree-sitter#78](https://github.com/tree-sitter/kotlin-tree-sitter/pull/78)) is released, and a stack trace is printed for them on each load.
-
 ## Opening untrusted repositories
 
 kDiffViewer runs git, and git reads the repository's own `.git/config` and `.gitattributes`, so a directory that was not cloned (a zip, a tarball, a copied `.git`, a nested submodule) can run commands through git's clean filters, exactly as `git status` would. kDiffViewer disables the fsmonitor hook and never runs external diff, textconv or hooks, but it cannot disable filters. Open such directories only after inspecting `.git/config` and `.gitattributes`.

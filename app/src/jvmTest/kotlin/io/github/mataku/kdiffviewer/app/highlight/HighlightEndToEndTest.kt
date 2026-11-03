@@ -97,7 +97,7 @@ class HighlightEndToEndTest {
     return spanStyles.any { it.start == start && it.end == end && it.item.color == color }
   }
 
-  private fun viewer(source: DiffSource, content: ContentSource, scope: CoroutineScope) = DiffViewerState(
+  private fun viewer(source: DiffSource, content: ContentSource, scope: CoroutineScope, onFailure: (Throwable) -> Unit) = DiffViewerState(
     source = source,
     scope = scope,
     batchWindowMillis = 0,
@@ -106,6 +106,7 @@ class HighlightEndToEndTest {
       LanguageResolver(defaultLanguageAccessors),
       LineHighlighter(::highlightLines),
       Dispatchers.Default,
+      onFailure = onFailure,
     ),
   )
 
@@ -115,11 +116,16 @@ class HighlightEndToEndTest {
     return ui.loadId == loadId && ui.highlights.getOrNull(fileIndex)?.value != null
   }
 
-  private fun runViewer(source: DiffSource, content: ContentSource, test: ComposeUiTest.(DiffViewerState) -> Unit) {
+  private fun runViewer(
+    source: DiffSource,
+    content: ContentSource,
+    onFailure: (Throwable) -> Unit = { it.printStackTrace() },
+    test: ComposeUiTest.(DiffViewerState) -> Unit,
+  ) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     try {
       runComposeUiTest {
-        val state = viewer(source, content, scope)
+        val state = viewer(source, content, scope, onFailure)
         setContent {
           val ui by state.uiState.collectAsState()
           KdvTheme(colorTheme = ColorTheme.Light) { ViewerScreen(ui, state::reload) }
@@ -149,6 +155,25 @@ class HighlightEndToEndTest {
       waitUntil(timeoutMillis = 10_000) { state.slotWritten(0) }
       waitForIdle()
       assertTrue(lineText(" * three").hasSpan(0, " * three".length, "comment"))
+    }
+  }
+
+  @Test
+  fun multibyteFileIsColored() {
+    val lines = listOf("package a", "", "// 日本語のコメント 🐱", "val s = \"こんにちは、世界\"", "fun x() = 1")
+    val file = modified(
+      "A.kt",
+      DiffLine(LineKind.Context, lines[3], 4, 4),
+      DiffLine(LineKind.Added, "fun x() = 1", null, 5),
+    )
+    val content = InMemoryContentSource({ _, _, side -> if (side == Side.New) lines.joinToString("\n", postfix = "\n") else null })
+    val failures = ConcurrentLinkedQueue<Throwable>()
+    runViewer(InMemoryDiffSource(listOf(file)), content, onFailure = { failures += it }) { state ->
+      waitUntil(timeoutMillis = 10_000) { state.slotWritten(0) }
+      waitForIdle()
+      assertEquals(emptyList(), failures.toList())
+      assertTrue(lineText(lines[3]).hasSpan(8, lines[3].length, "string"))
+      assertTrue(lineText("fun x() = 1").hasSpan(0, 3, "keyword"))
     }
   }
 
