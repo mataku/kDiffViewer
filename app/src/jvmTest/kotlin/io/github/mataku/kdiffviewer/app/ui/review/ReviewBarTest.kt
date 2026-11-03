@@ -47,6 +47,22 @@ class ReviewBarTest {
   }
 
   @Test
+  fun conversationToggleShowsOnlyWithThreads() = runComposeUiTest {
+    var count by mutableStateOf(0)
+    var toggles = 0
+    setContent {
+      ReviewBar(pendingCount = 0, waiting = false, summary = "", onSummaryChange = {}, onSend = {}, conversationCount = count, conversationUnread = true, onToggleConversation = { toggles++ })
+    }
+    onNodeWithTag("conversation-toggle").assertDoesNotExist()
+    count = 3
+    waitForIdle()
+    onNodeWithText("Conversation 3", useUnmergedTree = true).assertIsDisplayed()
+    onNodeWithTag("toggle-badge", useUnmergedTree = true).assertExists()
+    onNodeWithTag("conversation-toggle").performClick()
+    assertEquals(1, toggles)
+  }
+
+  @Test
   fun shownWhileWaiting() = runComposeUiTest {
     showBar(pendingCount = 0, waiting = true)
     onNodeWithTag("review-bar").assertIsDisplayed()

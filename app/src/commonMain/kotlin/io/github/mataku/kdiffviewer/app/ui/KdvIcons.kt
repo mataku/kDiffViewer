@@ -144,6 +144,34 @@ object KdvIcons {
     lineTo(13.5f, 13.5f)
   }
 
+  val Pencil: ImageVector = outlineIcon("Pencil") {
+    moveTo(10.5f, 2.5f)
+    lineTo(13.5f, 5.5f)
+    lineTo(6f, 13f)
+    lineTo(2.5f, 13.5f)
+    lineTo(3f, 10f)
+    close()
+    moveTo(9f, 4f)
+    lineTo(12f, 7f)
+  }
+
+  val Trash: ImageVector = outlineIcon("Trash") {
+    moveTo(2.5f, 4f)
+    lineTo(13.5f, 4f)
+    moveTo(6f, 4f)
+    lineTo(6f, 2.5f)
+    lineTo(10f, 2.5f)
+    lineTo(10f, 4f)
+    moveTo(3.8f, 4f)
+    lineTo(4.6f, 13.5f)
+    lineTo(11.4f, 13.5f)
+    lineTo(12.2f, 4f)
+    moveTo(6.6f, 6.5f)
+    lineTo(6.8f, 11f)
+    moveTo(9.4f, 6.5f)
+    lineTo(9.2f, 11f)
+  }
+
   val Close: ImageVector = outlineIcon("Close") {
     moveTo(4f, 4f)
     lineTo(12f, 12f)

@@ -6,6 +6,7 @@ import io.github.mataku.kdiffviewer.app.ViewerUiState
 import io.github.mataku.kdiffviewer.app.ui.review.ReviewActions
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.RepoPath
+import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Author
 import io.github.mataku.kdiffviewer.core.review.Comment
 import io.github.mataku.kdiffviewer.core.review.Placement
@@ -239,15 +240,31 @@ class ReviewState(
       if (text != null && text.length > MAX_REPLY_BODY_CHARS) return@mutate current to Unit
       val pendingIds = current.threads.flatMap { thread -> thread.comments.filter { it.pending }.map { it.id } }
       if (pendingIds.isEmpty() && text == null && !approve) return@mutate current to Unit
-      val threads = if (pendingIds.isEmpty()) {
+      val published = if (pendingIds.isEmpty()) {
         current.threads
       } else {
         current.threads.map { thread ->
           if (thread.comments.none { it.pending }) thread else thread.copy(comments = thread.comments.map { it.copy(pending = false) })
         }
       }
+      var core = current.core
+      var threads = published
+      var commentIds = pendingIds
+      if (text != null && !approve) {
+        // The message becomes a branch-level thread so the agent can answer it with kdv thread reply.
+        // An approval ends the loop, so its message stays a summary instead of an open thread.
+        val comment = Comment("c${core.nextCommentNumber}", Author.User, text, now())
+        val thread = ReviewThread("t${core.nextThreadNumber}", Anchor.Branch, listOf(comment), resolved = false, outdated = false)
+        threads = published + thread
+        commentIds = pendingIds + comment.id
+        core = core.copy(
+          placementById = core.placementById + (thread.id to Placement.Branch),
+          nextThreadNumber = core.nextThreadNumber + 1,
+          nextCommentNumber = core.nextCommentNumber + 1,
+        )
+      }
       val state = if (approve) SubmissionState.Approved else SubmissionState.Comment
-      current.withThreads(threads, current.core).withSubmission(state, text, pendingIds) to Unit
+      current.withThreads(threads, core).withSubmission(state, text, commentIds) to Unit
     }
   }
 

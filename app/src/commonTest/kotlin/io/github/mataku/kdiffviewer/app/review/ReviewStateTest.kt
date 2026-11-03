@@ -466,9 +466,9 @@ class ReviewStateTest {
     state.addThread(base, 2, mode = DraftMode.Review)
     state.submitReview("  summary  ", approve = false)
     val snapshot = state.snapshot.value
-    assertEquals(listOf(Submission(1, SubmissionState.Comment, "summary", epoch, listOf("c1", "c2"))), snapshot.submissions)
+    assertEquals(listOf(Submission(1, SubmissionState.Comment, "summary", epoch, listOf("c1", "c2", "c3"))), snapshot.submissions)
     assertEquals(0, snapshot.pendingCount)
-    assertEquals(2, state.threads(includeResolved = false).size)
+    assertEquals(3, state.threads(includeResolved = false).size)
   }
 
   @Test
@@ -490,6 +490,59 @@ class ReviewStateTest {
     val state = newState()
     state.submitReview("ship it after tests", approve = false)
     assertEquals("ship it after tests", state.snapshot.value.submissions.single().summary)
+  }
+
+  @Test
+  fun summaryBecomesBranchThread() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.submitReview("  what does this branch do?  ", approve = false)
+    val snapshot = state.snapshot.value
+    val thread = snapshot.threads.single()
+    assertEquals(Anchor.Branch, thread.anchor)
+    assertEquals("what does this branch do?", thread.comments.single().body)
+    assertEquals(Author.User, thread.comments.single().author)
+    assertFalse(thread.comments.single().pending)
+    assertEquals(listOf(thread), snapshot.placements.branch)
+    assertEquals(listOf(thread.comments.single().id), snapshot.submissions.single().commentIds)
+  }
+
+  @Test
+  fun branchThreadSurvivesReloadAndTakesReplies() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    advanceUntilIdle()
+    state.submitReview("why?", approve = false)
+    state.onViewerState(ui(2, file("b.kt", "x")))
+    advanceUntilIdle()
+    val snapshot = state.snapshot.value
+    val thread = snapshot.placements.branch.single()
+    assertFalse(thread.outdated)
+    assertTrue(snapshot.placements.orphans.isEmpty())
+    assertIs<ReviewResult.Ok<*>>(state.reply(thread.id, Author.Agent("agent"), "because"))
+    assertEquals(listOf("why?", "because"), state.snapshot.value.placements.branch.single().comments.map { it.body })
+  }
+
+  @Test
+  fun branchThreadIsDeliveredToWaiter() = runTest(StandardTestDispatcher()) {
+    val state = openState()
+    state.submitReview("summary please", approve = false)
+    val outcome = assertIs<WaitOutcome.Delivered>(state.awaitSubmissions(null))
+    assertEquals(Anchor.Branch, outcome.threads.single().anchor)
+  }
+
+  @Test
+  fun approveWithoutMessageAddsNoBranchThread() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.submitReview(null, approve = true)
+    assertTrue(state.snapshot.value.threads.isEmpty())
+  }
+
+  @Test
+  fun approveWithMessageAddsNoBranchThread() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.submitReview("LGTM", approve = true)
+    val snapshot = state.snapshot.value
+    assertTrue(snapshot.threads.isEmpty())
+    assertEquals(listOf(Submission(1, SubmissionState.Approved, "LGTM", epoch, emptyList())), snapshot.submissions)
   }
 
   @Test

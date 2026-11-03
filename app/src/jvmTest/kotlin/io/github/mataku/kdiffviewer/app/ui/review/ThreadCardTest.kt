@@ -21,7 +21,9 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -93,6 +95,14 @@ class ThreadCardTest {
     ),
   ) = ReviewThread("t1", anchor, comments, resolved, outdated)
 
+  private fun pendingReplyThread() = thread(
+    comments = listOf(
+      Comment("c1", Author.User, "user body", at),
+      Comment("c2", Author.Agent("claude"), "agent body", at),
+      Comment("c3", Author.User, "pending reply", at, pending = true),
+    ),
+  )
+
   private class FakeClipboard : ClipboardWriter {
     val writes = mutableListOf<String>()
 
@@ -159,9 +169,9 @@ class ThreadCardTest {
   @Test
   fun linkStillClicks() = runComposeUiTest {
     val actions = FakeActions()
-    setCard(thread(), actions)
-    onNodeWithText("Edit").performClick()
-    assertEquals(listOf("start:Edit(commentId=c1)"), actions.calls)
+    setCard(pendingReplyThread(), actions)
+    onNodeWithContentDescription("Edit").performClick()
+    assertEquals(listOf("start:Edit(commentId=c3)"), actions.calls)
   }
 
   @Test
@@ -389,7 +399,8 @@ class ThreadCardTest {
   fun replyStartsDraft() = runComposeUiTest {
     val actions = FakeActions()
     setContent { CompositionLocalProvider(LocalReviewActions provides actions) { ThreadCard(thread(), null) } }
-    onNodeWithText("Reply").performClick()
+    onNodeWithText("Reply…").assertIsDisplayed()
+    onNodeWithTag("thread-t1-reply").performClick()
     assertEquals(listOf("start:Reply(threadId=t1)"), actions.calls)
   }
 
@@ -401,6 +412,7 @@ class ThreadCardTest {
       }
     }
     onNodeWithTag("comment-composer").assertIsDisplayed()
+    onNodeWithTag("thread-t1-reply").assertDoesNotExist()
   }
 
   @Test
@@ -415,37 +427,44 @@ class ThreadCardTest {
   }
 
   @Test
-  fun editAndDeleteOnlyOnUserComments() = runComposeUiTest {
+  fun editAndDeleteOnlyOnPendingUserComments() = runComposeUiTest {
     val actions = FakeActions()
-    setContent { CompositionLocalProvider(LocalReviewActions provides actions) { ThreadCard(thread(), null) } }
-    onAllNodesWithText("Edit").assertCountEquals(1)
-    onAllNodesWithText("Delete").assertCountEquals(1)
-    onNodeWithText("Edit").performClick()
-    assertEquals(listOf("start:Edit(commentId=c1)"), actions.calls)
+    setContent { CompositionLocalProvider(LocalReviewActions provides actions) { ThreadCard(pendingReplyThread(), null) } }
+    onAllNodesWithContentDescription("Edit").assertCountEquals(1)
+    onAllNodesWithContentDescription("Delete").assertCountEquals(1)
+    onNodeWithContentDescription("Edit").performClick()
+    assertEquals(listOf("start:Edit(commentId=c3)"), actions.calls)
+  }
+
+  @Test
+  fun sentCommentsCannotBeEditedOrDeleted() = runComposeUiTest {
+    setContent { CompositionLocalProvider(LocalReviewActions provides FakeActions()) { ThreadCard(thread(), null) } }
+    onAllNodesWithContentDescription("Edit").assertCountEquals(0)
+    onAllNodesWithContentDescription("Delete").assertCountEquals(0)
   }
 
   @Test
   fun deleteAsksForConfirmationBeforeDeleting() = runComposeUiTest {
     val actions = FakeActions()
-    setContent { CompositionLocalProvider(LocalReviewActions provides actions) { ThreadCard(thread(), null) } }
-    onNodeWithText("Delete").performClick()
+    setContent { CompositionLocalProvider(LocalReviewActions provides actions) { ThreadCard(pendingReplyThread(), null) } }
+    onNodeWithContentDescription("Delete").performClick()
     onNodeWithText("Delete?").assertIsDisplayed()
     onNodeWithText("Cancel").assertIsDisplayed()
-    onAllNodesWithText("Edit").assertCountEquals(0)
+    onAllNodesWithContentDescription("Edit").assertCountEquals(0)
     assertEquals(emptyList(), actions.calls)
     onNodeWithText("Delete").performClick()
-    assertEquals(listOf("delete:c1"), actions.calls)
+    assertEquals(listOf("delete:c3"), actions.calls)
   }
 
   @Test
   fun cancellingDeleteKeepsTheComment() = runComposeUiTest {
     val actions = FakeActions()
-    setContent { CompositionLocalProvider(LocalReviewActions provides actions) { ThreadCard(thread(), null) } }
-    onNodeWithText("Delete").performClick()
+    setContent { CompositionLocalProvider(LocalReviewActions provides actions) { ThreadCard(pendingReplyThread(), null) } }
+    onNodeWithContentDescription("Delete").performClick()
     onNodeWithText("Cancel").performClick()
     onAllNodesWithText("Delete?").assertCountEquals(0)
-    onNodeWithText("Edit").assertIsDisplayed()
-    onNodeWithText("Delete").assertIsDisplayed()
+    onNodeWithContentDescription("Edit").assertIsDisplayed()
+    onNodeWithContentDescription("Delete").assertIsDisplayed()
     assertEquals(emptyList(), actions.calls)
   }
 

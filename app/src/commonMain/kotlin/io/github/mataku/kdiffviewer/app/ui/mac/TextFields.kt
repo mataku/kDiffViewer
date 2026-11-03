@@ -84,6 +84,22 @@ fun MacTextField(
   }
 }
 
+// Looks like an empty MacTextField but only reports clicks, for a field that opens a larger editor in its place.
+@Composable
+fun MacPlaceholderField(placeholder: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+  val colors = LocalDiffColors.current
+  Box(
+    modifier = modifier
+      .fieldChrome(colors, focused = false, capsule = false)
+      .focusProperties { canFocus = false }
+      .clickable(interactionSource = null, indication = null, role = Role.Button, onClick = onClick)
+      .padding(horizontal = 8.dp, vertical = 4.dp),
+    contentAlignment = Alignment.CenterStart,
+  ) {
+    BasicText(text = placeholder, maxLines = 1, style = TextStyle(color = colors.mutedText, fontSize = 13.sp))
+  }
+}
+
 @Composable
 fun MacSearchField(
   value: String,

@@ -40,6 +40,12 @@ Review loop
 5. Go back to step 2.
    Stop when a review in the result has "state": "approved"; handle any threads that came with it first.
 
+Branch threads
+
+A message the user writes when sending comments (not when approving) also arrives as a thread with no path: a question or request about the whole branch, not one file.
+Answer it with kdv thread reply like any other thread.
+When it asks what the branch does, read git log and the diff from the merge-base, then explain the intent, the main changes and where the user should look closely.
+
 Without waiting
 
 If the user tells you in chat that they left comments, list the open threads instead:
@@ -73,7 +79,7 @@ kdv review wait --json prints:
     "threads": [ThreadDto, ...]
   }
 
-state is "comment" or "approved"; summary is the optional message the user wrote to you when sending.
+state is "comment" or "approved"; summary is the optional message the user wrote to you when sending; unless state is "approved", it is also the first comment of a branch thread in threads.
 commentIds are the comments this review sent; threads holds every thread that contains one of them, with all of its comments for context.
 Several reviews arrive together when the user sent more than one while you were busy.
 
@@ -96,6 +102,7 @@ ThreadDto is:
 
 side is "old" or "new".
 File-level threads have no side, startLine, or endLine, and an empty snapshot.
+Branch threads have no path either.
 author.kind is "user" or "agent"; agents also carry a name.
 Comments the user saved as pending (part of a review not yet sent) are never shown to you; a thread with only pending comments does not exist for kdv until the user sends it.
 

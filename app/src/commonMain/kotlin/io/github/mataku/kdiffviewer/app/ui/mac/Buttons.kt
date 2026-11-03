@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.PlainTooltip
@@ -280,6 +281,7 @@ fun <T> MacSegmented(
   }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MacIconButton(
   icon: ImageVector,
@@ -287,23 +289,66 @@ fun MacIconButton(
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
   iconRotation: Float = 0f,
+  tint: Color = LocalDiffColors.current.text,
+  tooltip: String? = null,
 ) {
   val colors = LocalDiffColors.current
   val interactionSource = remember { MutableInteractionSource() }
   val pressed by interactionSource.collectIsPressedAsState()
-  Box(
+  val button = @Composable {
+    Box(
+      modifier = modifier
+        .size(20.dp)
+        .focusProperties { canFocus = false }
+        .background(if (pressed) colors.trackFill(pressed = true) else Color.Transparent, ControlShape)
+        .clickable(interactionSource = interactionSource, indication = null, role = Role.Button, onClick = onClick),
+      contentAlignment = Alignment.Center,
+    ) {
+      Image(
+        imageVector = icon,
+        contentDescription = contentDescription,
+        modifier = Modifier.size(12.dp).rotate(iconRotation),
+        colorFilter = ColorFilter.tint(tint),
+      )
+    }
+  }
+  if (tooltip == null) {
+    button()
+  } else {
+    TooltipBox(
+      positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
+      tooltip = { PlainTooltip { Text(tooltip) } },
+      state = rememberTooltipState(),
+    ) { button() }
+  }
+}
+
+@Composable
+fun MacToggleButton(
+  icon: ImageVector,
+  text: String,
+  selected: Boolean,
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  badge: Boolean = false,
+) {
+  val colors = LocalDiffColors.current
+  val interactionSource = remember { MutableInteractionSource() }
+  val pressed by interactionSource.collectIsPressedAsState()
+  val tint = if (selected) colors.accent else colors.text
+  Row(
     modifier = modifier
-      .size(20.dp)
+      .height(22.dp)
       .focusProperties { canFocus = false }
       .background(if (pressed) colors.trackFill(pressed = true) else Color.Transparent, ControlShape)
-      .clickable(interactionSource = interactionSource, indication = null, role = Role.Button, onClick = onClick),
-    contentAlignment = Alignment.Center,
+      .semantics { this.selected = selected }
+      .clickable(interactionSource = interactionSource, indication = null, role = Role.Checkbox, onClick = onClick)
+      .padding(horizontal = 6.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(5.dp),
   ) {
-    Image(
-      imageVector = icon,
-      contentDescription = contentDescription,
-      modifier = Modifier.size(12.dp).rotate(iconRotation),
-      colorFilter = ColorFilter.tint(colors.text),
-    )
+    Image(imageVector = icon, contentDescription = null, modifier = Modifier.size(14.dp), colorFilter = ColorFilter.tint(tint))
+    BasicText(text = text, style = TextStyle(color = tint, fontSize = 12.sp), maxLines = 1)
+    if (badge) Box(Modifier.testTag("toggle-badge").size(6.dp).clip(CircleShape).background(colors.accent))
   }
 }

@@ -2,6 +2,7 @@ package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.ui.unit.dp
 import io.github.mataku.kdiffviewer.app.DiffMode
+import io.github.mataku.kdiffviewer.core.model.RepoPath
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -34,5 +35,33 @@ class ViewerScreenStateTest {
     assertFalse(state.sidebarVisible)
     state.toggleSidebar()
     assertTrue(state.sidebarVisible)
+  }
+
+  @Test
+  fun conversationUnreadUntilOpened() {
+    val state = ViewerScreenState()
+    val repo = RepoPath("/a")
+    assertFalse(state.isConversationUnread(repo, agentReplies = 0))
+    assertTrue(state.isConversationUnread(repo, agentReplies = 1))
+    state.toggleConversation(repo)
+    assertTrue(state.isConversationOpen(repo))
+    state.markConversationSeen(repo, agentReplies = 1)
+    state.toggleConversation(repo)
+    assertFalse(state.isConversationUnread(repo, agentReplies = 1))
+    assertTrue(state.isConversationUnread(repo, agentReplies = 2))
+  }
+
+  @Test
+  fun conversationResetsForAnotherRepository() {
+    val state = ViewerScreenState()
+    val a = RepoPath("/a")
+    val b = RepoPath("/b")
+    state.openConversation(a)
+    state.markConversationSeen(a, agentReplies = 3)
+    assertFalse(state.isConversationOpen(b))
+    assertTrue(state.isConversationUnread(b, agentReplies = 1))
+    state.toggleConversation(b)
+    assertTrue(state.isConversationOpen(b))
+    assertFalse(state.isConversationOpen(a))
   }
 }

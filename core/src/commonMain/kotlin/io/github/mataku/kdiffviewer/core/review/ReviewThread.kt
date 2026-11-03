@@ -5,12 +5,12 @@ import kotlin.time.Instant
 enum class Side { Old, New }
 
 sealed interface Anchor {
-  val path: String
+  data object Branch : Anchor
 
-  data class File(override val path: String) : Anchor
+  data class File(val path: String) : Anchor
 
   data class Lines(
-    override val path: String,
+    val path: String,
     val side: Side,
     val startLine: Int,
     val endLine: Int,
@@ -54,6 +54,8 @@ sealed interface Placement {
   data class OnLine(val location: LineLocation) : Placement
 
   data class OnFile(val fileIndex: Int) : Placement
+
+  data object Branch : Placement
 
   data object Orphan : Placement
 }

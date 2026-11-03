@@ -58,7 +58,7 @@ data class CommentDto(
 @Serializable
 data class ThreadDto(
   val id: String,
-  val path: String,
+  val path: String? = null,
   val side: String? = null,
   val startLine: Int? = null,
   val endLine: Int? = null,

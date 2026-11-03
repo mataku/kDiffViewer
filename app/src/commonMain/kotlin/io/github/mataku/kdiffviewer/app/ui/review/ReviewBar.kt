@@ -19,9 +19,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.review.MAX_REPLY_BODY_CHARS
+import io.github.mataku.kdiffviewer.app.ui.KdvIcons
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
 import io.github.mataku.kdiffviewer.app.ui.mac.MacPushButton
 import io.github.mataku.kdiffviewer.app.ui.mac.MacTextField
+import io.github.mataku.kdiffviewer.app.ui.mac.MacToggleButton
 
 private val WaitingGreen = Color(0xFF34C759)
 
@@ -33,6 +35,10 @@ fun ReviewBar(
   onSummaryChange: (String) -> Unit,
   onSend: (approve: Boolean) -> Unit,
   modifier: Modifier = Modifier,
+  conversationCount: Int = 0,
+  conversationOpen: Boolean = false,
+  conversationUnread: Boolean = false,
+  onToggleConversation: () -> Unit = {},
 ) {
   val colors = LocalDiffColors.current
   val mutedStyle = remember(colors) { TextStyle(color = colors.mutedText, fontSize = 12.sp) }
@@ -45,6 +51,16 @@ fun ReviewBar(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(12.dp),
   ) {
+    if (conversationCount > 0) {
+      MacToggleButton(
+        icon = KdvIcons.Comment,
+        text = "Conversation $conversationCount",
+        selected = conversationOpen,
+        onClick = onToggleConversation,
+        modifier = Modifier.testTag("conversation-toggle"),
+        badge = conversationUnread,
+      )
+    }
     if (waiting) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.size(8.dp).background(WaitingGreen, CircleShape))

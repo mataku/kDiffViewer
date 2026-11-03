@@ -25,6 +25,14 @@ fun Comment.toDto(): CommentDto = CommentDto(
 fun ReviewThread.toDto(): ThreadDto {
   val a = anchor
   return when (a) {
+    Anchor.Branch -> ThreadDto(
+      id = id,
+      snapshot = emptyList(),
+      resolved = resolved,
+      outdated = outdated,
+      comments = comments.map { it.toDto() },
+    )
+
     is Anchor.Lines -> ThreadDto(
       id = id,
       path = a.path,

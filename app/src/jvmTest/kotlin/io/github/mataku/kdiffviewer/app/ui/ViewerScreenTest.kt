@@ -1220,6 +1220,47 @@ class ViewerScreenTest {
   }
 
   @Test
+  fun sendingMessageOpensConversationPanel() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    review.submitReview("first", approve = false)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithText("Conversation 1", useUnmergedTree = true).assertIsDisplayed()
+    onNodeWithTag("conversation-panel").assertDoesNotExist()
+    onNodeWithTag("review-summary").performTextInput("what does this branch do?")
+    onNodeWithText("Send to Agent").performClick()
+    waitForIdle()
+    onNodeWithTag("conversation-panel").assertIsDisplayed()
+    onNodeWithText("Conversation 2", useUnmergedTree = true).assertIsDisplayed()
+    onNodeWithText("what does this branch do?", substring = true).assertExists()
+    onNodeWithTag("conversation-toggle").performClick()
+    waitForIdle()
+    onNodeWithTag("conversation-panel").assertDoesNotExist()
+  }
+
+  @Test
+  fun agentReplyWhileClosedMarksToggleUntilOpened() = runComposeUiTest {
+    val ui = reviewUi
+    val review = reviewState(ui)
+    review.submitReview("why?", approve = false)
+    setContent {
+      val snapshot by review.snapshot.collectAsState()
+      CompositionLocalProvider(LocalReviewActions provides review) { ViewerScreen(ui, {}, review = snapshot) }
+    }
+    onNodeWithTag("toggle-badge", useUnmergedTree = true).assertDoesNotExist()
+    review.reply("t1", Author.Agent("agent"), "because")
+    waitForIdle()
+    onNodeWithTag("toggle-badge", useUnmergedTree = true).assertExists()
+    onNodeWithTag("conversation-toggle").performClick()
+    waitForIdle()
+    onNodeWithText("because", substring = true).assertExists()
+    onNodeWithTag("toggle-badge", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
   fun addCommentButtonSitsOnMarkerColumn() = runComposeUiTest {
     val ui = reviewUi
     val review = reviewState(ui)
