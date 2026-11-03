@@ -16,6 +16,7 @@ app/    Compose Desktop app (jvm target). commonMain holds state holders and Com
         Bundled images live only under commonMain/composeResources/ (density-qualified PNG); app/art/ holds the SVG originals they are exported from (including app_icon.svg) and is not packaged; app/art/kDiffViewer.icon is the Icon Composer original of the app icon; app/packaging/ holds what packaging uses: kDiffViewer.icns (fallback for macOS 15 and earlier, and the Dock icon for `:app:run`), app-content/Resources/Assets.car (compiled from the .icon, copied into the bundle's Contents/Resources), and kDiffViewer.png (the Linux icon, exported from app_icon.svg at 512 px). All are committed, so the build does not need Xcode.
 build-logic/ included build with the convention plugins: kdv.kmp-jvm (Kotlin Multiplatform, the JBR 25 toolchain and the jvm target) and kdv.kmp-native (the macosArm64, linuxX64 and linuxArm64 targets). Module-specific setup and dependencies stay in each module's build.gradle.kts.
 scripts/ large-diff generator for manual performance checks, and a small cat-themed diff generator for screenshots.
+        ci/ holds what the screenshot workflow runs on macOS (screenshot.sh, a Swift UI helper, and an Objective-C 2x virtual display); they are run through bash, swift and clang, not as executables.
 plugins/ kdv/ is the Claude Code / Codex / npx skills plugin with the kdv-review agent skill; .claude-plugin/marketplace.json lists it.
 ```
 
@@ -35,6 +36,7 @@ plugins/ kdv/ is the Claude Code / Codex / npx skills plugin with the kdv-review
 ./gradlew :app:packageDeb              # build the Linux .deb (needs dpkg-deb and fakeroot); it is repacked to make kdv executable and link /usr/bin/kdv
 scripts/generate-large-diff.sh <dir> [ext]   # create a large repository for manual scrolling checks; ext defaults to txt, kt writes Kotlin sources
 scripts/generate-screenshot-diff.sh <dir>    # create a worktree of develop on feature/cat-facts with a small committed, staged, unstaged, and untracked diff for screenshots
+bash scripts/ci/screenshot.sh <dir>          # what the dispatch-only screenshot workflow runs on its macOS runner; writes <dir>/shots/dim-screen.png and agent-review.png for docs/images
 xcrun actool app/art/kDiffViewer.icon --compile <out> --app-icon kDiffViewer --platform macosx --target-device mac --minimum-deployment-target 26.0 --output-partial-info-plist <out>/partial.plist   # regenerate Assets.car after editing the icon
 ```
 
