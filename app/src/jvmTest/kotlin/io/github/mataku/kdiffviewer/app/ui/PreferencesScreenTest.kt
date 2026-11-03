@@ -13,6 +13,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.down
@@ -21,12 +22,15 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.up
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.test.withKeyDown
+import androidx.compose.ui.test.withKeysDown
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.mataku.kdiffviewer.app.settings.Appearance
@@ -34,6 +38,8 @@ import io.github.mataku.kdiffviewer.app.settings.GitStatus
 import io.github.mataku.kdiffviewer.app.settings.Settings
 import io.github.mataku.kdiffviewer.app.settings.SettingsLoad
 import io.github.mataku.kdiffviewer.core.git.GitInfo
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -226,6 +232,100 @@ class PreferencesScreenTest {
     show(h)
     onNodeWithTag("tab-width-4").performClick()
     assertEquals(4, h.last().tabWidth)
+  }
+
+  private val hostShortcuts = KeyboardShortcuts.Host
+  private val primary = if (HostKeymap == Keymap.Mac) Key.MetaLeft else Key.CtrlLeft
+
+  private fun ComposeUiTest.startRecording(id: ShortcutId) {
+    onNodeWithTag("shortcut-${id.settingsKey}").performScrollTo().performClick()
+    waitForIdle()
+  }
+
+  @Test
+  fun keyboardShortcutsSectionListsShortcuts() = runComposeUiTest {
+    show(Harness())
+    onNodeWithTag("keyboard-shortcuts").performScrollTo()
+    ShortcutId.entries.forEach { id ->
+      onNodeWithText(id.title).assertExists()
+      onNodeWithTag("shortcut-${id.settingsKey}").assertTextEquals(hostShortcuts[id]!!.label)
+    }
+  }
+
+  @Test
+  fun recordingAShortcutSavesItForTheHostPlatform() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    startRecording(ShortcutId.Reload)
+    onNodeWithTag("shortcut-reload").assertIsFocused().assertTextEquals(hostShortcuts.reload!!.label)
+    onNodeWithTag("shortcut-reload").performKeyInput { withKeysDown(listOf(primary, Key.ShiftLeft)) { pressKey(Key.K) } }
+    val expected = HostKeymap.chord(Key.K, ctrl = HostKeymap != Keymap.Mac, meta = HostKeymap == Keymap.Mac, shift = true)
+    assertEquals(expected, h.last().resolveShortcuts(HostKeymap).shortcuts.reload)
+  }
+
+  @Test
+  fun reservedChordIsRejectedInline() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    startRecording(ShortcutId.Reload)
+    onNodeWithTag("shortcut-reload").performKeyInput { withKeyDown(primary) { pressKey(Key.Q) } }
+    onNodeWithTag("shortcut-problem-reload").assertTextEquals("Reserved by the system or a menu item")
+    onNodeWithTag("shortcut-reload").assertIsFocused()
+    assertTrue(h.transforms.isEmpty())
+  }
+
+  @Test
+  fun chordUsedByAnotherShortcutIsRejectedInline() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    startRecording(ShortcutId.Reload)
+    onNodeWithTag("shortcut-reload").performKeyInput { withKeysDown(listOf(primary, Key.ShiftLeft)) { pressKey(Key.P) } }
+    onNodeWithTag("shortcut-problem-reload").assertTextEquals("Used by Switch Write and Preview")
+    assertTrue(h.transforms.isEmpty())
+  }
+
+  @Test
+  fun escapeCancelsRecording() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    startRecording(ShortcutId.Reload)
+    onNodeWithTag("shortcut-reload").performKeyInput { pressKey(Key.Escape) }
+    waitForIdle()
+    onNodeWithTag("shortcut-reload").assertTextEquals(hostShortcuts.reload!!.label)
+    assertTrue(h.transforms.isEmpty())
+  }
+
+  @Test
+  fun deleteRemovesTheShortcut() = runComposeUiTest {
+    val h = Harness()
+    show(h)
+    startRecording(ShortcutId.Reload)
+    onNodeWithTag("shortcut-reload").performKeyInput { pressKey(Key.Backspace) }
+    assertNull(h.last().resolveShortcuts(HostKeymap).shortcuts.reload)
+  }
+
+  @Test
+  fun removedShortcutShowsEmpty() = runComposeUiTest {
+    val stored = JsonObject(mapOf(HostKeymap.settingsKey to JsonObject(mapOf("reload" to JsonPrimitive("")))))
+    show(Harness(), Settings(shortcuts = stored))
+    onNodeWithTag("shortcut-reload").performScrollTo().assertTextEquals("")
+  }
+
+  @Test
+  fun invalidSettingsEntryIsShownOnItsRow() = runComposeUiTest {
+    val stored = JsonObject(mapOf(HostKeymap.settingsKey to JsonObject(mapOf("reload" to JsonPrimitive("comd+r")))))
+    show(Harness(), Settings(shortcuts = stored))
+    onNodeWithTag("shortcut-problem-reload").performScrollTo().assertTextEquals("settings.json: Not a valid shortcut: \"comd+r\"")
+    onNodeWithTag("shortcut-reload").assertTextEquals(hostShortcuts.reload!!.label)
+  }
+
+  @Test
+  fun restoreDefaultsClearsTheHostBlock() = runComposeUiTest {
+    val h = Harness()
+    val stored = JsonObject(mapOf(HostKeymap.settingsKey to JsonObject(mapOf("reload" to JsonPrimitive("comd+r")))))
+    show(h, Settings(shortcuts = stored))
+    onNodeWithTag("shortcuts-restore-defaults").performScrollTo().performClick()
+    assertNull(h.last(Settings(shortcuts = stored)).shortcutBlock(HostKeymap))
   }
 
   @Test
@@ -423,7 +523,7 @@ class PreferencesScreenTest {
     val h = Harness()
     show(h, path = "~/Library/Application Support/kDiffViewer/settings.json")
     onNodeWithTag("settings-file-path").assertTextEquals("Settings are stored in ~/Library/Application Support/kDiffViewer/settings.json")
-    onNodeWithTag("settings-reveal").performClick()
+    onNodeWithTag("settings-reveal").performScrollTo().performClick()
     assertEquals(1, h.revealCount)
   }
 

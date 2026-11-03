@@ -34,12 +34,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
-import io.github.mataku.kdiffviewer.app.ui.isPrimaryModifierPressed
+import io.github.mataku.kdiffviewer.app.ui.LocalKeyboardShortcuts
 import io.github.mataku.kdiffviewer.app.ui.keepScrollJumps
 import io.github.mataku.kdiffviewer.app.ui.mac.MacPushButton
 import io.github.mataku.kdiffviewer.app.ui.mac.MacTabbedPanel
 import io.github.mataku.kdiffviewer.app.ui.mac.MacTextArea
 import io.github.mataku.kdiffviewer.app.ui.markdown.MarkdownBody
+import io.github.mataku.kdiffviewer.app.ui.matches
 
 private enum class ComposerMode(val label: String, val tag: String) {
   Write("Write", "composer-mode-write"),
@@ -66,6 +67,7 @@ fun CommentComposer(
   val latestActions by rememberUpdatedState(actions)
   val latestCancel by rememberUpdatedState(onCancel)
   val focusRequests = LocalDraftFocusRequests.current.value
+  val shortcuts = LocalKeyboardShortcuts.current
   var mode by remember { mutableStateOf(ComposerMode.Write) }
   var writeHeightPx by remember { mutableIntStateOf(0) }
   LaunchedEffect(focusRequests, mode) {
@@ -83,7 +85,7 @@ fun CommentComposer(
             true
           }
 
-          event.isPrimaryModifierPressed() && (event.key == Key.Enter || event.key == Key.NumPadEnter) -> {
+          shortcuts.submitComment.matches(event) || shortcuts.addSingleComment.matches(event) -> {
             if (draftText.value.isNotBlank()) {
               when (val current = latestActions) {
                 is ComposerActions.Save -> current.onSave()
@@ -93,7 +95,7 @@ fun CommentComposer(
             true
           }
 
-          event.isPrimaryModifierPressed() && event.isShiftPressed && event.key == Key.P -> {
+          shortcuts.togglePreview.matches(event) -> {
             mode = if (mode == ComposerMode.Write) ComposerMode.Preview else ComposerMode.Write
             true
           }
@@ -166,7 +168,7 @@ private fun PreviewPane(
       .fillMaxWidth()
       .heightIn(min = minHeight)
       .padding(horizontal = 8.dp, vertical = PreviewPadding)
-      .keepScrollJumps()
+      .keepScrollJumps(LocalKeyboardShortcuts.current)
       .focusable(),
   ) {
     if (text.isBlank()) {

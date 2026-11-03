@@ -2,6 +2,7 @@ package io.github.mataku.kdiffviewer.app
 
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -18,9 +19,11 @@ import io.github.mataku.kdiffviewer.app.settings.mainSizeOrNull
 import io.github.mataku.kdiffviewer.app.settings.treeWidthOrNull
 import io.github.mataku.kdiffviewer.app.settings.updated
 import io.github.mataku.kdiffviewer.app.ui.DefaultTreeWidth
+import io.github.mataku.kdiffviewer.app.ui.HostKeymap
 import io.github.mataku.kdiffviewer.app.ui.MaxTreeWidth
 import io.github.mataku.kdiffviewer.app.ui.MinTreeWidth
 import io.github.mataku.kdiffviewer.app.ui.ViewerScreenState
+import io.github.mataku.kdiffviewer.app.ui.resolveShortcuts
 import io.github.mataku.kdiffviewer.core.git.GitLocation
 import io.github.mataku.kdiffviewer.core.git.GitLocator
 import io.github.mataku.kdiffviewer.core.git.locateOnHost
@@ -93,7 +96,8 @@ private fun runApplication(
   val settings by repository.settings.collectAsState()
   val nativePreferences = rememberNativePreferencesSupported()
   DesktopHandlersEffect(nativePreferences, onPreferences = appState::openSettings, onQuit = appState::requestQuit)
-  MainWindow(appState, repository, settings, factory, windowState, nativePreferences)
+  val shortcuts = remember(settings.shortcuts) { settings.resolveShortcuts(HostKeymap).shortcuts }
+  MainWindow(appState, repository, settings, shortcuts, factory, windowState, nativePreferences)
   if (appState.settingsOpen) {
     val gitStatus by appState.gitBackend.status.collectAsState()
     PreferencesWindow(
