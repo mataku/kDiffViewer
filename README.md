@@ -82,7 +82,7 @@ The base can also be changed from the toolbar: click the base tag to open a popu
 
 You review a coding agent's changes in the app the way you would review a pull request, and the agent reads and answers your comments from the terminal through the `kdv` command.
 
-![A review thread in kDiffViewer with a comment on a line and a reply from a coding agent, and the bar under the diff with Approve and Send to Agent](./docs/images/agent-review.png)
+![A review thread in kDiffViewer with a comment on a line and a reply from a coding agent, a branch conversation above the review bar, and the bar with Approve and Send to Agent](./docs/images/agent-review.png)
 
 To get started, install the `kdv-review` agent skill from this repository. It has the agent run `kdv agent-guide` and follow the instructions it prints, so `kdv` must be on your `PATH` (see [Install](#install)).
 
