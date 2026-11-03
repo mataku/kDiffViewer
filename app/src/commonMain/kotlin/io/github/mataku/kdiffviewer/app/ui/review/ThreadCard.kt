@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,9 +45,11 @@ import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.selection.LocalNativeContextMenu
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
 import io.github.mataku.kdiffviewer.app.ui.DiffColors
+import io.github.mataku.kdiffviewer.app.ui.KdvIcons
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffColors
 import io.github.mataku.kdiffviewer.app.ui.LocalDiffTypography
-import io.github.mataku.kdiffviewer.app.ui.mac.MacPushButton
+import io.github.mataku.kdiffviewer.app.ui.mac.MacIconButton
+import io.github.mataku.kdiffviewer.app.ui.mac.MacPlaceholderField
 import io.github.mataku.kdiffviewer.app.ui.markdown.MarkdownBody
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Author
@@ -143,12 +146,15 @@ fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
             snapshot.forEach { line -> BasicText(text = markControls(line), style = code) }
           }
         }
-        thread.comments.forEach { comment ->
-          val editing = draftTarget is DraftTarget.Edit && draftTarget.commentId == comment.id
-          CommentView(comment, editing, actions, styles, colors)
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          thread.comments.forEach { comment ->
+            val editing = draftTarget is DraftTarget.Edit && draftTarget.commentId == comment.id
+            CommentView(comment, editing, actions, styles, colors)
+          }
         }
         DisableSelection {
-          if (draftTarget is DraftTarget.Reply && draftTarget.threadId == thread.id && actions != null) {
+          val replying = draftTarget is DraftTarget.Reply && draftTarget.threadId == thread.id
+          if (replying && actions != null) {
             CommentComposer(
               actions = ComposerActions.Post(
                 onReview = { actions.submitDraft(DraftMode.Review) },
@@ -158,17 +164,28 @@ fun ThreadCard(thread: ReviewThread, draftTarget: DraftTarget?) {
               onCancel = actions::cancelDraft,
             )
           }
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MacPushButton("Reply", onClick = { actions?.startDraft(DraftTarget.Reply(thread.id)) })
-            when {
-              thread.isPending -> Unit
-              thread.resolved -> MacPushButton("Unresolve", onClick = { actions?.setResolved(thread.id, false) })
-              else -> MacPushButton("Resolve", onClick = { actions?.setResolved(thread.id, true) })
+          if (!replying) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+              MacPlaceholderField(
+                placeholder = "Reply…",
+                onClick = { actions?.startDraft(DraftTarget.Reply(thread.id)) },
+                modifier = Modifier.weight(1f).testTag("thread-${thread.id}-reply"),
+              )
+              if (!thread.isPending) ResolveButton(thread, actions, colors)
             }
           }
         }
       }
     }
+  }
+}
+
+@Composable
+private fun ResolveButton(thread: ReviewThread, actions: ReviewActions?, colors: DiffColors) {
+  if (thread.resolved) {
+    MacIconButton(KdvIcons.CheckCircle, "Unresolve", { actions?.setResolved(thread.id, false) }, tint = colors.accent, tooltip = "Unresolve")
+  } else {
+    MacIconButton(KdvIcons.CheckCircle, "Resolve", { actions?.setResolved(thread.id, true) }, tint = colors.mutedText, tooltip = "Resolve")
   }
 }
 
@@ -179,11 +196,18 @@ internal fun DraftTarget?.touches(thread: ReviewThread): Boolean = when (val tar
 }
 
 @Composable
-private fun CommentView(comment: Comment, editing: Boolean, actions: ReviewActions?, styles: CardStyles, colors: DiffColors) {
-  val isOwn = comment.author == Author.User
+private fun CommentView(
+  comment: Comment,
+  editing: Boolean,
+  actions: ReviewActions?,
+  styles: CardStyles,
+  colors: DiffColors,
+) {
+  // Once sent, the agent may already have read a comment, so only pending ones can still change.
+  val editable = comment.author == Author.User && comment.pending
   Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
     DisableSelection {
-      Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         when (val author = comment.author) {
           Author.User -> BasicText("You", style = styles.author)
 
@@ -193,15 +217,16 @@ private fun CommentView(comment: Comment, editing: Boolean, actions: ReviewActio
           }
         }
         if (comment.pending) Badge("Pending", colors.outdatedBadge, styles.outdatedBadge)
-        if (isOwn) {
+        Spacer(Modifier.weight(1f))
+        if (editable) {
           var confirmingDelete by remember(comment.id) { mutableStateOf(false) }
           if (confirmingDelete) {
             BasicText("Delete?", style = styles.collapsed)
             LinkText("Delete", styles.link) { actions?.delete(comment.id) }
             LinkText("Cancel", styles.link) { confirmingDelete = false }
           } else {
-            LinkText("Edit", styles.link) { actions?.startDraft(DraftTarget.Edit(comment.id)) }
-            LinkText("Delete", styles.link) { confirmingDelete = true }
+            MacIconButton(KdvIcons.Pencil, "Edit", { actions?.startDraft(DraftTarget.Edit(comment.id)) }, tint = colors.mutedText, tooltip = "Edit")
+            MacIconButton(KdvIcons.Trash, "Delete", { confirmingDelete = true }, tint = colors.mutedText, tooltip = "Delete")
           }
         }
       }

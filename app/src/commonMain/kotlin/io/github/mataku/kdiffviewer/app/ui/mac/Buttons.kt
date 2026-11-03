@@ -281,6 +281,7 @@ fun <T> MacSegmented(
   }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MacIconButton(
   icon: ImageVector,
@@ -288,24 +289,37 @@ fun MacIconButton(
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
   iconRotation: Float = 0f,
+  tint: Color = LocalDiffColors.current.text,
+  tooltip: String? = null,
 ) {
   val colors = LocalDiffColors.current
   val interactionSource = remember { MutableInteractionSource() }
   val pressed by interactionSource.collectIsPressedAsState()
-  Box(
-    modifier = modifier
-      .size(20.dp)
-      .focusProperties { canFocus = false }
-      .background(if (pressed) colors.trackFill(pressed = true) else Color.Transparent, ControlShape)
-      .clickable(interactionSource = interactionSource, indication = null, role = Role.Button, onClick = onClick),
-    contentAlignment = Alignment.Center,
-  ) {
-    Image(
-      imageVector = icon,
-      contentDescription = contentDescription,
-      modifier = Modifier.size(12.dp).rotate(iconRotation),
-      colorFilter = ColorFilter.tint(colors.text),
-    )
+  val button = @Composable {
+    Box(
+      modifier = modifier
+        .size(20.dp)
+        .focusProperties { canFocus = false }
+        .background(if (pressed) colors.trackFill(pressed = true) else Color.Transparent, ControlShape)
+        .clickable(interactionSource = interactionSource, indication = null, role = Role.Button, onClick = onClick),
+      contentAlignment = Alignment.Center,
+    ) {
+      Image(
+        imageVector = icon,
+        contentDescription = contentDescription,
+        modifier = Modifier.size(12.dp).rotate(iconRotation),
+        colorFilter = ColorFilter.tint(tint),
+      )
+    }
+  }
+  if (tooltip == null) {
+    button()
+  } else {
+    TooltipBox(
+      positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
+      tooltip = { PlainTooltip { Text(tooltip) } },
+      state = rememberTooltipState(),
+    ) { button() }
   }
 }
 
