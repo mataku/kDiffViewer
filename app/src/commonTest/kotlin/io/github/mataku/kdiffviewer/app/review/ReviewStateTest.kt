@@ -537,6 +537,15 @@ class ReviewStateTest {
   }
 
   @Test
+  fun approveWithMessageAddsNoBranchThread() = runTest(StandardTestDispatcher()) {
+    val state = newState()
+    state.submitReview("LGTM", approve = true)
+    val snapshot = state.snapshot.value
+    assertTrue(snapshot.threads.isEmpty())
+    assertEquals(listOf(Submission(1, SubmissionState.Approved, "LGTM", epoch, emptyList())), snapshot.submissions)
+  }
+
+  @Test
   fun oversizedSummaryIsIgnored() = runTest(StandardTestDispatcher()) {
     val state = newState()
     state.addThread(base, 1, mode = DraftMode.Review)

@@ -169,13 +169,12 @@ fun ViewerScreen(
   var revealRequests by remember { mutableIntStateOf(0) }
   val baseActions = LocalReviewActions.current
   var reviewSummary by remember(state.repo) { mutableStateOf("") }
-  var conversationOpen by remember(state.repo) { mutableStateOf(false) }
-  var seenAgentReplies by remember(state.repo) { mutableIntStateOf(0) }
   val conversation = review.placements.branch
   val agentReplies = remember(conversation) { conversation.sumOf { thread -> thread.comments.count { it.author is Author.Agent } } }
-  if (conversationOpen && seenAgentReplies != agentReplies) SideEffect { seenAgentReplies = agentReplies }
+  val conversationOpen = screenState.isConversationOpen(state.repo)
+  if (conversationOpen) SideEffect { screenState.markConversationSeen(state.repo, agentReplies) }
   val sendReview: (Boolean) -> Unit = { approve ->
-    if (reviewSummary.isNotBlank()) conversationOpen = true
+    if (!approve && reviewSummary.isNotBlank()) screenState.openConversation(state.repo)
     baseActions?.submitReview(reviewSummary, approve)
     reviewSummary = ""
   }
@@ -188,7 +187,7 @@ fun ViewerScreen(
       if (fileIndex < currentLayout.value.fileCount && currentLayout.value.isCollapsed(fileIndex) && currentState.value.isLargeDiff(fileIndex)) currentOnExpandFile.value(fileIndex)
     }
   }
-  DraftRevealEffect(revealRequests, listState, currentReview, currentState, currentLayout, currentDisplay, currentOnExpandFile, onRevealConversation = { conversationOpen = true }) { focusRequests.intValue++ }
+  DraftRevealEffect(revealRequests, listState, currentReview, currentState, currentLayout, currentDisplay, currentOnExpandFile, onRevealConversation = { screenState.openConversation(state.repo) }) { focusRequests.intValue++ }
   ScrollRestoreEffect(listState, currentState, currentLayout, currentDisplay)
   val revealMatch = rememberFindReveal(findState, listState, currentState, currentLayout, currentDisplay)
   FindMatchesEffect(findState, listState, currentState, currentLayout, currentDisplay, findContext, revealMatch)
@@ -334,8 +333,8 @@ fun ViewerScreen(
         onSend = sendReview,
         conversationCount = conversation.size,
         conversationOpen = conversationOpen,
-        conversationUnread = !conversationOpen && agentReplies > seenAgentReplies,
-        onToggleConversation = { conversationOpen = !conversationOpen },
+        conversationUnread = screenState.isConversationUnread(state.repo, agentReplies),
+        onToggleConversation = { screenState.toggleConversation(state.repo) },
       )
     }
   }

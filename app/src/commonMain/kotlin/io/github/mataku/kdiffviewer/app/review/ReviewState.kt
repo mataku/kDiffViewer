@@ -250,8 +250,9 @@ class ReviewState(
       var core = current.core
       var threads = published
       var commentIds = pendingIds
-      if (text != null) {
+      if (text != null && !approve) {
         // The message becomes a branch-level thread so the agent can answer it with kdv thread reply.
+        // An approval ends the loop, so its message stays a summary instead of an open thread.
         val comment = Comment("c${core.nextCommentNumber}", Author.User, text, now())
         val thread = ReviewThread("t${core.nextThreadNumber}", Anchor.Branch, listOf(comment), resolved = false, outdated = false)
         threads = published + thread

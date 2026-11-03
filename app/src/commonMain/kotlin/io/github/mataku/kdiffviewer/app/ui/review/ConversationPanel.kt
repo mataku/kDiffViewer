@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -23,9 +21,6 @@ private val ConversationPanelMaxHeight = 320.dp
 fun ConversationPanel(threads: List<ReviewThread>, draftTarget: DraftTarget?, modifier: Modifier = Modifier) {
   val colors = LocalDiffColors.current
   val scroll = rememberScrollState()
-  val comments = remember(threads) { threads.sumOf { it.comments.size } }
-  // Keep the latest answer in view, like a chat transcript.
-  LaunchedEffect(comments) { scroll.animateScrollTo(scroll.maxValue) }
   Column(
     modifier = modifier
       .testTag("conversation-panel")

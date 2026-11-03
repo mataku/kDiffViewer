@@ -142,7 +142,7 @@ Comments are kept in memory while the app runs and are not saved, so they are go
 
 In the composer, Add single comment (<kbd>⌘</kbd><kbd>⇧</kbd><kbd>Return</kbd>) sends the comment to the agent right away, while Start a review (<kbd>⌘</kbd><kbd>Return</kbd>) keeps it pending, hidden from the agent, so you can collect several comments first. While comments are pending or an agent is waiting, a bar under the diff sends them with Send to Agent, optionally with a message, or tells the agent you are done with Approve.
 
-A message sent from the bar becomes a thread about the whole branch, so you can ask the agent what the branch does or why it took an approach, and its answer appears in the app. Conversation at the left of the bar opens these threads in a panel above it, and shows a dot when the agent answered while the panel was closed.
+A message sent with Send to Agent becomes a thread about the whole branch, so you can ask the agent what the branch does or why it took an approach, and its answer appears in the app. Conversation at the left of the bar opens these threads in a panel above it, and shows a dot when the agent answered while the panel was closed. A message sent with Approve stays a note to the agent and does not start a thread.
 
 ### The kdv command
 
