@@ -1,14 +1,16 @@
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+
 plugins {
-  alias(libs.plugins.kotlinMultiplatform)
+  id("kdv.kmp-native")
 }
 
 kotlin {
-  listOf(macosArm64(), linuxX64(), linuxArm64()).forEach { target ->
-    target.binaries.executable {
+  targets.withType<KotlinNativeTarget>().configureEach {
+    binaries.executable {
       baseName = "kdv"
       entryPoint = "io.github.mataku.kdiffviewer.cli.main"
     }
-    target.compilations.getByName("main").cinterops.create("spawn") {
+    compilations.getByName("main").cinterops.create("spawn") {
       defFile(project.file("src/nativeInterop/cinterop/spawn.def"))
     }
   }

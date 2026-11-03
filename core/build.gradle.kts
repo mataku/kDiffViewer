@@ -1,14 +1,8 @@
 plugins {
-  alias(libs.plugins.kotlinMultiplatform)
+  id("kdv.kmp-jvm")
 }
 
 kotlin {
-  jvmToolchain {
-    languageVersion.set(JavaLanguageVersion.of(25))
-    vendor.set(JvmVendorSpec.JETBRAINS)
-  }
-  jvm()
-
   sourceSets {
     commonMain.dependencies {
       api(libs.kotlinx.coroutines.core)
