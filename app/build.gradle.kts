@@ -1,22 +1,17 @@
+import io.github.mataku.kdiffviewer.buildlogic.useJbr
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
 import java.nio.file.Files
 import java.nio.file.Path
 
 plugins {
-  alias(libs.plugins.kotlinMultiplatform)
+  id("kdv.kmp-jvm")
   alias(libs.plugins.composeMultiplatform)
   alias(libs.plugins.composeCompiler)
   alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
-  jvmToolchain {
-    languageVersion.set(JavaLanguageVersion.of(25))
-    vendor.set(JvmVendorSpec.JETBRAINS)
-  }
-  jvm()
-
   sourceSets {
     commonMain.dependencies {
       implementation(project(":core"))
@@ -97,10 +92,7 @@ val prepareKdvResources by tasks.registering(Sync::class) {
   filePermissions { unix("rwxr-xr-x") }
 }
 
-val jbrHome = javaToolchains.launcherFor {
-  languageVersion.set(JavaLanguageVersion.of(25))
-  vendor.set(JvmVendorSpec.JETBRAINS)
-}.get().metadata.installationPath.asFile.absolutePath
+val jbrHome = javaToolchains.launcherFor { useJbr() }.get().metadata.installationPath.asFile.absolutePath
 
 val appVersion = "1.0.0"
 val appBuild = "1"
@@ -214,10 +206,7 @@ if (isMacHost) {
     }
   }
 
-  val runBundleLauncher = javaToolchains.launcherFor {
-    languageVersion.set(JavaLanguageVersion.of(25))
-    vendor.set(JvmVendorSpec.JETBRAINS)
-  }.zip(runBundle.map { it.file("Contents/MacOS/kDiffViewer") }, ::RunBundleJavaLauncher)
+  val runBundleLauncher = javaToolchains.launcherFor { useJbr() }.zip(runBundle.map { it.file("Contents/MacOS/kDiffViewer") }, ::RunBundleJavaLauncher)
 
   afterEvaluate {
     tasks.named<JavaExec>("run") {

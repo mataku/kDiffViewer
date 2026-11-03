@@ -1,6 +1,7 @@
 rootProject.name = "kDiffViewer"
 
 pluginManagement {
+  includeBuild("build-logic")
   repositories {
     mavenCentral()
     google()
