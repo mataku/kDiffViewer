@@ -175,6 +175,7 @@ fun DiffView(
   val split = display.mode == DiffMode.Split
   val contentStartX = with(LocalDensity.current) { ContentHorizontalMargin.toPx() }
   val markerWidth = with(LocalDensity.current) { MarkerColumnWidth.toPx() }
+  val renderedButtonHeight = with(LocalDensity.current) { typography.lineNumber.lineHeight.toPx() + RenderedRowTopPadding.toPx() }
   val codeStartX = with(LocalDensity.current) { (ContentHorizontalMargin + typography.lineNumberWidth * (if (split) 1 else 2) + MarkerColumnWidth).toPx() }
   val listWidth = remember { mutableIntStateOf(0) }
   val splitHalfWidth = remember(contentStartX) { { (listWidth.intValue - 2 * contentStartX) / 2f } }
@@ -218,7 +219,7 @@ fun DiffView(
   SideEffect { rangeState.drafted = draftedRange }
   val currentDraft by rememberUpdatedState(draft)
   val draftTargetOf = remember { { currentDraft } }
-  val selectionModifier = Modifier.diffSelectionGesture(listState, selection, selectionSource, layouts, rows, layout, display, contentStartX, codeStartX, splitHalfWidth, typography.tabWidth, files, markerWidth, onRange, rangeState, draftTargetOf, loadId)
+  val selectionModifier = Modifier.diffSelectionGesture(listState, selection, selectionSource, layouts, rows, layout, display, contentStartX, codeStartX, splitHalfWidth, typography.tabWidth, files, markerWidth, renderedButtonHeight, onRange, rangeState, draftTargetOf, loadId)
   Box(modifier) {
     LazyColumn(
       state = listState,
@@ -267,11 +268,11 @@ fun DiffView(
                 is DiffRow.FileHeader -> Unit
 
                 is DiffRow.RenderedBlock -> WithRowNotes(if (hasLineThreads) placements.threadsOn(row) else emptyList(), draft, draft.composesOn(row), splitNoteIndent) {
-                  RenderedBlockRow(row, typography.lineNumberWidth, MarkerColumnWidth)
+                  RenderedBlockRow(row, typography.lineNumberWidth, MarkerColumnWidth, hoveredKey, commentable, rangeState)
                 }
 
                 is DiffRow.RemovedMarker -> WithRowNotes(if (hasLineThreads) placements.threadsOn(row) else emptyList(), draft, draft.composesOn(row), splitNoteIndent) {
-                  RemovedMarkerRow(row)
+                  RemovedMarkerRow(row, typography.lineNumberWidth, hoveredKey, commentable, rangeState)
                 }
 
                 is DiffRow.UnchangedFold -> UnchangedFoldRow(row)
@@ -317,11 +318,11 @@ fun DiffView(
                 is DiffRow.FileHeader -> Unit
 
                 is DiffRow.RenderedBlock -> WithRowNotes(if (hasLineThreads) placements.threadsOn(row) else emptyList(), draft, draft.composesOn(row), noteIndent) {
-                  RenderedBlockRow(row, typography.lineNumberWidth * 2, MarkerColumnWidth)
+                  RenderedBlockRow(row, typography.lineNumberWidth * 2, MarkerColumnWidth, hoveredKey, commentable, rangeState)
                 }
 
                 is DiffRow.RemovedMarker -> WithRowNotes(if (hasLineThreads) placements.threadsOn(row) else emptyList(), draft, draft.composesOn(row), noteIndent) {
-                  RemovedMarkerRow(row)
+                  RemovedMarkerRow(row, typography.lineNumberWidth * 2, hoveredKey, commentable, rangeState)
                 }
 
                 is DiffRow.UnchangedFold -> UnchangedFoldRow(row)
@@ -761,7 +762,7 @@ private fun LineNumberCell(number: Int?, typography: DiffTypography) {
 }
 
 @Composable
-private fun AddCommentButton(typography: DiffTypography) {
+internal fun AddCommentButton(typography: DiffTypography) {
   val colors = LocalDiffColors.current
   val lineHeight = with(LocalDensity.current) { typography.lineNumber.lineHeight.toDp() }
   val size = min(AddCommentSize, lineHeight)

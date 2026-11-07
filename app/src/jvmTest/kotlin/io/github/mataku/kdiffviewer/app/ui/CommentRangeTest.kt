@@ -21,6 +21,22 @@ import kotlin.test.assertTrue
 import io.github.mataku.kdiffviewer.core.review.Side as ReviewSide
 
 class CommentRangeTest {
+  @Test
+  fun overlapsSharedLineIndicesInTheSameHunk() {
+    val range = CommentRange(0, 1, Side.New, 5, 3)
+    assertTrue(range.overlaps(0, 1, 5, 9, Side.New))
+    assertTrue(range.overlaps(0, 1, 1, 3, Side.New))
+    assertFalse(range.overlaps(0, 1, 6, 9, Side.New))
+    assertFalse(range.overlaps(0, 2, 3, 5, Side.New))
+    assertFalse(range.overlaps(1, 1, 3, 5, Side.New))
+  }
+
+  @Test
+  fun overlapsRespectsARangeSide() {
+    assertFalse(CommentRange(0, 1, Side.New, 3, 5).overlaps(0, 1, 3, 5, Side.Old))
+    assertTrue(CommentRange(0, 1, null, 3, 5).overlaps(0, 1, 3, 5, Side.Old))
+  }
+
   private fun file(lines: List<DiffLine>): FileDiff = FileDiff("a.kt", "a.kt", ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 1, 1, 1, "", lines))))
 
   private val files = listOf(

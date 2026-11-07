@@ -4,6 +4,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import io.github.mataku.kdiffviewer.app.HunkLineRange
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.toSide
 import io.github.mataku.kdiffviewer.core.model.DiffContent
@@ -29,6 +30,12 @@ data class CommentRange(
     this.hunkIndex == hunkIndex &&
     this.side == side &&
     lineIndex in min(fromLineIndex, toLineIndex)..max(fromLineIndex, toLineIndex)
+
+  fun overlaps(fileIndex: Int, hunkIndex: Int, from: Int, to: Int, side: Side): Boolean = this.fileIndex == fileIndex &&
+    this.hunkIndex == hunkIndex &&
+    (this.side == null || this.side == side) &&
+    from <= max(fromLineIndex, toLineIndex) &&
+    to >= min(fromLineIndex, toLineIndex)
 }
 
 @Stable
@@ -49,6 +56,8 @@ class CommentRangeState {
     }
 
   fun highlights(fileIndex: Int, hunkIndex: Int, lineIndex: Int, side: Side?): Boolean = (dragging ?: drafted)?.contains(fileIndex, hunkIndex, lineIndex, side) == true
+
+  fun highlightsRange(fileIndex: Int, range: HunkLineRange, side: Side): Boolean = (dragging ?: drafted)?.overlaps(fileIndex, range.hunkIndex, range.fromLineIndex, range.toLineIndex, side) == true
 
   fun highlights(position: Long, side: Side?): Boolean {
     if (position < 0) return false
