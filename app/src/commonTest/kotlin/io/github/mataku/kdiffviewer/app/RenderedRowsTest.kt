@@ -64,6 +64,18 @@ class RenderedRowsTest {
   }
 
   @Test
+  fun removalNextToAddedLineOutsideBlocksKeepsMarker() {
+    val rows = render(file(hunk(ctx(1, 1), removed(2), added(2), ctx(3, 3))), block(1), block(3))
+    assertEquals(listOf("F1", "R1", "F1"), shapes(rows))
+  }
+
+  @Test
+  fun removalNextToAddedRunReachingABlockHasNoMarker() {
+    val rows = render(file(hunk(ctx(1, 1), removed(2), added(2), added(3), ctx(3, 4))), block(1), block(3), block(4))
+    assertEquals(listOf("F1", "B3", "F1"), shapes(rows))
+  }
+
+  @Test
   fun pureDeletionBetweenBlocks() {
     val rows = render(file(hunk(ctx(1, 1), removed(2), removed(3), removed(4), ctx(5, 3))), block(1), block(3))
     assertEquals(listOf("F1", "R3", "F1"), shapes(rows))

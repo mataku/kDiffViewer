@@ -22,7 +22,7 @@ fun FileDiff.isRenderable(): Boolean {
 fun renderedBodyRows(fileIndex: Int, file: FileDiff, blocks: List<SourceBlock>): List<DiffRow> {
   val hunks = (file.content as? DiffContent.Text)?.hunks.orEmpty()
   val newLines = NewSideLines(hunks)
-  val deletions = pureDeletions(hunks)
+  val deletions = pureDeletions(hunks, blocks)
   val rows = ArrayList<DiffRow>()
   var folded = 0
   var nextDeletion = 0
@@ -104,7 +104,7 @@ private class NewSideLines(hunks: List<Hunk>) {
 
 private class PureDeletion(val range: HunkLineRange, val oldStart: Int, val oldEnd: Int, val count: Int, val newPosition: Int)
 
-private fun pureDeletions(hunks: List<Hunk>): List<PureDeletion> {
+private fun pureDeletions(hunks: List<Hunk>, blocks: List<SourceBlock>): List<PureDeletion> {
   val deletions = ArrayList<PureDeletion>()
   hunks.forEachIndexed { hunkIndex, hunk ->
     val lines = hunk.lines
@@ -128,7 +128,7 @@ private fun pureDeletions(hunks: List<Hunk>): List<PureDeletion> {
         }
         scan++
       }
-      if (!lines.isAdded(from - 1) && !lines.isAdded(scan)) {
+      if (!lines.addedRunReachesBlock(from - 1, -1, blocks) && !lines.addedRunReachesBlock(scan, 1, blocks)) {
         val oldStart = lines[from].oldLineNo ?: 0
         val oldEnd = lines[to].oldLineNo ?: oldStart
         deletions += PureDeletion(HunkLineRange(hunkIndex, from, to), oldStart, oldEnd, count, lastNew + 1)
@@ -139,4 +139,20 @@ private fun pureDeletions(hunks: List<Hunk>): List<PureDeletion> {
   return deletions
 }
 
-private fun List<DiffLine>.isAdded(index: Int): Boolean = getOrNull(index)?.kind == LineKind.Added
+private fun List<DiffLine>.addedRunReachesBlock(start: Int, step: Int, blocks: List<SourceBlock>): Boolean {
+  var index = start
+  while (getOrNull(index)?.kind == LineKind.Added) {
+    val number = this[index].newLineNo
+    if (number != null && blocks.hasLine(number)) return true
+    index += step
+  }
+  return false
+}
+
+private fun List<SourceBlock>.hasLine(line: Int): Boolean = binarySearch { block ->
+  when {
+    line < block.startLine -> 1
+    line > block.endLine -> -1
+    else -> 0
+  }
+} >= 0
