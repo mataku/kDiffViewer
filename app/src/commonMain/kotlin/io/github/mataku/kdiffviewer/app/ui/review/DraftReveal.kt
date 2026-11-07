@@ -53,10 +53,11 @@ internal fun revealIndex(placement: Placement, anchor: Anchor?, layout: DiffLayo
   val lines = anchor as? Anchor.Lines
   if (placement !is Placement.OnLine || lines == null) return layout.headerVisibleIndex(fileIndex)
   val side = lines.side.toSide()
-  fun matches(unifiedRow: Int): Boolean {
-    val line = (rows.getOrNull(unifiedRow) as? DiffRow.Line)?.line ?: return false
-    if (line.kind == LineKind.NoNewlineAtEof) return false
-    return (if (side == Side.Old) line.oldLineNo else line.newLineNo) == lines.endLine
+  fun matches(unifiedRow: Int): Boolean = when (val row = rows.getOrNull(unifiedRow)) {
+    is DiffRow.Line -> row.line.kind != LineKind.NoNewlineAtEof && (if (side == Side.Old) row.line.oldLineNo else row.line.newLineNo) == lines.endLine
+    is DiffRow.RenderedBlock -> side == Side.New && lines.endLine in row.source.startLine..row.source.endLine
+    is DiffRow.RemovedMarker -> side == Side.Old && lines.endLine in row.oldStart..row.oldEnd
+    else -> false
   }
   for (offset in 1..layout.bodyRowCount(fileIndex)) {
     val displayRow = header + offset

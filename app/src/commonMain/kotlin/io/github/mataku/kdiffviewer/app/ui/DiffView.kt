@@ -63,10 +63,13 @@ import io.github.mataku.kdiffviewer.app.DisplayRows
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
 import io.github.mataku.kdiffviewer.app.isRenderable
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
+import io.github.mataku.kdiffviewer.app.review.RenderedNotes
 import io.github.mataku.kdiffviewer.app.review.ReviewPlacements
+import io.github.mataku.kdiffviewer.app.review.composesOn
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.linePosition
 import io.github.mataku.kdiffviewer.app.review.sidePosition
+import io.github.mataku.kdiffviewer.app.review.threadsOn
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.SelectionSource
 import io.github.mataku.kdiffviewer.app.ui.mac.MacInlineError
@@ -159,6 +162,7 @@ fun DiffView(
   expansionErrors: Map<Int, String> = emptyMap(),
   renderedPaths: Set<String> = emptySet(),
   onToggleRendered: (fileIndex: Int) -> Unit = {},
+  renderedNotes: RenderedNotes = RenderedNotes.Empty,
 ) {
   val currentOnToggleRendered by rememberUpdatedState(onToggleRendered)
   val toggleRendered = remember { { fileIndex: Int -> currentOnToggleRendered(fileIndex) } }
@@ -243,9 +247,9 @@ fun DiffView(
           if (layout.hasNotes(fileIndex)) {
             item(key = "n$fileIndex", contentType = NOTES_CONTENT_TYPE) {
               NoteStack(
-                threads = (if (shown) placements.byFile[fileIndex] else null).orEmpty(),
+                threads = (if (shown) placements.byFile[fileIndex] else null).orEmpty() + renderedNotes.threads[fileIndex].orEmpty(),
                 draftTarget = draft,
-                composeNew = draftFileIndex == fileIndex,
+                composeNew = draftFileIndex == fileIndex || renderedNotes.draftFile == fileIndex,
               )
             }
           }
@@ -262,9 +266,13 @@ fun DiffView(
               when (val row = rows[display.unifiedOf(displayRow, null)]) {
                 is DiffRow.FileHeader -> Unit
 
-                is DiffRow.RenderedBlock -> RenderedBlockRow(row, typography.lineNumberWidth, MarkerColumnWidth)
+                is DiffRow.RenderedBlock -> WithRowNotes(if (hasLineThreads) placements.threadsOn(row) else emptyList(), draft, draft.composesOn(row), splitNoteIndent) {
+                  RenderedBlockRow(row, typography.lineNumberWidth, MarkerColumnWidth)
+                }
 
-                is DiffRow.RemovedMarker -> RemovedMarkerRow(row)
+                is DiffRow.RemovedMarker -> WithRowNotes(if (hasLineThreads) placements.threadsOn(row) else emptyList(), draft, draft.composesOn(row), splitNoteIndent) {
+                  RemovedMarkerRow(row)
+                }
 
                 is DiffRow.UnchangedFold -> UnchangedFoldRow(row)
 
@@ -308,9 +316,13 @@ fun DiffView(
               when (val row = rows[bodyStart + offset]) {
                 is DiffRow.FileHeader -> Unit
 
-                is DiffRow.RenderedBlock -> RenderedBlockRow(row, typography.lineNumberWidth * 2, MarkerColumnWidth)
+                is DiffRow.RenderedBlock -> WithRowNotes(if (hasLineThreads) placements.threadsOn(row) else emptyList(), draft, draft.composesOn(row), noteIndent) {
+                  RenderedBlockRow(row, typography.lineNumberWidth * 2, MarkerColumnWidth)
+                }
 
-                is DiffRow.RemovedMarker -> RemovedMarkerRow(row)
+                is DiffRow.RemovedMarker -> WithRowNotes(if (hasLineThreads) placements.threadsOn(row) else emptyList(), draft, draft.composesOn(row), noteIndent) {
+                  RemovedMarkerRow(row)
+                }
 
                 is DiffRow.UnchangedFold -> UnchangedFoldRow(row)
 
@@ -375,6 +387,18 @@ private fun hoverKeyAt(listState: LazyListState, position: Offset, split: Boolea
   val key = keyAt(listState, position.y) ?: return null
   if (!split) return key
   return key + if (position.x - contentStartX < splitHalfWidth()) ":L" else ":R"
+}
+
+@Composable
+private fun WithRowNotes(threads: List<ReviewThread>, draft: DraftTarget?, composing: Boolean, indent: Dp, row: @Composable () -> Unit) {
+  if (threads.isEmpty() && !composing) {
+    row()
+  } else {
+    Column {
+      row()
+      NoteStack(threads, draft, composing, Modifier.padding(start = indent, end = 8.dp))
+    }
+  }
 }
 
 @Composable

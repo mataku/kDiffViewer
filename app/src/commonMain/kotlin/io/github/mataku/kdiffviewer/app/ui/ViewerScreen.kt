@@ -69,9 +69,11 @@ import io.github.mataku.kdiffviewer.app.find.findMatchUpdates
 import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.isCollapsed
 import io.github.mataku.kdiffviewer.app.isLargeDiff
+import io.github.mataku.kdiffviewer.app.review.RenderedNotes
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.notesFiles
+import io.github.mataku.kdiffviewer.app.review.renderedNotes
 import io.github.mataku.kdiffviewer.app.review.threadFiles
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
@@ -143,7 +145,10 @@ fun ViewerScreen(
   val draftTarget = review.draft?.target
   val draftText = rememberUpdatedState(review.draft?.text.orEmpty())
   val reviewInProgress = rememberUpdatedState(review.pendingCount > 0)
-  val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(draftTarget) else emptySet() }
+  val renderedNotes = remember(shown, state.rows, state.fileHeaderRowIndex, state.rawBodies, review.placements, draftTarget) {
+    if (shown) renderedNotes(state.rows, state.fileHeaderRowIndex, state.rawBodies.keys, review.placements, draftTarget) else RenderedNotes.Empty
+  }
+  val notesFiles = remember(shown, review.placements, draftTarget, renderedNotes) { if (shown) review.placements.notesFiles(draftTarget) + renderedNotes.files else emptySet() }
   val hasOrphans = shown && (review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
   val hasEnd = state.status == LoadStatus.Done && state.files.isNotEmpty()
   val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasOrphans, hasEnd, mode, state.split) {
@@ -296,6 +301,7 @@ fun ViewerScreen(
                   expansionErrors = expansionErrors,
                   renderedPaths = state.rendered,
                   onToggleRendered = onToggleRendered,
+                  renderedNotes = renderedNotes,
                   onHeaderClick = { fileIndex ->
                     val header = layout.headerVisibleIndex(fileIndex)
                     val pinned = listState.firstVisibleItemIndex >= header
