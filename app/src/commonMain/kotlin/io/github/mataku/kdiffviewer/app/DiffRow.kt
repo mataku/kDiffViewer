@@ -1,6 +1,7 @@
 package io.github.mataku.kdiffviewer.app
 
 import androidx.compose.runtime.Immutable
+import io.github.mataku.kdiffviewer.app.markdown.SourceBlock
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
 import io.github.mataku.kdiffviewer.core.model.DiffStats
@@ -41,6 +42,21 @@ sealed interface DiffRow {
   @Immutable
   data class Placeholder(val fileIndex: Int, val message: String) : DiffRow {
     override val key: String get() = "p$fileIndex"
+  }
+
+  @Immutable
+  data class RenderedBlock(val fileIndex: Int, val position: Int, val source: SourceBlock, val commentRange: HunkLineRange?) : DiffRow {
+    override val key: String get() = "rb$fileIndex-$position"
+  }
+
+  @Immutable
+  data class RemovedMarker(val fileIndex: Int, val position: Int, val range: HunkLineRange, val oldStart: Int, val oldEnd: Int, val count: Int) : DiffRow {
+    override val key: String get() = "rm$fileIndex-$position"
+  }
+
+  @Immutable
+  data class UnchangedFold(val fileIndex: Int, val position: Int, val count: Int) : DiffRow {
+    override val key: String get() = "rf$fileIndex-$position"
   }
 }
 

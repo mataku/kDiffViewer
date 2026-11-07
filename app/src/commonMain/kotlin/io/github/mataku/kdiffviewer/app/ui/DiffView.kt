@@ -105,6 +105,9 @@ private const val END_CONTENT_TYPE = 6
 private const val END_KEY = "end"
 private const val SPLIT_LINE_CONTENT_TYPE = 7
 private const val TRAILING_GAP_CONTENT_TYPE = 8
+private const val RENDERED_BLOCK_CONTENT_TYPE = 9
+private const val REMOVED_MARKER_CONTENT_TYPE = 10
+private const val UNCHANGED_FOLD_CONTENT_TYPE = 11
 
 private fun DiffRow.contentType(): Int = when (this) {
   is DiffRow.FileHeader -> HEADER_CONTENT_TYPE
@@ -112,6 +115,9 @@ private fun DiffRow.contentType(): Int = when (this) {
   is DiffRow.Line -> LINE_CONTENT_TYPE
   is DiffRow.Placeholder -> PLACEHOLDER_CONTENT_TYPE
   is DiffRow.TrailingGap -> TRAILING_GAP_CONTENT_TYPE
+  is DiffRow.RenderedBlock -> RENDERED_BLOCK_CONTENT_TYPE
+  is DiffRow.RemovedMarker -> REMOVED_MARKER_CONTENT_TYPE
+  is DiffRow.UnchangedFold -> UNCHANGED_FOLD_CONTENT_TYPE
 }
 
 private fun splitItemKey(rows: List<DiffRow>, display: DisplayRows, displayRow: Int): String {
@@ -246,7 +252,7 @@ fun DiffView(
               val leftRow = rows.getOrNull(display.unifiedOf(displayRow, Side.Old)) as? DiffRow.Line
               val rightRow = rows.getOrNull(display.unifiedOf(displayRow, Side.New)) as? DiffRow.Line
               when (val row = rows[display.unifiedOf(displayRow, null)]) {
-                is DiffRow.FileHeader -> Unit
+                is DiffRow.FileHeader, is DiffRow.RenderedBlock, is DiffRow.RemovedMarker, is DiffRow.UnchangedFold -> Unit
 
                 is DiffRow.HunkHeader -> HunkHeaderRow(row, typography.lineNumberWidth, expand)
 
@@ -286,7 +292,7 @@ fun DiffView(
               contentType = { rows[bodyStart + it].contentType() },
             ) { offset ->
               when (val row = rows[bodyStart + offset]) {
-                is DiffRow.FileHeader -> Unit
+                is DiffRow.FileHeader, is DiffRow.RenderedBlock, is DiffRow.RemovedMarker, is DiffRow.UnchangedFold -> Unit
 
                 is DiffRow.HunkHeader -> HunkHeaderRow(row, typography.lineNumberWidth * 2, expand)
 
