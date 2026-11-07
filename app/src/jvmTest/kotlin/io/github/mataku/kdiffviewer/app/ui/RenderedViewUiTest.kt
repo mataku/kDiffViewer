@@ -1,6 +1,8 @@
 package io.github.mataku.kdiffviewer.app.ui
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
@@ -13,10 +15,13 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.DpOffset
+import io.github.mataku.kdiffviewer.app.CollapsedFile
 import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
+import io.github.mataku.kdiffviewer.app.ExpansionError
 import io.github.mataku.kdiffviewer.app.HunkLineRange
 import io.github.mataku.kdiffviewer.app.LoadStatus
 import io.github.mataku.kdiffviewer.app.ViewerUiState
@@ -223,6 +228,69 @@ class RenderedViewUiTest {
     showReview(state, reviewOf(thread("t", Side.New, 30, "off the rows")))
     onNodeWithText("off the rows").assertIsDisplayed()
     assertBelow("hello", "off the rows")
+  }
+
+  private fun longFile(path: String) = FileDiff(path, path, ChangeType.Modified, false, DiffContent.Text(listOf(Hunk(1, 400, 1, 400, "", List(400) { DiffLine(LineKind.Context, "$path $it", it + 1, it + 1) }))))
+
+  private fun ComposeUiTest.scrolledIntoFirstFile(initial: ViewerUiState = stateOf(longFile("a.md"), longFile("b.md")), scrollTo: Int = 200, onToggle: MutableState<ViewerUiState>.() -> Unit): MutableState<ViewerUiState> {
+    val state = mutableStateOf(initial)
+    setContent {
+      CompositionLocalProvider(LocalTextSelectionCoordinator provides coordinator, LocalNativeContextMenu provides menu) {
+        ViewerScreen(state.value, {}, screenState = rememberViewerScreenState(), onToggleRendered = { state.onToggle() })
+      }
+    }
+    onNodeWithTag("diff-list").performScrollToIndex(scrollTo)
+    waitForIdle()
+    onNodeWithTag("file-header-0").assertIsDisplayed()
+    onNodeWithTag("file-header-1").assertDoesNotExist()
+    return state
+  }
+
+  private fun ViewerUiState.withFirstFileBody(body: List<DiffRow>): ViewerUiState {
+    val swap = bodySwap(mapOf(0 to body))
+    return withBodySwap(swap).copy(rendered = setOf("a.md"), rawBodies = swap.replaced)
+  }
+
+  private fun ViewerUiState.renderedFirstFile() = withFirstFileBody(listOf(DiffRow.RenderedBlock(0, 0, paragraph("hello"), null)))
+
+  @Test
+  fun togglingFromAPinnedHeaderKeepsTheFile() = runComposeUiTest {
+    scrolledIntoFirstFile { value = value.renderedFirstFile() }
+    onNodeWithText("a.md 0").assertDoesNotExist()
+    onNodeWithTag("file-render-toggle-0-rendered").performClick()
+    waitForIdle()
+    onNodeWithText("hello").assertIsDisplayed()
+    onNodeWithTag("file-header-0").assertIsDisplayed()
+  }
+
+  @Test
+  fun togglingBackFromAPinnedHeaderKeepsTheFile() = runComposeUiTest {
+    val raw = stateOf(longFile("a.md"), longFile("b.md"))
+    val blocks = List(200) { DiffRow.RenderedBlock(0, it, paragraph("block $it"), null) }
+    scrolledIntoFirstFile(raw.withFirstFileBody(blocks), scrollTo = 100) { value = raw }
+    onNodeWithText("block 0").assertDoesNotExist()
+    onNodeWithTag("file-render-toggle-0-raw").performClick()
+    waitForIdle()
+    onNodeWithText("a.md 0").assertIsDisplayed()
+  }
+
+  @Test
+  fun aFailedToggleDoesNotMoveTheList() = runComposeUiTest {
+    val state = scrolledIntoFirstFile { value = value.copy(expansionErrors = mapOf(CollapsedFile("a.md", value.fingerprints[0]) to ExpansionError.RenderFailed)) }
+    onNodeWithTag("file-render-toggle-0-rendered").performClick()
+    waitForIdle()
+    assertEquals(1, state.value.expansionErrors.size)
+    onNodeWithText("a.md 0").assertDoesNotExist()
+  }
+
+  @Test
+  fun aLaterChangeAfterAFailedToggleDoesNotMoveTheList() = runComposeUiTest {
+    val state = scrolledIntoFirstFile { value = value.copy(expansionErrors = mapOf(CollapsedFile("a.md", value.fingerprints[0]) to ExpansionError.RenderFailed)) }
+    onNodeWithTag("file-render-toggle-0-rendered").performClick()
+    waitForIdle()
+    state.value = state.value.copy(expansionErrors = emptyMap(), rowsGeneration = state.value.rowsGeneration + 1)
+    waitForIdle()
+    onNodeWithText("a.md 0").assertDoesNotExist()
   }
 
   @Test

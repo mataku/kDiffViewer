@@ -155,6 +155,8 @@ fun ViewerScreen(
     diffLayoutOf(state, mode, notesFiles, hasOrphans, hasEnd)
   }
   val currentLayout = rememberUpdatedState(layout)
+  val renderPin = remember { RenderPin() }
+  SideEffect { renderPin.settle(state, layout, listState) }
   val display = remember(state.rows, state.split, mode) { state.displayRows(mode) }
   val currentDisplay = rememberUpdatedState(display)
   ScrollJumpEffect(screenState.scrollJumps, listState, currentLayout)
@@ -300,7 +302,12 @@ fun ViewerScreen(
                   onExpand = onExpandContext,
                   expansionErrors = expansionErrors,
                   renderedPaths = state.rendered,
-                  onToggleRendered = onToggleRendered,
+                  onToggleRendered = { fileIndex ->
+                    if (listState.firstVisibleItemIndex >= layout.headerVisibleIndex(fileIndex)) {
+                      renderPin.pending = PendingRenderPin(fileIndex, fileIndex in state.rawBodies, state.loadId, state.expansionErrors)
+                    }
+                    onToggleRendered(fileIndex)
+                  },
                   renderedNotes = renderedNotes,
                   onHeaderClick = { fileIndex ->
                     val header = layout.headerVisibleIndex(fileIndex)
@@ -645,6 +652,24 @@ private fun ViewerUiState.expansionErrorsByFile(): Map<Int, String> {
     expansionErrors[CollapsedFile(file.displayPath, fingerprint)]?.let { result[index] = it.expansionErrorText() }
   }
   return result
+}
+
+private class PendingRenderPin(val fileIndex: Int, val wasRendered: Boolean, val loadId: Long, val errors: Map<CollapsedFile, ExpansionError>)
+
+private class RenderPin {
+  var pending: PendingRenderPin? = null
+
+  fun settle(state: ViewerUiState, layout: DiffLayout, listState: LazyListState) {
+    val pin = pending ?: return
+    when {
+      pin.loadId != state.loadId || pin.errors != state.expansionErrors -> pending = null
+
+      (pin.fileIndex in state.rawBodies) != pin.wasRendered -> {
+        pending = null
+        listState.requestScrollToItem(layout.headerVisibleIndex(pin.fileIndex))
+      }
+    }
+  }
 }
 
 internal fun ExpansionError.expansionErrorText(): String = when (this) {

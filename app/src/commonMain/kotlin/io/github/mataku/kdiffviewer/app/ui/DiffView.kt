@@ -502,6 +502,7 @@ private fun FileHeaderRow(
         label = { it.name },
         tag = { "file-render-toggle-${row.fileIndex}-${it.name.lowercase()}" },
         onSelect = { if (it != selected) onToggleRendered(row.fileIndex) },
+        modifier = Modifier.focusProperties { canFocus = false },
         segmentWidth = RenderToggleSegmentWidth,
         icon = { if (it == FileViewMode.Rendered) KdvIcons.RenderedDocument else KdvIcons.RawSource },
         tooltip = { it.name },
