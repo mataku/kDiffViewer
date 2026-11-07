@@ -132,14 +132,13 @@ object KdvIcons {
   }
 
   val RenderedDocument: ImageVector = outlineIcon("RenderedDocument") {
-    moveTo(8.5f, 13.5f)
-    lineTo(8.5f, 2.5f)
-    moveTo(11.5f, 13.5f)
-    lineTo(11.5f, 2.5f)
-    moveTo(13f, 2.5f)
-    lineTo(6.5f, 2.5f)
-    curveTo(2.5f, 2.5f, 2.5f, 8.5f, 6.5f, 8.5f)
-    lineTo(8.5f, 8.5f)
+    roundedRect(2.5f, 1.5f, 13.5f, 14.5f, 1.5f)
+    moveTo(5f, 4.75f)
+    lineTo(8.5f, 4.75f)
+    moveTo(5f, 8f)
+    lineTo(11f, 8f)
+    moveTo(5f, 11f)
+    lineTo(11f, 11f)
   }
 
   val SidebarCollapse: ImageVector = outlineIcon("SidebarCollapse") {
