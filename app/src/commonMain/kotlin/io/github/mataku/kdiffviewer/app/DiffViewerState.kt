@@ -337,6 +337,7 @@ class DiffViewerState(
     val root = state.root
     if (currentLoad !== token || state.status != LoadStatus.Done || reader == null || loaded == null || root == null) return
     val original = loaded.files.snapshot().getOrNull(fileIndex) ?: return
+    if (original.displayPath in state.rendered) return
     val entry = CollapsedFile(original.displayPath, state.fingerprints[fileIndex])
     if (gapsOf(original, null).isEmpty()) return
     withContext(loadContext) {

@@ -143,6 +143,22 @@ class DiffViewerRenderedTest {
   }
 
   @Test
+  fun expandQueuedBehindAToggleIsIgnored() = runTest(StandardTestDispatcher()) {
+    val tree = FakeWorkingTree(mutableMapOf("a.md" to regular(lines)))
+    val state = opened(tree, file("a.md"))
+    val raw = state.uiState.value
+    state.toggleRendered(0)
+    state.expandContext(0, 1, ExpandDirection.Down)
+    advanceUntilIdle()
+    val rendered = state.uiState.value
+    assertTrue(rendered.isRenderedBody(0))
+    assertSame(raw.files, rendered.files)
+    state.toggleRendered(0)
+    advanceUntilIdle()
+    assertEquals(raw.rows, state.uiState.value.rows)
+  }
+
+  @Test
   fun expandingOtherFileKeepsRendered() = runTest(StandardTestDispatcher()) {
     val tree = FakeWorkingTree(mutableMapOf("a.md" to regular(lines), "b.kt" to regular(lines)))
     val state = opened(tree, file("a.md"), file("b.kt"))
