@@ -24,6 +24,7 @@ import io.github.mataku.kdiffviewer.app.markdown.ListItem
 import io.github.mataku.kdiffviewer.app.markdown.MdBlock
 import io.github.mataku.kdiffviewer.app.markdown.MdInline
 import io.github.mataku.kdiffviewer.app.markdown.MdSpanKind
+import io.github.mataku.kdiffviewer.app.markdown.listMarker
 import io.github.mataku.kdiffviewer.app.markdown.parseMarkdown
 
 private val BlockSpacing = 8.dp
@@ -64,14 +65,8 @@ private fun Block(block: MdBlock, textStyle: TextStyle, styles: MarkdownStyles) 
 @Composable
 private fun ListView(list: MdBlock.ListBlock, textStyle: TextStyle, styles: MarkdownStyles) {
   Column(Modifier.padding(start = ListIndent), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-    list.items.forEachIndexed { index, item -> ListItemView(item, marker(list, index, item), textStyle, styles) }
+    list.items.forEachIndexed { index, item -> ListItemView(item, listMarker(list.ordered, list.start, index, item.checked), textStyle, styles) }
   }
-}
-
-private fun marker(list: MdBlock.ListBlock, index: Int, item: ListItem): String = when {
-  item.checked != null -> if (item.checked) "☑" else "☐"
-  list.ordered -> "${list.start + index}."
-  else -> "•"
 }
 
 @Composable

@@ -86,6 +86,25 @@ class MarkdownBodyParser(
     }
   }
 
+  fun parseSource(source: String): SourceParse {
+    val normalized = source.replace("\r\n", "\n").replace('\r', '\n')
+    if (normalized.length > RENDER_SOURCE_LIMIT) return SourceParse.TooLarge
+    if (exceedsContainerDepth(normalized)) return SourceParse.Failed
+    return try {
+      val root = buildTree(normalized)
+      SourceParse.Blocks(Mapper(root, normalized).sourceBlocks(root))
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      onFailure(e)
+      SourceParse.Failed
+    } catch (e: Throwable) {
+      if (!isStackOverflow(e)) throw e
+      onFailure(e)
+      SourceParse.Failed
+    }
+  }
+
   private fun plainFallback(text: String) = listOf<MdBlock>(MdBlock.Paragraph(MdInline(text, emptyList())))
 
   private class Mapper(
@@ -96,6 +115,93 @@ class MarkdownBodyParser(
       container: ASTNode,
       depth: Int,
     ): List<MdBlock> = container.children.mapNotNull { block(it, depth) }
+
+    fun sourceBlocks(container: ASTNode): List<SourceBlock> {
+      val out = ArrayList<SourceBlock>()
+      walkSource(container, SourceContext(LineStarts(source), out), indent = 0, quoteDepth = 0, depth = 0, marker = null)
+      return out
+    }
+
+    private class SourceContext(val lines: LineStarts, val out: MutableList<SourceBlock>)
+
+    private fun walkSource(
+      container: ASTNode,
+      context: SourceContext,
+      indent: Int,
+      quoteDepth: Int,
+      depth: Int,
+      marker: String?,
+    ): String? {
+      var pending = marker
+      for (node in container.children) {
+        val type = node.type
+        pending = when {
+          type in SOURCE_ONLY -> addSource(node, MdBlock.CodeBlock(null, text(node).trimEnd()), context, indent, quoteDepth, pending)
+
+          type in IGNORED -> pending
+
+          depth < MAX_NESTING && type == MarkdownElementTypes.BLOCK_QUOTE -> walkSource(node, context, indent, quoteDepth + 1, depth + 1, pending)
+
+          depth < MAX_NESTING && type == MarkdownElementTypes.UNORDERED_LIST -> {
+            walkList(node, ordered = false, context, indent, quoteDepth, depth, pending)
+            null
+          }
+
+          depth < MAX_NESTING && type == MarkdownElementTypes.ORDERED_LIST -> {
+            walkList(node, ordered = true, context, indent, quoteDepth, depth, pending)
+            null
+          }
+
+          else -> {
+            val leaf = block(node, depth)
+            if (leaf == null) pending else addSource(node, leaf, context, indent, quoteDepth, pending)
+          }
+        }
+      }
+      return pending
+    }
+
+    private fun walkList(
+      node: ASTNode,
+      ordered: Boolean,
+      context: SourceContext,
+      indent: Int,
+      quoteDepth: Int,
+      depth: Int,
+      outerMarker: String?,
+    ) {
+      val start = listStart(node, ordered)
+      var pendingOuter = outerMarker
+      node.children.filter { it.type == MarkdownElementTypes.LIST_ITEM }.forEachIndexed { index, item ->
+        val marker = pendingOuter ?: listMarker(ordered, start, index, itemChecked(item))
+        pendingOuter = null
+        val left = walkSource(item, context, indent + 1, quoteDepth, depth + 1, marker)
+        if (left != null) addSource(item, MdBlock.Paragraph(MdInline("", emptyList())), context, indent + 1, quoteDepth, left)
+      }
+    }
+
+    private fun addSource(
+      node: ASTNode,
+      block: MdBlock,
+      context: SourceContext,
+      indent: Int,
+      quoteDepth: Int,
+      marker: String?,
+    ): String? {
+      var end = node.endOffset
+      while (end > node.startOffset + 1 && source[end - 1] == '\n') end--
+      context.out.add(
+        SourceBlock(
+          block.withMarkedControls(),
+          context.lines.lineOf(node.startOffset),
+          context.lines.lineOf(end - 1),
+          indent,
+          quoteDepth,
+          marker,
+        ),
+      )
+      return null
+    }
 
     private fun block(
       node: ASTNode,
@@ -347,31 +453,38 @@ class MarkdownBodyParser(
       depth: Int,
     ): MdBlock {
       val items = node.children.filter { it.type == MarkdownElementTypes.LIST_ITEM }
-      val start =
-        if (ordered) {
-          items
-            .firstOrNull()
-            ?.children
-            ?.firstOrNull { it.type == MarkdownTokenTypes.LIST_NUMBER }
-            ?.let { text(it).takeWhile(Char::isDigit).toIntOrNull() }
-            ?: 1
-        } else {
-          1
-        }
-      return MdBlock.ListBlock(ordered, start, items.map { listItem(it, depth + 1) })
+      return MdBlock.ListBlock(ordered, listStart(node, ordered), items.map { listItem(it, depth + 1) })
     }
+
+    private fun listStart(
+      node: ASTNode,
+      ordered: Boolean,
+    ): Int {
+      if (!ordered) return 1
+      return node.children
+        .firstOrNull { it.type == MarkdownElementTypes.LIST_ITEM }
+        ?.children
+        ?.firstOrNull { it.type == MarkdownTokenTypes.LIST_NUMBER }
+        ?.let { text(it).takeWhile(Char::isDigit).toIntOrNull() }
+        ?: 1
+    }
+
+    private fun itemChecked(node: ASTNode): Boolean? = node.children.firstOrNull { it.type == GFMTokenTypes.CHECK_BOX }?.let { !text(it).contains("[ ]") }
 
     private fun listItem(
       node: ASTNode,
       depth: Int,
-    ): ListItem {
-      val checkBox = node.children.firstOrNull { it.type == GFMTokenTypes.CHECK_BOX }
-      val checked = checkBox?.let { !text(it).contains("[ ]") }
-      return ListItem(checked, blocks(node, depth))
-    }
+    ): ListItem = ListItem(itemChecked(node), blocks(node, depth))
   }
 
   private companion object {
+    val SOURCE_ONLY =
+      setOf<IElementType>(
+        MarkdownElementTypes.LINK_DEFINITION,
+        MarkdownElementTypes.HTML_BLOCK,
+        GFMElementTypes.TABLE,
+      )
+
     val IGNORED =
       setOf<IElementType>(
         MarkdownTokenTypes.EOL,
@@ -406,3 +519,5 @@ class MarkdownBodyParser(
 private val defaultParser = MarkdownBodyParser()
 
 fun parseMarkdown(source: String): List<MdBlock> = defaultParser.parse(source)
+
+fun parseMarkdownSource(source: String): SourceParse = defaultParser.parseSource(source)
