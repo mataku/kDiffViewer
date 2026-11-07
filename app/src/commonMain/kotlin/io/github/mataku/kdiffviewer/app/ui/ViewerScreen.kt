@@ -642,6 +642,9 @@ internal fun ExpansionError.expansionErrorText(): String = when (this) {
   ExpansionError.Unreadable -> "Could not read this file"
   ExpansionError.TooLarge -> "Too large to expand"
   ExpansionError.Stale -> "The file no longer matches this diff — reload to expand"
+  ExpansionError.RenderTooLarge -> "Too large to render"
+  ExpansionError.RenderStale -> "The file no longer matches this diff — reload to render"
+  ExpansionError.RenderFailed -> "Could not render this file"
 }
 
 private fun withShortcut(title: String, chord: Chord?): String = if (chord == null) title else "$title (${chord.label})"

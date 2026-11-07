@@ -99,6 +99,8 @@ data class ViewerUiState(
   val split: SplitRows = SplitRows.Empty,
   val expansions: Map<CollapsedFile, ContextExpansion> = emptyMap(),
   val expansionErrors: Map<CollapsedFile, ExpansionError> = emptyMap(),
+  val rendered: Set<String> = emptySet(),
+  val rawBodies: Map<Int, List<DiffRow>> = emptyMap(),
   val contentId: Long = 0,
   val rowsGeneration: Long = 0,
 )
@@ -217,6 +219,15 @@ class DiffViewerState(
         val reapplied = withContext(loadContext) { reapplyKeptExpansions(accumulator) }
         val tree = accumulator.tree.rows()
         val content = if (reapplied.applied.isEmpty()) null else withContext(loadContext) { mutableUiState.value.withContentOf(accumulator, tree).expandedContent(reapplied.applied, largeDiffLines) }
+        val renders = withContext(loadContext) { reapplyKeptRenders(accumulator, content) }
+        val swap = if (renders.bodies.isEmpty()) {
+          null
+        } else {
+          withContext(loadContext) {
+            val base = mutableUiState.value.withContentOf(accumulator, tree)
+            (if (content == null) base else base.withContent(content)).bodySwap(renders.bodies)
+          }
+        }
         holdJob?.cancel()
         updateIfCurrent(token) {
           val loaded = it.withContentOf(accumulator, tree)
@@ -227,7 +238,13 @@ class DiffViewerState(
             expansions = emptyMap(),
             expansionErrors = reapplied.errors,
           )
-          if (content == null) done else done.withContent(content)
+          val expanded = if (content == null) done else done.withContent(content)
+          val finished = expanded.copy(
+            rendered = renders.paths,
+            rawBodies = swap?.replaced.orEmpty(),
+            expansionErrors = expanded.expansionErrors + renders.errors,
+          )
+          if (swap == null) finished else finished.withBodySwap(swap)
         }
         if (content != null && currentLoad === token) highlightRun?.submit(content.entries)
       } catch (e: Throwable) {
@@ -337,6 +354,59 @@ class DiffViewerState(
         }
       }
     }
+  }
+
+  fun toggleRendered(fileIndex: Int) {
+    val token = currentLoad ?: return
+    scope.launch {
+      expansionMutex.withLock { applyRenderToggle(token, fileIndex) }
+    }
+  }
+
+  private suspend fun applyRenderToggle(token: Any, fileIndex: Int) {
+    val state = mutableUiState.value
+    if (currentLoad !== token || state.status != LoadStatus.Done) return
+    val shown = state.files.getOrNull(fileIndex) ?: return
+    if (!shown.isRenderable()) return
+    val path = shown.displayPath
+    if (path in state.rendered) {
+      val raw = state.rawBodies[fileIndex] ?: return
+      publishSwap(token, state, withContext(loadContext) { state.bodySwap(mapOf(fileIndex to raw)) }) {
+        it.copy(rendered = it.rendered - path, rawBodies = it.rawBodies - fileIndex)
+      }
+      return
+    }
+    val reader = workingTree ?: return
+    val root = state.root ?: return
+    val original = accumulator?.files?.snapshot()?.getOrNull(fileIndex) ?: return
+    val entry = CollapsedFile(path, state.fingerprints[fileIndex])
+    withContext(loadContext) {
+      when (val outcome = renderFile(original, shown, fileIndex, reader, root)) {
+        is RenderOutcome.Failed -> setExpansionError(token, entry, outcome.error)
+
+        is RenderOutcome.Rows -> {
+          val swap = state.bodySwap(mapOf(fileIndex to outcome.rows))
+          publishSwap(token, state, swap) {
+            it.copy(rendered = it.rendered + path, rawBodies = it.rawBodies + swap.replaced, expansionErrors = it.expansionErrors - entry)
+          }
+        }
+      }
+    }
+  }
+
+  private inline fun publishSwap(token: Any, base: ViewerUiState, swap: BodySwap, transform: (ViewerUiState) -> ViewerUiState) {
+    updateIfCurrent(token) { current ->
+      if (current.rows === base.rows) transform(current.withBodySwap(swap)) else current
+    }
+  }
+
+  private suspend fun reapplyKeptRenders(accumulator: LoadAccumulator, content: ExpandedContent?): ReappliedRenders {
+    val paths = mutableUiState.value.rendered
+    val reader = workingTree
+    val root = mutableUiState.value.root
+    if (paths.isEmpty() || reader == null || root == null) return ReappliedRenders.None
+    val originals = accumulator.files.snapshot()
+    return reapplyRendered(paths, originals, content?.files ?: originals, accumulator.fingerprints.snapshot(), reader, root)
   }
 
   private suspend fun reapplyKeptExpansions(accumulator: LoadAccumulator): ReappliedExpansions {

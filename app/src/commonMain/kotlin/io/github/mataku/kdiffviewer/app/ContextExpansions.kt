@@ -24,6 +24,12 @@ sealed interface ExpansionError {
   data object TooLarge : ExpansionError
 
   data object Stale : ExpansionError
+
+  data object RenderTooLarge : ExpansionError
+
+  data object RenderStale : ExpansionError
+
+  data object RenderFailed : ExpansionError
 }
 
 internal class AppliedExpansion(val fileIndex: Int, val entry: CollapsedFile, val expansion: ContextExpansion, val expanded: ExpandedFile)
