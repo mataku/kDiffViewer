@@ -69,9 +69,11 @@ import io.github.mataku.kdiffviewer.app.find.findMatchUpdates
 import io.github.mataku.kdiffviewer.app.gitStatus
 import io.github.mataku.kdiffviewer.app.isCollapsed
 import io.github.mataku.kdiffviewer.app.isLargeDiff
+import io.github.mataku.kdiffviewer.app.review.RenderedNotes
 import io.github.mataku.kdiffviewer.app.review.ReviewSnapshot
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.notesFiles
+import io.github.mataku.kdiffviewer.app.review.renderedNotes
 import io.github.mataku.kdiffviewer.app.review.threadFiles
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.LocalTextSelectionCoordinator
@@ -129,6 +131,7 @@ fun ViewerScreen(
   onSwitchBase: suspend (BaseSpec) -> ViewerError? = { null },
   rangeState: CommentRangeState = remember { CommentRangeState() },
   onExpandContext: (fileIndex: Int, gapIndex: Int, direction: ExpandDirection) -> Unit = { _, _, _ -> },
+  onSetRendered: (fileIndex: Int, rendered: Boolean) -> Unit = { _, _ -> },
   findContext: CoroutineContext = Dispatchers.Default,
 ) {
   val colors = LocalDiffColors.current
@@ -142,13 +145,18 @@ fun ViewerScreen(
   val draftTarget = review.draft?.target
   val draftText = rememberUpdatedState(review.draft?.text.orEmpty())
   val reviewInProgress = rememberUpdatedState(review.pendingCount > 0)
-  val notesFiles = remember(shown, review.placements, draftTarget) { if (shown) review.placements.notesFiles(draftTarget) else emptySet() }
+  val renderedNotes = remember(shown, state.rows, state.fileHeaderRowIndex, state.rawBodies, review.placements, draftTarget) {
+    if (shown) renderedNotes(state.rows, state.fileHeaderRowIndex, state.rawBodies.keys, review.placements, draftTarget) else RenderedNotes.Empty
+  }
+  val notesFiles = remember(shown, review.placements, draftTarget, renderedNotes) { if (shown) review.placements.notesFiles(draftTarget) + renderedNotes.files else emptySet() }
   val hasOrphans = shown && (review.placements.orphans.isNotEmpty() || draftTarget.isOrphanThread())
   val hasEnd = state.status == LoadStatus.Done && state.files.isNotEmpty()
   val layout = remember(state.rows, state.fileHeaderRowIndex, state.files, state.fingerprints, state.collapsed, state.expanded, notesFiles, hasOrphans, hasEnd, mode, state.split) {
     diffLayoutOf(state, mode, notesFiles, hasOrphans, hasEnd)
   }
   val currentLayout = rememberUpdatedState(layout)
+  val renderPin = remember { RenderPin() }
+  SideEffect { renderPin.settle(state, layout, listState) }
   val display = remember(state.rows, state.split, mode) { state.displayRows(mode) }
   val currentDisplay = rememberUpdatedState(display)
   ScrollJumpEffect(screenState.scrollJumps, listState, currentLayout)
@@ -293,6 +301,14 @@ fun ViewerScreen(
                   rangeState = rangeState,
                   onExpand = onExpandContext,
                   expansionErrors = expansionErrors,
+                  renderedPaths = state.rendered,
+                  onSetRendered = { fileIndex, rendered ->
+                    val pinned = listState.firstVisibleItemIndex >= layout.headerVisibleIndex(fileIndex)
+                    val changes = rendered != (fileIndex in state.rawBodies)
+                    renderPin.pending = if (pinned && changes) PendingRenderPin(fileIndex, !rendered, state.loadId, state.expansionErrors) else null
+                    onSetRendered(fileIndex, rendered)
+                  },
+                  renderedNotes = renderedNotes,
                   onHeaderClick = { fileIndex ->
                     val header = layout.headerVisibleIndex(fileIndex)
                     val pinned = listState.firstVisibleItemIndex >= header
@@ -638,10 +654,31 @@ private fun ViewerUiState.expansionErrorsByFile(): Map<Int, String> {
   return result
 }
 
+private class PendingRenderPin(val fileIndex: Int, val wasRendered: Boolean, val loadId: Long, val errors: Map<CollapsedFile, ExpansionError>)
+
+private class RenderPin {
+  var pending: PendingRenderPin? = null
+
+  fun settle(state: ViewerUiState, layout: DiffLayout, listState: LazyListState) {
+    val pin = pending ?: return
+    when {
+      pin.loadId != state.loadId || pin.errors != state.expansionErrors -> pending = null
+
+      (pin.fileIndex in state.rawBodies) != pin.wasRendered -> {
+        pending = null
+        listState.requestScrollToItem(layout.headerVisibleIndex(pin.fileIndex))
+      }
+    }
+  }
+}
+
 internal fun ExpansionError.expansionErrorText(): String = when (this) {
   ExpansionError.Unreadable -> "Could not read this file"
   ExpansionError.TooLarge -> "Too large to expand"
   ExpansionError.Stale -> "The file no longer matches this diff — reload to expand"
+  ExpansionError.RenderTooLarge -> "Too large to render"
+  ExpansionError.RenderStale -> "The file no longer matches this diff — reload to render"
+  ExpansionError.RenderFailed -> "Could not render this file"
 }
 
 private fun withShortcut(title: String, chord: Chord?): String = if (chord == null) title else "$title (${chord.label})"

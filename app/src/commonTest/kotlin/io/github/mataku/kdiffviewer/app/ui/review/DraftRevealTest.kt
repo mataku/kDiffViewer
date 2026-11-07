@@ -3,13 +3,18 @@ package io.github.mataku.kdiffviewer.app.ui.review
 import io.github.mataku.kdiffviewer.app.CollapsedFile
 import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
+import io.github.mataku.kdiffviewer.app.HunkLineRange
 import io.github.mataku.kdiffviewer.app.ViewerUiState
+import io.github.mataku.kdiffviewer.app.bodySwap
 import io.github.mataku.kdiffviewer.app.diffLayoutOf
 import io.github.mataku.kdiffviewer.app.displayRows
 import io.github.mataku.kdiffviewer.app.fingerprint
 import io.github.mataku.kdiffviewer.app.flattenRows
+import io.github.mataku.kdiffviewer.app.markdown.MdBlock
+import io.github.mataku.kdiffviewer.app.markdown.SourceBlock
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.splitRowsOf
+import io.github.mataku.kdiffviewer.app.withBodySwap
 import io.github.mataku.kdiffviewer.core.model.ChangeType
 import io.github.mataku.kdiffviewer.core.model.DiffContent
 import io.github.mataku.kdiffviewer.core.model.DiffLine
@@ -75,6 +80,35 @@ class DraftRevealTest {
     assertEquals(layout.visibleIndexOf(ui.fileHeaderRowIndex[1] + 3), revealIndex(onLine, newLine, layout, ui.rows, display))
     assertEquals(layout.headerVisibleIndex(1), revealIndex(Placement.OnFile(1), null, layout, ui.rows, display))
     assertEquals(0, revealIndex(Placement.Orphan, null, layout, ui.rows, display))
+  }
+
+  private fun renderedSecondFile(vararg body: DiffRow): ViewerUiState {
+    val base = stateOf(listOf(file("a.kt"), file("b.kt"))).let { it.copy(split = splitRowsOf(it.rows)) }
+    return base.withBodySwap(base.bodySwap(mapOf(1 to body.toList())))
+  }
+
+  @Test
+  fun renderedDraftRevealsItsBlockOrMarker() {
+    val source = SourceBlock(MdBlock.ThematicBreak, 2, 2, 0, 0, null)
+    val ui = renderedSecondFile(
+      DiffRow.UnchangedFold(1, 0, 1),
+      DiffRow.RenderedBlock(1, 1, source, null),
+      DiffRow.RemovedMarker(1, 2, HunkLineRange(0, 0, 0), 2, 2, 1),
+    )
+    val header = ui.fileHeaderRowIndex[1]
+    for (mode in DiffMode.entries) {
+      val layout = diffLayoutOf(ui, mode)
+      val display = ui.displayRows(mode)
+      assertEquals(layout.visibleIndexOf(display.displayOf(header + 2)), revealIndex(onLine, newLine, layout, ui.rows, display))
+      assertEquals(layout.visibleIndexOf(display.displayOf(header + 3)), revealIndex(onLine, oldLine, layout, ui.rows, display))
+    }
+  }
+
+  @Test
+  fun renderedDraftWithNoRowRevealsTheHeader() {
+    val ui = renderedSecondFile(DiffRow.UnchangedFold(1, 0, 1))
+    val layout = diffLayoutOf(ui)
+    assertEquals(layout.headerVisibleIndex(1), revealIndex(onLine, newLine, layout, ui.rows, ui.displayRows(DiffMode.Unified)))
   }
 
   @Test

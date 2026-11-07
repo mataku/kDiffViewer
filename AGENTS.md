@@ -36,6 +36,7 @@ plugins/ kdv/ is the Claude Code / Codex / npx skills plugin with the kdv-review
 ./gradlew :app:packageDeb              # build the Linux .deb (needs dpkg-deb and fakeroot); it is repacked to make kdv executable and link /usr/bin/kdv
 scripts/generate-large-diff.sh <dir> [ext]   # create a large repository for manual scrolling checks; ext defaults to txt, kt writes Kotlin sources
 scripts/generate-screenshot-diff.sh <dir>    # create a worktree of develop on feature/cat-facts with a small committed, staged, unstaged, and untracked diff for screenshots
+scripts/generate-markdown-diff.sh <dir>      # create a new repository with committed, staged, unstaged, and untracked Markdown changes for checking the rendered view
 bash scripts/ci/screenshot.sh <dir>          # what the dispatch-only screenshot workflow runs on its macOS runner; writes <dir>/shots/dim-screen.png and agent-review.png for docs/images
 xcrun actool app/art/kDiffViewer.icon --compile <out> --app-icon kDiffViewer --platform macosx --target-device mac --minimum-deployment-target 26.0 --output-partial-info-plist <out>/partial.plist   # regenerate Assets.car after editing the icon
 ```

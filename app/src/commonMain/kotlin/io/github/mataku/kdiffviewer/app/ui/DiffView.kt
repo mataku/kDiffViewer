@@ -61,15 +61,20 @@ import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.DisplayRows
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
+import io.github.mataku.kdiffviewer.app.isRenderable
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
+import io.github.mataku.kdiffviewer.app.review.RenderedNotes
 import io.github.mataku.kdiffviewer.app.review.ReviewPlacements
+import io.github.mataku.kdiffviewer.app.review.composesOn
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
 import io.github.mataku.kdiffviewer.app.review.linePosition
 import io.github.mataku.kdiffviewer.app.review.sidePosition
+import io.github.mataku.kdiffviewer.app.review.threadsOn
 import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.SelectionSource
 import io.github.mataku.kdiffviewer.app.ui.mac.MacInlineError
 import io.github.mataku.kdiffviewer.app.ui.mac.MacOverlayScrollbar
+import io.github.mataku.kdiffviewer.app.ui.mac.MacSegmented
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.NoteStack
 import io.github.mataku.kdiffviewer.app.ui.review.OrphanSection
@@ -78,6 +83,7 @@ import io.github.mataku.kdiffviewer.core.model.ExpandDirection
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.Side
+import io.github.mataku.kdiffviewer.core.model.displayPath
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.RangeAnchor
@@ -90,6 +96,7 @@ private val FileHeaderTopMargin = 12.dp
 private val FileChevronSize = 12.dp
 private val FileCommentIconSize = 14.dp
 private val MarkerColumnWidth = 16.dp
+private val RenderToggleSegmentWidth = 28.dp
 private val AddCommentSize = 16.dp
 private val AddCommentTint = ColorFilter.tint(Color.White)
 private val TextCursor = Modifier.pointerHoverIcon(PointerIcon.Text)
@@ -105,6 +112,9 @@ private const val END_CONTENT_TYPE = 6
 private const val END_KEY = "end"
 private const val SPLIT_LINE_CONTENT_TYPE = 7
 private const val TRAILING_GAP_CONTENT_TYPE = 8
+private const val RENDERED_BLOCK_CONTENT_TYPE = 9
+private const val REMOVED_MARKER_CONTENT_TYPE = 10
+private const val UNCHANGED_FOLD_CONTENT_TYPE = 11
 
 private fun DiffRow.contentType(): Int = when (this) {
   is DiffRow.FileHeader -> HEADER_CONTENT_TYPE
@@ -112,6 +122,9 @@ private fun DiffRow.contentType(): Int = when (this) {
   is DiffRow.Line -> LINE_CONTENT_TYPE
   is DiffRow.Placeholder -> PLACEHOLDER_CONTENT_TYPE
   is DiffRow.TrailingGap -> TRAILING_GAP_CONTENT_TYPE
+  is DiffRow.RenderedBlock -> RENDERED_BLOCK_CONTENT_TYPE
+  is DiffRow.RemovedMarker -> REMOVED_MARKER_CONTENT_TYPE
+  is DiffRow.UnchangedFold -> UNCHANGED_FOLD_CONTENT_TYPE
 }
 
 private fun splitItemKey(rows: List<DiffRow>, display: DisplayRows, displayRow: Int): String {
@@ -147,7 +160,12 @@ fun DiffView(
   rangeState: CommentRangeState = remember { CommentRangeState() },
   onExpand: (fileIndex: Int, gapIndex: Int, direction: ExpandDirection) -> Unit = { _, _, _ -> },
   expansionErrors: Map<Int, String> = emptyMap(),
+  renderedPaths: Set<String> = emptySet(),
+  onSetRendered: (fileIndex: Int, rendered: Boolean) -> Unit = { _, _ -> },
+  renderedNotes: RenderedNotes = RenderedNotes.Empty,
 ) {
+  val currentOnSetRendered by rememberUpdatedState(onSetRendered)
+  val setRendered = remember { { fileIndex: Int, rendered: Boolean -> currentOnSetRendered(fileIndex, rendered) } }
   val currentOnHeaderClick by rememberUpdatedState(onHeaderClick)
   val currentOnExpand by rememberUpdatedState(onExpand)
   val expand = remember { { fileIndex: Int, gapIndex: Int, direction: ExpandDirection -> currentOnExpand(fileIndex, gapIndex, direction) } }
@@ -157,6 +175,7 @@ fun DiffView(
   val split = display.mode == DiffMode.Split
   val contentStartX = with(LocalDensity.current) { ContentHorizontalMargin.toPx() }
   val markerWidth = with(LocalDensity.current) { MarkerColumnWidth.toPx() }
+  val renderedButtonHeight = with(LocalDensity.current) { typography.lineNumber.lineHeight.toPx() + RenderedRowTopPadding.toPx() }
   val codeStartX = with(LocalDensity.current) { (ContentHorizontalMargin + typography.lineNumberWidth * (if (split) 1 else 2) + MarkerColumnWidth).toPx() }
   val listWidth = remember { mutableIntStateOf(0) }
   val splitHalfWidth = remember(contentStartX) { { (listWidth.intValue - 2 * contentStartX) / 2f } }
@@ -200,7 +219,7 @@ fun DiffView(
   SideEffect { rangeState.drafted = draftedRange }
   val currentDraft by rememberUpdatedState(draft)
   val draftTargetOf = remember { { currentDraft } }
-  val selectionModifier = Modifier.diffSelectionGesture(listState, selection, selectionSource, layouts, rows, layout, display, contentStartX, codeStartX, splitHalfWidth, typography.tabWidth, files, markerWidth, onRange, rangeState, draftTargetOf, loadId)
+  val selectionModifier = Modifier.diffSelectionGesture(listState, selection, selectionSource, layouts, rows, layout, display, contentStartX, codeStartX, splitHalfWidth, typography.tabWidth, files, markerWidth, renderedButtonHeight, onRange, rangeState, draftTargetOf, loadId)
   Box(modifier) {
     LazyColumn(
       state = listState,
@@ -223,15 +242,15 @@ fun DiffView(
         val collapsed = layout.isCollapsed(fileIndex)
         val header = rows[display.unifiedOf(headerRow)] as DiffRow.FileHeader
         stickyHeader(key = header.key, contentType = HEADER_CONTENT_TYPE) {
-          FileHeaderRow(header, collapsed, iconTint, onFileComment, expansionErrors[header.fileIndex]) { currentOnHeaderClick(header.fileIndex) }
+          FileHeaderRow(header, collapsed, iconTint, onFileComment, expansionErrors[header.fileIndex], header.file.displayPath in renderedPaths, setRendered) { currentOnHeaderClick(header.fileIndex) }
         }
         if (!collapsed) {
           if (layout.hasNotes(fileIndex)) {
             item(key = "n$fileIndex", contentType = NOTES_CONTENT_TYPE) {
               NoteStack(
-                threads = (if (shown) placements.byFile[fileIndex] else null).orEmpty(),
+                threads = (if (shown) placements.byFile[fileIndex] else null).orEmpty() + renderedNotes.threads[fileIndex].orEmpty(),
                 draftTarget = draft,
-                composeNew = draftFileIndex == fileIndex,
+                composeNew = draftFileIndex == fileIndex || renderedNotes.draftFile == fileIndex,
               )
             }
           }
@@ -247,6 +266,16 @@ fun DiffView(
               val rightRow = rows.getOrNull(display.unifiedOf(displayRow, Side.New)) as? DiffRow.Line
               when (val row = rows[display.unifiedOf(displayRow, null)]) {
                 is DiffRow.FileHeader -> Unit
+
+                is DiffRow.RenderedBlock -> WithRowNotes(if (hasLineThreads) placements.threadsOn(row) else emptyList(), draft, draft.composesOn(row), splitNoteIndent) {
+                  RenderedBlockRow(row, typography.lineNumberWidth, MarkerColumnWidth, hoveredKey, commentable, rangeState)
+                }
+
+                is DiffRow.RemovedMarker -> WithRowNotes(if (hasLineThreads) placements.threadsOn(row) else emptyList(), draft, draft.composesOn(row), splitNoteIndent) {
+                  RemovedMarkerRow(row, typography.lineNumberWidth, hoveredKey, commentable, rangeState)
+                }
+
+                is DiffRow.UnchangedFold -> UnchangedFoldRow(row)
 
                 is DiffRow.HunkHeader -> HunkHeaderRow(row, typography.lineNumberWidth, expand)
 
@@ -287,6 +316,16 @@ fun DiffView(
             ) { offset ->
               when (val row = rows[bodyStart + offset]) {
                 is DiffRow.FileHeader -> Unit
+
+                is DiffRow.RenderedBlock -> WithRowNotes(if (hasLineThreads) placements.threadsOn(row) else emptyList(), draft, draft.composesOn(row), noteIndent) {
+                  RenderedBlockRow(row, typography.lineNumberWidth * 2, MarkerColumnWidth, hoveredKey, commentable, rangeState)
+                }
+
+                is DiffRow.RemovedMarker -> WithRowNotes(if (hasLineThreads) placements.threadsOn(row) else emptyList(), draft, draft.composesOn(row), noteIndent) {
+                  RemovedMarkerRow(row, typography.lineNumberWidth * 2, hoveredKey, commentable, rangeState)
+                }
+
+                is DiffRow.UnchangedFold -> UnchangedFoldRow(row)
 
                 is DiffRow.HunkHeader -> HunkHeaderRow(row, typography.lineNumberWidth * 2, expand)
 
@@ -352,6 +391,18 @@ private fun hoverKeyAt(listState: LazyListState, position: Offset, split: Boolea
 }
 
 @Composable
+private fun WithRowNotes(threads: List<ReviewThread>, draft: DraftTarget?, composing: Boolean, indent: Dp, row: @Composable () -> Unit) {
+  if (threads.isEmpty() && !composing) {
+    row()
+  } else {
+    Column {
+      row()
+      NoteStack(threads, draft, composing, Modifier.padding(start = indent, end = 8.dp))
+    }
+  }
+}
+
+@Composable
 private fun SplitNoteColumn(threads: List<ReviewThread>, draft: DraftTarget?, composing: Boolean, indent: Dp, modifier: Modifier) {
   if (threads.isEmpty() && !composing) {
     Spacer(modifier)
@@ -380,6 +431,8 @@ private fun FileHeaderRow(
   iconTint: ColorFilter,
   onComment: ((DiffRow.FileHeader) -> Unit)?,
   expansionError: String?,
+  rendered: Boolean,
+  onSetRendered: (fileIndex: Int, rendered: Boolean) -> Unit,
   onClick: () -> Unit,
 ) {
   val colors = LocalDiffColors.current
@@ -440,6 +493,21 @@ private fun FileHeaderRow(
       BasicText(text = statsText, modifier = Modifier.testTag("file-stats-${row.fileIndex}"))
     }
     if (expansionError != null) MacInlineError(expansionError)
+    val renderable = remember(row.file) { row.file.isRenderable() }
+    if (renderable) {
+      val selected = if (rendered) FileViewMode.Rendered else FileViewMode.Raw
+      MacSegmented(
+        options = FileViewModes,
+        selected = selected,
+        label = { it.name },
+        tag = { "file-render-toggle-${row.fileIndex}-${it.name.lowercase()}" },
+        onSelect = { onSetRendered(row.fileIndex, it == FileViewMode.Rendered) },
+        modifier = Modifier.focusProperties { canFocus = false },
+        segmentWidth = RenderToggleSegmentWidth,
+        icon = { if (it == FileViewMode.Rendered) KdvIcons.RenderedDocument else KdvIcons.RawSource },
+        tooltip = { it.name },
+      )
+    }
     if (onComment != null) {
       Image(
         imageVector = KdvIcons.Comment,
@@ -695,7 +763,7 @@ private fun LineNumberCell(number: Int?, typography: DiffTypography) {
 }
 
 @Composable
-private fun AddCommentButton(typography: DiffTypography) {
+internal fun AddCommentButton(typography: DiffTypography) {
   val colors = LocalDiffColors.current
   val lineHeight = with(LocalDensity.current) { typography.lineNumber.lineHeight.toDp() }
   val size = min(AddCommentSize, lineHeight)

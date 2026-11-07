@@ -12,6 +12,7 @@ kDiffViewer is a desktop viewer for macOS (and, experimentally, Linux) for the g
 - Syntax highlighting for Kotlin, Ruby, Go, Rust, Swift, Python, Java, JavaScript (including JSX), TypeScript (including TSX), Markdown, JSON, YAML, HTML, CSS, XML, TOML, and shell scripts (Bash)
 - Select and copy code from the diff without line numbers or `+`/`-` markers
 - Review comments on lines or line ranges, with GitHub-style Markdown, that coding agents read and answer through the `kdv` command
+- A rendered view of the changed blocks in Markdown files, per file, where comments work the same as in the raw diff
 - System, Light, Dark, and Dim appearances
 
 ## Requirements
@@ -137,6 +138,12 @@ sequenceDiagram
 Click the add-comment button next to a line to comment on it, or drag the button over several lines to comment on the range. Comment bodies render as GitHub-style Markdown: headings, emphasis, lists, task lists, block quotes, links, and code blocks, with fenced code in the bundled languages syntax-highlighted. Tables and images are not rendered. The composer has Write / Preview tabs; press <kbd>⌘</kbd><kbd>⇧</kbd><kbd>P</kbd> to switch between them.
 
 Comments are kept in memory while the app runs and are not saved, so they are gone after the app quits. When quitting would lose a review, the app asks first.
+
+### Markdown files
+
+A Markdown file's header has a toggle between the raw diff and a rendered view. The rendered view shows only the blocks with changes, each marked with a bar. Unchanged blocks collapse into one row, and deleted lines show as a row with their count. Switch back to the raw diff to read deleted text or surrounding context.
+
+Comment in the rendered view the same way: hover a block or a deleted-lines row and click the add-comment button, or drag it across rows of one hunk. A comment attaches to the block's source lines that the diff includes, so it appears in both views and agents read it with the same line numbers. Comments on lines with no rendered row appear at the top of the file. Find and text selection apply only to the raw diff.
 
 ### Sending comments to the agent
 

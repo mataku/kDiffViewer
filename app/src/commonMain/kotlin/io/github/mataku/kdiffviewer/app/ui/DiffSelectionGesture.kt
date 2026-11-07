@@ -33,6 +33,7 @@ import io.github.mataku.kdiffviewer.app.DiffLayout
 import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.DisplayRows
+import io.github.mataku.kdiffviewer.app.HunkLineRange
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.toReviewSide
 import io.github.mataku.kdiffviewer.app.selection.ClickCounter
@@ -109,6 +110,7 @@ internal fun Modifier.diffSelectionGesture(
   tabWidth: Int,
   files: List<FileDiff>,
   markerWidth: Float,
+  renderedButtonHeight: Float,
   onRange: ((RangeAnchor) -> Unit)?,
   range: CommentRangeState,
   draftTarget: () -> DraftTarget?,
@@ -131,6 +133,7 @@ internal fun Modifier.diffSelectionGesture(
     gesture.tabWidth = tabWidth
     gesture.files = files
     gesture.markerWidth = markerWidth
+    gesture.renderedButtonHeight = renderedButtonHeight
     gesture.onRange = onRange
     gesture.range = range
     gesture.draftTarget = draftTarget
@@ -159,6 +162,7 @@ internal class DiffSelectionGesture(
   var tabWidth = 1
   var files: List<FileDiff> = emptyList()
   var markerWidth = 0f
+  var renderedButtonHeight = 0f
   var onRange: ((RangeAnchor) -> Unit)? = null
   var range = CommentRangeState()
   var draftTarget: () -> DraftTarget? = { null }
@@ -183,9 +187,52 @@ internal class DiffSelectionGesture(
     val lastLine: Int,
     val loadId: Long,
     val display: DisplayRows?,
+    val pressRange: HunkLineRange? = null,
   ) {
-    var from = pressLine
-    var to = pressLine
+    var from = pressRange?.fromLineIndex ?: pressLine
+    var to = pressRange?.toLineIndex ?: pressLine
+  }
+
+  private class RenderedTarget(val fileIndex: Int, val range: HunkLineRange, val side: Side)
+
+  private fun renderedTargetOf(row: DiffRow?): RenderedTarget? = when (row) {
+    is DiffRow.RenderedBlock -> row.commentRange?.let { RenderedTarget(row.fileIndex, it, Side.New) }
+    is DiffRow.RemovedMarker -> RenderedTarget(row.fileIndex, row.range, Side.Old)
+    else -> null
+  }
+
+  private fun renderedRowAt(y: Float): Int {
+    val layout = layout ?: return -1
+    val item = itemAt(y, preferLast = false) ?: return -1
+    return display?.unifiedOf(layout.rowIndexOf(item.index), null) ?: layout.rowIndexOf(item.index)
+  }
+
+  private fun renderedDragAt(position: Offset): RangeDrag? {
+    if (position.x < codeStartX - markerWidth || position.x >= codeStartX) return null
+    val row = renderedRowAt(position.y)
+    val target = renderedTargetOf(rows.getOrNull(row)) ?: return null
+    val item = itemAt(position.y, preferLast = false) ?: return null
+    if (position.y - item.offset >= renderedButtonHeight) return null
+    val file = files.getOrNull(target.fileIndex) ?: return null
+    val range = target.range
+    if (anchorOfRange(file, target.fileIndex, range.hunkIndex, range.fromLineIndex, range.toLineIndex, target.side.toReviewSide()) == null) return null
+    return RangeDrag(target.fileIndex, range.hunkIndex, target.side, row, range.toLineIndex, range.toLineIndex, loadId, display, range)
+  }
+
+  private fun updateRenderedRange(drag: RangeDrag, press: HunkLineRange) {
+    val row = renderedRowAt(clampedPointer().y)
+    val target = renderedTargetOf(rows.getOrNull(row)) ?: return
+    if (target.fileIndex != drag.fileIndex || target.range.hunkIndex != drag.hunkIndex || target.side != drag.side) return
+    val from = if (row < drag.pressRow) press.toLineIndex else press.fromLineIndex
+    val to = when {
+      row < drag.pressRow -> target.range.fromLineIndex
+      row > drag.pressRow -> target.range.toLineIndex
+      else -> press.toLineIndex
+    }
+    if (from == drag.from && to == drag.to) return
+    drag.from = from
+    drag.to = to
+    publish(drag)
   }
 
   suspend fun PointerInputScope.handleGestures() = coroutineScope {
@@ -332,6 +379,11 @@ internal class DiffSelectionGesture(
       range.dragging = null
       return
     }
+    val press = drag.pressRange
+    if (press != null) {
+      updateRenderedRange(drag, press)
+      return
+    }
     val to = resolveTo(drag)
     if (to == drag.to) return
     drag.to = to
@@ -361,6 +413,7 @@ internal class DiffSelectionGesture(
   }
 
   private fun extendDraft(drag: RangeDrag): ReviewSide? {
+    if (drag.pressRange != null) return null
     val target = draftTarget() as? DraftTarget.NewThread ?: return null
     val anchor = target.anchor as? Anchor.Lines ?: return null
     val location = (target.placement as? Placement.OnLine)?.location ?: return null
@@ -379,6 +432,7 @@ internal class DiffSelectionGesture(
 
   private fun rangeDragAt(position: Offset, side: Side?): RangeDrag? {
     if (onRange == null) return null
+    renderedDragAt(position)?.let { return it }
     val codeStart = codeStartFor(side)
     if (position.x < codeStart - markerWidth || position.x >= codeStart) return null
     val layout = layout ?: return null

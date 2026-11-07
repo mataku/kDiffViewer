@@ -1,5 +1,7 @@
 package io.github.mataku.kdiffviewer.app
 
+import io.github.mataku.kdiffviewer.app.markdown.MdBlock
+import io.github.mataku.kdiffviewer.app.markdown.SourceBlock
 import io.github.mataku.kdiffviewer.app.selection.context
 import io.github.mataku.kdiffviewer.app.selection.hunk
 import io.github.mataku.kdiffviewer.app.selection.rowsOf
@@ -25,6 +27,17 @@ class SplitRowsTest {
   private fun pairsFor(vararg lines: DiffLine): List<Pair<Int, Int>> = pairsOf(splitRowsOf(rowsOf(textFile("a.txt", hunk(*lines)))))
 
   private val headers = listOf(0 to 0, 1 to 1)
+
+  @Test
+  fun renderedRowsAreFullWidth() {
+    val source = SourceBlock(MdBlock.ThematicBreak, 1, 1, 0, 0, null)
+    val rows = listOf(
+      DiffRow.UnchangedFold(0, 0, 2),
+      DiffRow.RenderedBlock(0, 1, source, null),
+      DiffRow.RemovedMarker(0, 2, HunkLineRange(0, 0, 0), 1, 1, 1),
+    )
+    assertEquals(listOf(0 to 0, 1 to 1, 2 to 2), pairsOf(splitRowsOf(rows)))
+  }
 
   @Test
   fun contextIsBothSides() {
