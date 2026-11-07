@@ -33,6 +33,13 @@ class SourceBlocksTest {
   }
 
   @Test
+  fun loneCarriageReturnKeepsLineNumbers() {
+    val result = blocks("a\rx\n\nevil\n\nc\n")
+    assertEquals(listOf(1..1, 3..3, 5..5), result.ranges())
+    assertEquals("a${controlMarker('\r')}x", result[0].text())
+  }
+
+  @Test
   fun listItemsFlatten() {
     val result = blocks("- a\n- b\n  - c\n1. d\n")
     assertEquals(listOf("a", "b", "c", "d"), result.map { it.text() })

@@ -1,5 +1,6 @@
 package io.github.mataku.kdiffviewer.app.markdown
 
+import io.github.mataku.kdiffviewer.protocol.controlMarker
 import org.intellij.markdown.IElementType
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
@@ -87,7 +88,7 @@ class MarkdownBodyParser(
   }
 
   fun parseSource(source: String): SourceParse {
-    val normalized = source.replace("\r\n", "\n").replace('\r', '\n')
+    val normalized = source.replace("\r\n", "\n").replace('\r', controlMarker('\r'))
     if (normalized.length > RENDER_SOURCE_LIMIT) return SourceParse.TooLarge
     if (exceedsContainerDepth(normalized)) return SourceParse.Failed
     return try {
