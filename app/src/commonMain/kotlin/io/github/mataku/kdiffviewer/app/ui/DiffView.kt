@@ -161,11 +161,11 @@ fun DiffView(
   onExpand: (fileIndex: Int, gapIndex: Int, direction: ExpandDirection) -> Unit = { _, _, _ -> },
   expansionErrors: Map<Int, String> = emptyMap(),
   renderedPaths: Set<String> = emptySet(),
-  onToggleRendered: (fileIndex: Int) -> Unit = {},
+  onSetRendered: (fileIndex: Int, rendered: Boolean) -> Unit = { _, _ -> },
   renderedNotes: RenderedNotes = RenderedNotes.Empty,
 ) {
-  val currentOnToggleRendered by rememberUpdatedState(onToggleRendered)
-  val toggleRendered = remember { { fileIndex: Int -> currentOnToggleRendered(fileIndex) } }
+  val currentOnSetRendered by rememberUpdatedState(onSetRendered)
+  val setRendered = remember { { fileIndex: Int, rendered: Boolean -> currentOnSetRendered(fileIndex, rendered) } }
   val currentOnHeaderClick by rememberUpdatedState(onHeaderClick)
   val currentOnExpand by rememberUpdatedState(onExpand)
   val expand = remember { { fileIndex: Int, gapIndex: Int, direction: ExpandDirection -> currentOnExpand(fileIndex, gapIndex, direction) } }
@@ -242,7 +242,7 @@ fun DiffView(
         val collapsed = layout.isCollapsed(fileIndex)
         val header = rows[display.unifiedOf(headerRow)] as DiffRow.FileHeader
         stickyHeader(key = header.key, contentType = HEADER_CONTENT_TYPE) {
-          FileHeaderRow(header, collapsed, iconTint, onFileComment, expansionErrors[header.fileIndex], header.file.displayPath in renderedPaths, toggleRendered) { currentOnHeaderClick(header.fileIndex) }
+          FileHeaderRow(header, collapsed, iconTint, onFileComment, expansionErrors[header.fileIndex], header.file.displayPath in renderedPaths, setRendered) { currentOnHeaderClick(header.fileIndex) }
         }
         if (!collapsed) {
           if (layout.hasNotes(fileIndex)) {
@@ -432,7 +432,7 @@ private fun FileHeaderRow(
   onComment: ((DiffRow.FileHeader) -> Unit)?,
   expansionError: String?,
   rendered: Boolean,
-  onToggleRendered: (fileIndex: Int) -> Unit,
+  onSetRendered: (fileIndex: Int, rendered: Boolean) -> Unit,
   onClick: () -> Unit,
 ) {
   val colors = LocalDiffColors.current
@@ -501,7 +501,7 @@ private fun FileHeaderRow(
         selected = selected,
         label = { it.name },
         tag = { "file-render-toggle-${row.fileIndex}-${it.name.lowercase()}" },
-        onSelect = { if (it != selected) onToggleRendered(row.fileIndex) },
+        onSelect = { onSetRendered(row.fileIndex, it == FileViewMode.Rendered) },
         modifier = Modifier.focusProperties { canFocus = false },
         segmentWidth = RenderToggleSegmentWidth,
         icon = { if (it == FileViewMode.Rendered) KdvIcons.RenderedDocument else KdvIcons.RawSource },

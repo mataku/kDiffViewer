@@ -357,20 +357,21 @@ class DiffViewerState(
     }
   }
 
-  fun toggleRendered(fileIndex: Int) {
+  fun setRendered(fileIndex: Int, rendered: Boolean) {
     val token = currentLoad ?: return
     scope.launch {
-      expansionMutex.withLock { applyRenderToggle(token, fileIndex) }
+      expansionMutex.withLock { applyRendered(token, fileIndex, rendered) }
     }
   }
 
-  private suspend fun applyRenderToggle(token: Any, fileIndex: Int) {
+  private suspend fun applyRendered(token: Any, fileIndex: Int, rendered: Boolean) {
     val state = mutableUiState.value
     if (currentLoad !== token || state.status != LoadStatus.Done) return
     val shown = state.files.getOrNull(fileIndex) ?: return
     if (!shown.isRenderable()) return
     val path = shown.displayPath
-    if (path in state.rendered) {
+    if ((path in state.rendered) == rendered) return
+    if (!rendered) {
       val raw = state.rawBodies[fileIndex] ?: return
       publishSwap(token, state, withContext(loadContext) { state.bodySwap(mapOf(fileIndex to raw)) }) {
         it.copy(rendered = it.rendered - path, rawBodies = it.rawBodies - fileIndex)

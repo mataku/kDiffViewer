@@ -75,6 +75,8 @@ class DiffViewerRenderedTest {
 
   private fun TestScope.stateWith(tree: FakeWorkingTree, source: FakeSource) = DiffViewerState(source, this, 16, workingTree = tree)
 
+  private fun DiffViewerState.toggleRendered(fileIndex: Int) = setRendered(fileIndex, fileIndex !in uiState.value.rawBodies)
+
   private fun TestScope.opened(tree: FakeWorkingTree, vararg files: FileDiff): DiffViewerState {
     val state = stateWith(tree, FakeSource(files.toList()))
     state.open(repo)
@@ -93,6 +95,41 @@ class DiffViewerRenderedTest {
   private fun ViewerUiState.lineTexts(fileIndex: Int) = fileRows(fileIndex).filterIsInstance<DiffRow.Line>().map { it.line.text }
 
   private fun ViewerUiState.errorOf(fileIndex: Int) = expansionErrors[CollapsedFile(files[fileIndex].newPath!!, fingerprints[fileIndex])]
+
+  @Test
+  fun pressingRenderedTwiceStaysRendered() = runTest(StandardTestDispatcher()) {
+    val tree = FakeWorkingTree(mutableMapOf("a.md" to regular(lines)))
+    val state = opened(tree, file("a.md"))
+    state.setRendered(0, true)
+    state.setRendered(0, true)
+    advanceUntilIdle()
+    assertEquals(setOf("a.md"), state.uiState.value.rendered)
+    assertTrue(state.uiState.value.isRenderedBody(0))
+    assertEquals(1, tree.reads)
+  }
+
+  @Test
+  fun pressingRawWhileRenderingEndsInRaw() = runTest(StandardTestDispatcher()) {
+    val tree = FakeWorkingTree(mutableMapOf("a.md" to regular(lines)))
+    val state = opened(tree, file("a.md"))
+    val raw = state.uiState.value.rows
+    state.setRendered(0, true)
+    state.setRendered(0, false)
+    advanceUntilIdle()
+    assertEquals(emptySet(), state.uiState.value.rendered)
+    assertEquals(raw, state.uiState.value.rows)
+  }
+
+  @Test
+  fun settingTheCurrentViewIsNoOp() = runTest(StandardTestDispatcher()) {
+    val tree = FakeWorkingTree(mutableMapOf("a.md" to regular(lines)))
+    val state = opened(tree, file("a.md"))
+    val before = state.uiState.value
+    state.setRendered(0, false)
+    advanceUntilIdle()
+    assertEquals(0, tree.reads)
+    assertSame(before, state.uiState.value)
+  }
 
   @Test
   fun toggleSwapsOnlyThatFile() = runTest(StandardTestDispatcher()) {

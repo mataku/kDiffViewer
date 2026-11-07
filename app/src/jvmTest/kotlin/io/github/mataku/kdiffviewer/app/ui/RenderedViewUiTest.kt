@@ -87,10 +87,10 @@ class RenderedViewUiTest {
     return raw.withBodySwap(swap).copy(rendered = setOf("a.md"), rawBodies = swap.replaced)
   }
 
-  private fun ComposeUiTest.show(state: ViewerUiState, mode: DiffMode = DiffMode.Unified, onToggleFile: (Int) -> Unit = {}, onToggleRendered: (Int) -> Unit = {}) {
+  private fun ComposeUiTest.show(state: ViewerUiState, mode: DiffMode = DiffMode.Unified, onToggleFile: (Int) -> Unit = {}, onSetRendered: (Int, Boolean) -> Unit = { _, _ -> }) {
     setContent {
       CompositionLocalProvider(LocalTextSelectionCoordinator provides coordinator, LocalNativeContextMenu provides menu) {
-        ViewerScreen(state, {}, screenState = rememberViewerScreenState(mode = mode), onToggleFile = onToggleFile, onToggleRendered = onToggleRendered)
+        ViewerScreen(state, {}, screenState = rememberViewerScreenState(mode = mode), onToggleFile = onToggleFile, onSetRendered = onSetRendered)
       }
     }
   }
@@ -113,20 +113,22 @@ class RenderedViewUiTest {
 
   @Test
   fun pressingToggleDoesNotCollapse() = runComposeUiTest {
-    val toggled = mutableListOf<Int>()
+    val set = mutableListOf<Pair<Int, Boolean>>()
     val collapsed = mutableListOf<Int>()
-    show(stateOf(file("a.md")), onToggleFile = { collapsed += it }, onToggleRendered = { toggled += it })
+    show(stateOf(file("a.md")), onToggleFile = { collapsed += it }, onSetRendered = { index, rendered -> set += index to rendered })
     onNodeWithTag("file-render-toggle-0-rendered").performClick()
-    assertEquals(listOf(0), toggled)
+    assertEquals(listOf(0 to true), set)
     assertEquals(emptyList(), collapsed)
   }
 
   @Test
-  fun pressingSelectedSegmentIsNoOp() = runComposeUiTest {
-    val toggled = mutableListOf<Int>()
-    show(stateOf(file("a.md")), onToggleRendered = { toggled += it })
+  fun eachPressReportsThePressedView() = runComposeUiTest {
+    val set = mutableListOf<Boolean>()
+    show(stateOf(file("a.md")), onSetRendered = { _, rendered -> set += rendered })
+    onNodeWithTag("file-render-toggle-0-rendered").performClick()
+    onNodeWithTag("file-render-toggle-0-rendered").performClick()
     onNodeWithTag("file-render-toggle-0-raw").performClick()
-    assertEquals(emptyList(), toggled)
+    assertEquals(listOf(true, true, false), set)
   }
 
   @Test
@@ -236,7 +238,7 @@ class RenderedViewUiTest {
     val state = mutableStateOf(initial)
     setContent {
       CompositionLocalProvider(LocalTextSelectionCoordinator provides coordinator, LocalNativeContextMenu provides menu) {
-        ViewerScreen(state.value, {}, screenState = rememberViewerScreenState(), onToggleRendered = { state.onToggle() })
+        ViewerScreen(state.value, {}, screenState = rememberViewerScreenState(), onSetRendered = { _, _ -> state.onToggle() })
       }
     }
     onNodeWithTag("diff-list").performScrollToIndex(scrollTo)

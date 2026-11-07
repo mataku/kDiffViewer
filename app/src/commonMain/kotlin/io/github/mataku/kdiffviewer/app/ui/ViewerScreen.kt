@@ -131,7 +131,7 @@ fun ViewerScreen(
   onSwitchBase: suspend (BaseSpec) -> ViewerError? = { null },
   rangeState: CommentRangeState = remember { CommentRangeState() },
   onExpandContext: (fileIndex: Int, gapIndex: Int, direction: ExpandDirection) -> Unit = { _, _, _ -> },
-  onToggleRendered: (fileIndex: Int) -> Unit = {},
+  onSetRendered: (fileIndex: Int, rendered: Boolean) -> Unit = { _, _ -> },
   findContext: CoroutineContext = Dispatchers.Default,
 ) {
   val colors = LocalDiffColors.current
@@ -302,11 +302,11 @@ fun ViewerScreen(
                   onExpand = onExpandContext,
                   expansionErrors = expansionErrors,
                   renderedPaths = state.rendered,
-                  onToggleRendered = { fileIndex ->
-                    if (listState.firstVisibleItemIndex >= layout.headerVisibleIndex(fileIndex)) {
-                      renderPin.pending = PendingRenderPin(fileIndex, fileIndex in state.rawBodies, state.loadId, state.expansionErrors)
-                    }
-                    onToggleRendered(fileIndex)
+                  onSetRendered = { fileIndex, rendered ->
+                    val pinned = listState.firstVisibleItemIndex >= layout.headerVisibleIndex(fileIndex)
+                    val changes = rendered != (fileIndex in state.rawBodies)
+                    renderPin.pending = if (pinned && changes) PendingRenderPin(fileIndex, !rendered, state.loadId, state.expansionErrors) else null
+                    onSetRendered(fileIndex, rendered)
                   },
                   renderedNotes = renderedNotes,
                   onHeaderClick = { fileIndex ->

@@ -110,7 +110,7 @@ fun MainWindow(
               loadBranches = viewer::branches,
               onSwitchBase = viewer::switchBase,
               onExpandContext = viewer::expandContext,
-              onToggleRendered = viewer::toggleRendered,
+              onSetRendered = viewer::setRendered,
             )
           }
           appState.quitWarning?.let { warning ->
