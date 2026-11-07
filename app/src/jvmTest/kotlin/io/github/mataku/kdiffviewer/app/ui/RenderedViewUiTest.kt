@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -81,6 +82,15 @@ class RenderedViewUiTest {
     show(stateOf(file("a.md"), file("b.kt")))
     onNodeWithTag("file-render-toggle-0-raw").assertIsDisplayed()
     onNodeWithTag("file-render-toggle-1-raw").assertDoesNotExist()
+  }
+
+  @Test
+  fun toggleUsesIconsInsteadOfText() = runComposeUiTest {
+    show(stateOf(file("a.md")))
+    onNodeWithContentDescription("Raw").assertIsDisplayed()
+    onNodeWithContentDescription("Rendered").assertIsDisplayed()
+    onNodeWithText("Raw").assertDoesNotExist()
+    onNodeWithText("Rendered").assertDoesNotExist()
   }
 
   @Test

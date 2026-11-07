@@ -93,7 +93,7 @@ private val FileHeaderTopMargin = 12.dp
 private val FileChevronSize = 12.dp
 private val FileCommentIconSize = 14.dp
 private val MarkerColumnWidth = 16.dp
-private val RenderToggleSegmentWidth = 64.dp
+private val RenderToggleSegmentWidth = 28.dp
 private val AddCommentSize = 16.dp
 private val AddCommentTint = ColorFilter.tint(Color.White)
 private val TextCursor = Modifier.pointerHoverIcon(PointerIcon.Text)
@@ -478,6 +478,8 @@ private fun FileHeaderRow(
         tag = { "file-render-toggle-${row.fileIndex}-${it.name.lowercase()}" },
         onSelect = { if (it != selected) onToggleRendered(row.fileIndex) },
         segmentWidth = RenderToggleSegmentWidth,
+        icon = { if (it == FileViewMode.Rendered) KdvIcons.RenderedDocument else KdvIcons.RawSource },
+        tooltip = { it.name },
       )
     }
     if (onComment != null) {
