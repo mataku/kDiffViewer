@@ -36,12 +36,12 @@ fun MarkdownBody(source: String, modifier: Modifier = Modifier) {
   val styles = LocalMarkdownStyles.current
   val blocks = remember(source) { parseMarkdown(source) }
   Column(modifier, verticalArrangement = Arrangement.spacedBy(BlockSpacing)) {
-    blocks.forEach { Block(it, styles.body, styles) }
+    blocks.forEach { MarkdownBlock(it, styles.body, styles) }
   }
 }
 
 @Composable
-private fun Block(block: MdBlock, textStyle: TextStyle, styles: MarkdownStyles) {
+internal fun MarkdownBlock(block: MdBlock, textStyle: TextStyle, styles: MarkdownStyles) {
   when (block) {
     is MdBlock.Paragraph -> InlineText(block.text, textStyle, styles)
 
@@ -52,7 +52,7 @@ private fun Block(block: MdBlock, textStyle: TextStyle, styles: MarkdownStyles) 
     is MdBlock.Quote -> Row(Modifier.height(IntrinsicSize.Min)) {
       Box(Modifier.width(3.dp).fillMaxHeight().background(styles.quoteBar))
       Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(BlockSpacing)) {
-        block.blocks.forEach { Block(it, styles.quote, styles) }
+        block.blocks.forEach { MarkdownBlock(it, styles.quote, styles) }
       }
     }
 
@@ -74,7 +74,7 @@ private fun ListItemView(item: ListItem, marker: String, textStyle: TextStyle, s
   Row {
     BasicText(marker, style = textStyle, modifier = Modifier.width(MarkerWidth))
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-      item.blocks.forEach { Block(it, textStyle, styles) }
+      item.blocks.forEach { MarkdownBlock(it, textStyle, styles) }
     }
   }
 }

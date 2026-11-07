@@ -61,6 +61,7 @@ import io.github.mataku.kdiffviewer.app.DiffMode
 import io.github.mataku.kdiffviewer.app.DiffRow
 import io.github.mataku.kdiffviewer.app.DisplayRows
 import io.github.mataku.kdiffviewer.app.highlight.HighlightSlot
+import io.github.mataku.kdiffviewer.app.isRenderable
 import io.github.mataku.kdiffviewer.app.review.DraftTarget
 import io.github.mataku.kdiffviewer.app.review.ReviewPlacements
 import io.github.mataku.kdiffviewer.app.review.isOrphanThread
@@ -70,6 +71,7 @@ import io.github.mataku.kdiffviewer.app.selection.DiffSelectionState
 import io.github.mataku.kdiffviewer.app.selection.SelectionSource
 import io.github.mataku.kdiffviewer.app.ui.mac.MacInlineError
 import io.github.mataku.kdiffviewer.app.ui.mac.MacOverlayScrollbar
+import io.github.mataku.kdiffviewer.app.ui.mac.MacSegmented
 import io.github.mataku.kdiffviewer.app.ui.review.LocalReviewActions
 import io.github.mataku.kdiffviewer.app.ui.review.NoteStack
 import io.github.mataku.kdiffviewer.app.ui.review.OrphanSection
@@ -78,6 +80,7 @@ import io.github.mataku.kdiffviewer.core.model.ExpandDirection
 import io.github.mataku.kdiffviewer.core.model.FileDiff
 import io.github.mataku.kdiffviewer.core.model.LineKind
 import io.github.mataku.kdiffviewer.core.model.Side
+import io.github.mataku.kdiffviewer.core.model.displayPath
 import io.github.mataku.kdiffviewer.core.review.Anchor
 import io.github.mataku.kdiffviewer.core.review.Placement
 import io.github.mataku.kdiffviewer.core.review.RangeAnchor
@@ -90,6 +93,7 @@ private val FileHeaderTopMargin = 12.dp
 private val FileChevronSize = 12.dp
 private val FileCommentIconSize = 14.dp
 private val MarkerColumnWidth = 16.dp
+private val RenderToggleSegmentWidth = 64.dp
 private val AddCommentSize = 16.dp
 private val AddCommentTint = ColorFilter.tint(Color.White)
 private val TextCursor = Modifier.pointerHoverIcon(PointerIcon.Text)
@@ -153,7 +157,11 @@ fun DiffView(
   rangeState: CommentRangeState = remember { CommentRangeState() },
   onExpand: (fileIndex: Int, gapIndex: Int, direction: ExpandDirection) -> Unit = { _, _, _ -> },
   expansionErrors: Map<Int, String> = emptyMap(),
+  renderedPaths: Set<String> = emptySet(),
+  onToggleRendered: (fileIndex: Int) -> Unit = {},
 ) {
+  val currentOnToggleRendered by rememberUpdatedState(onToggleRendered)
+  val toggleRendered = remember { { fileIndex: Int -> currentOnToggleRendered(fileIndex) } }
   val currentOnHeaderClick by rememberUpdatedState(onHeaderClick)
   val currentOnExpand by rememberUpdatedState(onExpand)
   val expand = remember { { fileIndex: Int, gapIndex: Int, direction: ExpandDirection -> currentOnExpand(fileIndex, gapIndex, direction) } }
@@ -229,7 +237,7 @@ fun DiffView(
         val collapsed = layout.isCollapsed(fileIndex)
         val header = rows[display.unifiedOf(headerRow)] as DiffRow.FileHeader
         stickyHeader(key = header.key, contentType = HEADER_CONTENT_TYPE) {
-          FileHeaderRow(header, collapsed, iconTint, onFileComment, expansionErrors[header.fileIndex]) { currentOnHeaderClick(header.fileIndex) }
+          FileHeaderRow(header, collapsed, iconTint, onFileComment, expansionErrors[header.fileIndex], header.file.displayPath in renderedPaths, toggleRendered) { currentOnHeaderClick(header.fileIndex) }
         }
         if (!collapsed) {
           if (layout.hasNotes(fileIndex)) {
@@ -252,7 +260,13 @@ fun DiffView(
               val leftRow = rows.getOrNull(display.unifiedOf(displayRow, Side.Old)) as? DiffRow.Line
               val rightRow = rows.getOrNull(display.unifiedOf(displayRow, Side.New)) as? DiffRow.Line
               when (val row = rows[display.unifiedOf(displayRow, null)]) {
-                is DiffRow.FileHeader, is DiffRow.RenderedBlock, is DiffRow.RemovedMarker, is DiffRow.UnchangedFold -> Unit
+                is DiffRow.FileHeader -> Unit
+
+                is DiffRow.RenderedBlock -> RenderedBlockRow(row, typography.lineNumberWidth, MarkerColumnWidth)
+
+                is DiffRow.RemovedMarker -> RemovedMarkerRow(row)
+
+                is DiffRow.UnchangedFold -> UnchangedFoldRow(row)
 
                 is DiffRow.HunkHeader -> HunkHeaderRow(row, typography.lineNumberWidth, expand)
 
@@ -292,7 +306,13 @@ fun DiffView(
               contentType = { rows[bodyStart + it].contentType() },
             ) { offset ->
               when (val row = rows[bodyStart + offset]) {
-                is DiffRow.FileHeader, is DiffRow.RenderedBlock, is DiffRow.RemovedMarker, is DiffRow.UnchangedFold -> Unit
+                is DiffRow.FileHeader -> Unit
+
+                is DiffRow.RenderedBlock -> RenderedBlockRow(row, typography.lineNumberWidth * 2, MarkerColumnWidth)
+
+                is DiffRow.RemovedMarker -> RemovedMarkerRow(row)
+
+                is DiffRow.UnchangedFold -> UnchangedFoldRow(row)
 
                 is DiffRow.HunkHeader -> HunkHeaderRow(row, typography.lineNumberWidth * 2, expand)
 
@@ -386,6 +406,8 @@ private fun FileHeaderRow(
   iconTint: ColorFilter,
   onComment: ((DiffRow.FileHeader) -> Unit)?,
   expansionError: String?,
+  rendered: Boolean,
+  onToggleRendered: (fileIndex: Int) -> Unit,
   onClick: () -> Unit,
 ) {
   val colors = LocalDiffColors.current
@@ -446,6 +468,18 @@ private fun FileHeaderRow(
       BasicText(text = statsText, modifier = Modifier.testTag("file-stats-${row.fileIndex}"))
     }
     if (expansionError != null) MacInlineError(expansionError)
+    val renderable = remember(row.file) { row.file.isRenderable() }
+    if (renderable) {
+      val selected = if (rendered) FileViewMode.Rendered else FileViewMode.Raw
+      MacSegmented(
+        options = FileViewModes,
+        selected = selected,
+        label = { it.name },
+        tag = { "file-render-toggle-${row.fileIndex}-${it.name.lowercase()}" },
+        onSelect = { if (it != selected) onToggleRendered(row.fileIndex) },
+        segmentWidth = RenderToggleSegmentWidth,
+      )
+    }
     if (onComment != null) {
       Image(
         imageVector = KdvIcons.Comment,

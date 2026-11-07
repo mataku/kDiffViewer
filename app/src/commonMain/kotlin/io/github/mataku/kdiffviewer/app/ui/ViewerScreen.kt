@@ -129,6 +129,7 @@ fun ViewerScreen(
   onSwitchBase: suspend (BaseSpec) -> ViewerError? = { null },
   rangeState: CommentRangeState = remember { CommentRangeState() },
   onExpandContext: (fileIndex: Int, gapIndex: Int, direction: ExpandDirection) -> Unit = { _, _, _ -> },
+  onToggleRendered: (fileIndex: Int) -> Unit = {},
   findContext: CoroutineContext = Dispatchers.Default,
 ) {
   val colors = LocalDiffColors.current
@@ -293,6 +294,8 @@ fun ViewerScreen(
                   rangeState = rangeState,
                   onExpand = onExpandContext,
                   expansionErrors = expansionErrors,
+                  renderedPaths = state.rendered,
+                  onToggleRendered = onToggleRendered,
                   onHeaderClick = { fileIndex ->
                     val header = layout.headerVisibleIndex(fileIndex)
                     val pinned = listState.firstVisibleItemIndex >= header
