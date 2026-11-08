@@ -3,9 +3,11 @@ rootProject.name = "kDiffViewer"
 pluginManagement {
   includeBuild("build-logic")
   repositories {
+    exclusiveContent {
+      forRepository { gradlePluginPortal() }
+      filter { includeGroupAndSubgroups("org.gradle.toolchains") }
+    }
     mavenCentral()
-    google()
-    gradlePluginPortal()
   }
 }
 
@@ -15,11 +17,15 @@ plugins {
 
 dependencyResolutionManagement {
   repositories {
-    mavenCentral()
-    google()
-    maven("https://packages.jetbrains.team/maven/p/ij/intellij-dependencies") {
-      content { includeModule("com.jetbrains", "jbr-api") }
+    exclusiveContent {
+      forRepository { google() }
+      filter { includeGroupAndSubgroups("androidx") }
     }
+    exclusiveContent {
+      forRepository { maven("https://packages.jetbrains.team/maven/p/ij/intellij-dependencies") }
+      filter { includeModule("com.jetbrains", "jbr-api") }
+    }
+    mavenCentral()
   }
 }
 
