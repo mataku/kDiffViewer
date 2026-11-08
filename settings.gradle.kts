@@ -3,11 +3,8 @@ rootProject.name = "kDiffViewer"
 pluginManagement {
   includeBuild("build-logic")
   repositories {
-    exclusiveContent {
-      forRepository { gradlePluginPortal() }
-      filter { includeGroupAndSubgroups("org.gradle.toolchains") }
-    }
     mavenCentral()
+    gradlePluginPortal()
   }
 }
 
