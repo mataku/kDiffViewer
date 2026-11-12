@@ -21,7 +21,7 @@ jobs:
           persist-credentials: false
       # scripts/generate-screenshot-diff.sh branches the sample from a local develop.
       - run: git fetch --no-tags --depth=1 origin develop:develop
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: jetbrains
           java-version: '25'
