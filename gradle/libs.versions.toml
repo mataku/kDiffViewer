@@ -6,7 +6,7 @@ kotlinx-coroutines = "1.11.0"
 spotless = "8.11.0"
 composeSyntaxHighlight = "0.11.0"
 jbrApi = "1.5.0"
-kotlinx-serialization = "1.12.0"
+kotlinx-serialization = "1.13.0"
 markdown = "0.7.18"
 
 [libraries]
