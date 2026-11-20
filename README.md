@@ -29,16 +29,16 @@ There is no prebuilt release; build the app from source. The app bundles the `kd
 ### macOS
 
 ```sh
-./gradlew :app:createDistributable
+make install
 ```
 
-The app is created at `app/build/compose/binaries/main/app/kDiffViewer.app`. Copy it to `/Applications`, then link `kdv` onto your `PATH`:
+This builds the app, replaces `/Applications/kDiffViewer.app` with it, and links `kdv` into `~/.local/bin`, which must be on your `PATH`. Run it again to update. Set `APPDIR` or `BINDIR` to install elsewhere, for example `make install BINDIR=/usr/local/bin`.
+
+To install by hand instead, run `./gradlew :app:createDistributable`, copy `app/build/compose/binaries/main/app/kDiffViewer.app` to `/Applications`, then link `kdv` onto your `PATH`:
 
 ```sh
-ln -s /Applications/kDiffViewer.app/Contents/app/resources/kdv /usr/local/bin/kdv
+ln -s /Applications/kDiffViewer.app/Contents/app/resources/kdv ~/.local/bin/kdv
 ```
-
-If `/usr/local/bin` is not writable by your user, run the command with `sudo`, or link `kdv` into another directory on your `PATH` (for example `~/.local/bin`).
 
 ### Linux
 

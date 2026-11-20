@@ -33,6 +33,7 @@ plugins/ kdv/ is the Claude Code / Codex / npx skills plugin with the kdv-review
 ./gradlew spotlessApply                # format; run before committing
 ./gradlew :app:run --args=/abs/path    # run against a repository
 ./gradlew :app:createDistributable     # build app/build/compose/binaries/main/app/kDiffViewer.app (kDiffViewer/ on Linux)
+make install                           # macOS: build, replace /Applications/kDiffViewer.app and link kdv into ~/.local/bin (override with APPDIR and BINDIR)
 ./gradlew :app:packageDeb              # build the Linux .deb (needs dpkg-deb and fakeroot); it is repacked to make kdv executable and link /usr/bin/kdv
 scripts/generate-large-diff.sh <dir> [ext]   # create a large repository for manual scrolling checks; ext defaults to txt, kt writes Kotlin sources
 scripts/generate-screenshot-diff.sh <dir>    # create a worktree of develop on feature/cat-facts with a small committed, staged, unstaged, and untracked diff for screenshots
