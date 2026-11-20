@@ -97,7 +97,7 @@ class ContextExpansionTest {
 
   @Test
   fun expandAddsContextWithBothLineNumbers() {
-    val file = modified("f.kt", Hunk(8, 6, 8, 7, "", listOf(context(8), context(9), context(10), DiffLine(LineKind.Added, "L11", null, 11), context(12), context(13), context(14)).map { if (it.newLineNo!! > 11) it.copy(oldLineNo = it.newLineNo!! - 1) else it }), replaceHunk(40, delta = -1))
+    val file = modified("f.kt", Hunk(8, 6, 8, 7, "", listOf(context(8), context(9), context(10), DiffLine(LineKind.Added, "L11", null, 11), context(12), context(13), context(14)).map { if (it.newLineNo!! > 11) it.copy(oldLineNo = it.newLineNo - 1) else it }), replaceHunk(40, delta = -1))
     val expansion = null.reveal(file, 1, ExpandDirection.Down, 60)
     val hunks = (expandContext(file, expansion, text).file.content as DiffContent.Text).hunks
     val revealed = hunks[0].lines.first { it.newLineNo == 20 }

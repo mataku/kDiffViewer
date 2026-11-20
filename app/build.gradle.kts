@@ -13,6 +13,9 @@ plugins {
 
 kotlin {
   sourceSets {
+    matching { it.name.endsWith("Test") }.configureEach {
+      languageSettings.optIn("kotlinx.coroutines.ExperimentalCoroutinesApi")
+    }
     commonMain.dependencies {
       implementation(project(":core"))
       implementation(project(":protocol"))
@@ -41,7 +44,7 @@ kotlin {
       implementation(libs.composeSyntaxHighlight.xml)
       implementation(libs.composeSyntaxHighlight.toml)
       implementation(libs.jetbrains.markdown)
-      implementation(compose.components.resources)
+      implementation(libs.compose.components.resources)
     }
     jvmMain.dependencies {
       implementation(compose.desktop.currentOs)
@@ -83,7 +86,7 @@ val kdvResourceDir = when (kdvTarget) {
   else -> "linux-x64"
 }
 
-val prepareKdvResources by tasks.registering(Sync::class) {
+val prepareKdvResources = tasks.register<Sync>("prepareKdvResources") {
   dependsOn(":cli:linkReleaseExecutable${kdvTarget.replaceFirstChar { it.uppercase() }}")
   from(rootProject.layout.projectDirectory.file("cli/build/bin/$kdvTarget/releaseExecutable/kdv.kexe")) {
     rename { "kdv" }
@@ -153,7 +156,7 @@ if (isMacHost) {
 
   val runBundle = layout.buildDirectory.dir("run-bundle/kDiffViewer.app")
   val runBundleExecutable = runBundle.map { it.file("Contents/MacOS/kDiffViewer").asFile.absolutePath }
-  val prepareRunBundle by tasks.registering {
+  val prepareRunBundle = tasks.register("prepareRunBundle") {
     val javaExecutable = "$jbrHome/bin/java"
     inputs.property("javaExecutable", javaExecutable)
     val version = appVersion
