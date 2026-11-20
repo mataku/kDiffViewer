@@ -17,6 +17,13 @@
   ],
   packageRules: [
     {
+      // Renovate's Maven datasource never queries Maven Central for a `*.gradle.plugin` marker.
+      // The build resolves plugins from Maven Central, so the registry Renovate reads from settings.gradle.kts yields no result.
+      matchManagers: ['gradle'],
+      matchDepTypes: ['plugin'],
+      registryUrls: ['https://plugins.gradle.org/m2/'],
+    },
+    {
       groupName: 'test',
       matchPackageNames: [
         '/test/',
