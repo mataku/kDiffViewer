@@ -15,7 +15,7 @@ val ktlintOverrides = mapOf(
 spotless {
   kotlin {
     target("core/src/**/*.kt", "app/src/**/*.kt", "protocol/src/**/*.kt", "cli/src/**/*.kt", "build-logic/src/**/*.kt")
-    targetExclude("**/build/**")
+    // No targetExclude("**/build/**"): Spotless resolves it by walking the whole project, including the module build directories that compile tasks are rewriting, and the task fails with "Could not read path".
     ktlint().editorConfigOverride(ktlintOverrides)
   }
   kotlinGradle {
